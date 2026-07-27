@@ -1,0 +1,9 @@
+[package]
+name = "quittance-tx-hash-validate"
+version = "0.1.0"
+edition = "2021"
+description = "Stateless Soroban helper to validate Stellar transaction hashes in 64-character hex form."
+license = "MIT"
+publish = false
+
+[lib]
