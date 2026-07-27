@@ -17,18 +17,18 @@ function createMockResponse() {
     statusCode: 200,
     headers,
     status(code: number) {
-      this.statusCode = code;
+      (this as { statusCode: number }).statusCode = code;
       return this;
     },
     json(payload: unknown) {
-      this.body = payload;
+      (this as { body?: unknown }).body = payload;
       return this;
     },
     setHeader(name: string, value: string) {
-      this.headers[name] = value;
+      (this as { headers: Record<string, string> }).headers[name] = value;
     },
     body: undefined as unknown,
-  } as unknown as Response & { body?: unknown; headers: Record<string, string> };
+  } as unknown as Response & { body?: unknown; headers: Record<string, string>; statusCode: number };
 
   return res;
 }
