@@ -125,10 +125,12 @@ Stellar Blockchain Payment System
           </div>
         </div>
 
-        {invoice.sellerName && (
+        {(invoice.sellerName || invoice.sellerEmail) && (
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-center">
             <p className="text-sm text-blue-600 font-semibold">Paid to</p>
-            <p className="text-lg font-bold text-blue-800">{invoice.sellerName}</p>
+            {invoice.sellerName && (
+              <p className="text-lg font-bold text-blue-800">{invoice.sellerName}</p>
+            )}
             {invoice.sellerEmail && (
               <p className="text-sm text-blue-600">{invoice.sellerEmail}</p>
             )}
