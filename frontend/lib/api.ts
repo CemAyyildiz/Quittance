@@ -1,10 +1,7 @@
 import axios from 'axios';
 import { mockInvoiceApi, mockStellarApi, mockHealthCheck } from './mock-api';
-import { isMockEnabled } from './api-config';
 
-// Mock API is for local development only.
-// Production/demo must use the real API (default when unset).
-const USE_MOCK_API = isMockEnabled();
+const USE_MOCK_API = process.env.NEXT_PUBLIC_USE_MOCK === 'true';
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
 
 const api = axios.create({
