@@ -1,5 +1,6 @@
 import { format } from 'date-fns';
 import type { Transaction } from '@/components/TransactionHistory';
+import { csvRow } from '@/lib/csvEscape';
 
 interface Invoice {
   id: string;
@@ -411,48 +412,29 @@ interface Invoice {
 export function generateInvoiceCSV(invoices: Invoice[]): string {
   const headers = [
     'Invoice ID',
-    'Date',
-    'Seller Name',
-    'Seller Email',
-    'Customer Name',
-    'Customer Email',
-    'Description',
     'Amount',
     'Asset',
     'Status',
-    'Payment Date',
-    'Payer Name',
-    'Payer Email',
-    'Expires At',
     'Memo',
+    'Created At',
+    'Expires At',
+    'Paid At',
     'Transaction Hash',
   ];
 
   const rows = invoices.map((inv) => [
     inv.id,
-    format(new Date(inv.createdAt), 'yyyy-MM-dd HH:mm:ss'),
-    inv.sellerName || '',
-    inv.sellerEmail || '',
-    inv.customerName || '',
-    inv.customerEmail || '',
-    inv.description || '',
     inv.amount,
     inv.assetCode,
     inv.status,
-    inv.paidAt ? format(new Date(inv.paidAt), 'yyyy-MM-dd HH:mm:ss') : '',
-    inv.payerName || '',
-    inv.payerEmail || '',
-    format(new Date(inv.expiresAt), 'yyyy-MM-dd HH:mm:ss'),
     inv.memo,
-    inv.paymentTxHash || '',
+    format(new Date(inv.createdAt), 'yyyy-MM-dd HH:mm:ss'),
+    format(new Date(inv.expiresAt), 'yyyy-MM-dd HH:mm:ss'),
+    inv.paidAt ? format(new Date(inv.paidAt), 'yyyy-MM-dd HH:mm:ss') : '',
+    inv.status === 'PAID' ? inv.paymentTxHash || '' : '',
   ]);
 
-  const csvContent = [
-    headers.join(','),
-    ...rows.map((row) => row.map((cell) => `"${cell}"`).join(',')),
-  ].join('\n');
-
-  return csvContent;
+  return [csvRow(headers), ...rows.map(csvRow)].join('\n');
 }
 
 export function downloadInvoiceCSV(invoices: Invoice[], filename?: string) {
@@ -461,7 +443,7 @@ export function downloadInvoiceCSV(invoices: Invoice[], filename?: string) {
   const link = document.createElement('a');
   const url = URL.createObjectURL(blob);
 
-  const defaultFilename = `invoices-${format(new Date(), 'yyyy-MM-dd-HHmmss')}.csv`;
+  const defaultFilename = `quittance-invoices-${format(new Date(), 'yyyy-MM-dd')}.csv`;
   link.setAttribute('href', url);
   link.setAttribute('download', filename || defaultFilename);
   link.style.visibility = 'hidden';
@@ -763,4 +745,3 @@ export function shareInvoiceByEmail(invoice: Invoice) {
   const mailtoLink = `mailto:${invoice.customerEmail}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
   window.location.href = mailtoLink;
 }
-
