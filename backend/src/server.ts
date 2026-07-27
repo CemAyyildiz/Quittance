@@ -5,6 +5,7 @@ import routes from './routes';
 import { pool } from './config/database';
 import { validateStellarConfig } from './config/stellar';
 import paymentMonitorService from './services/payment-monitor.service';
+import { createRateLimitStubMiddleware } from './middleware/rate-limit-stub';
 
 // Load environment variables
 dotenv.config();
@@ -20,6 +21,7 @@ app.use(cors({
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use(createRateLimitStubMiddleware());
 
 app.use((req: Request, res: Response, next: NextFunction) => {
   console.log(`${req.method} ${req.path}`);
