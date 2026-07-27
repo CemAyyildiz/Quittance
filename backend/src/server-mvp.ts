@@ -5,6 +5,7 @@ import { createInvoiceSchema } from './utils/validation';
 import invoiceService from './services/invoice-memory.service';
 import { generatePaymentQR, generateStellarPaymentQR } from './utils/qrcode';
 import stellarService from './services/stellar.service';
+import healthDetailRouter from './routes/health-detail';
 
 // Load environment variables
 dotenv.config();
@@ -39,6 +40,9 @@ app.get('/', (req: Request, res: Response) => {
     documentation: '/api/health',
   });
 });
+
+// Health detail router (mounted before the simple health check)
+app.use('/api', healthDetailRouter);
 
 // Health check
 app.get('/api/health', (req: Request, res: Response) => {
