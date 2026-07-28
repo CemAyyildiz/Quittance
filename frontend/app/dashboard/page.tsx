@@ -1,14 +1,23 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { invoiceApi } from '@/lib/api';
 import InvoiceCard from '@/components/InvoiceCard';
 import WalletConnect from '@/components/WalletConnect';
 import UserProfile from '@/components/UserProfile';
 import TransactionHistory from '@/components/TransactionHistory';
 import { useWalletStore } from '@/lib/store';
+import NetworkBadge from '@/components/NetworkBadge';
 import Link from 'next/link';
-import { Loader2, Plus, TrendingUp, DollarSign, FileText, Download } from 'lucide-react';
+import {
+  AlertCircle,
+  Plus,
+  TrendingUp,
+  DollarSign,
+  FileText,
+  Download,
+  RefreshCw,
+} from 'lucide-react';
 import { toast } from 'sonner';
 import { downloadInvoiceCSV } from '@/lib/export';
 
@@ -17,20 +26,45 @@ export default function DashboardPage() {
   const [invoices, setInvoices] = useState<any[]>([]);
   const [stats, setStats] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [filter, setFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [filteredInvoices, setFilteredInvoices] = useState<any[]>([]);
   const [viewMode, setViewMode] = useState<'invoices' | 'transactions'>('invoices');
+
+  const loadData = useCallback(async () => {
+    if (!publicKey) return;
+    try {
+      setLoading(true);
+      setLoadError(false);
+      const [invoicesResult, statsResult] = await Promise.all([
+        invoiceApi.getAll({
+          status: filter === 'all' ? undefined : filter.toUpperCase(),
+          limit: 50,
+          sellerPublicKey: publicKey,
+        }),
+        invoiceApi.getStats(publicKey),
+      ]);
+      setInvoices(invoicesResult.data);
+      setStats(statsResult.data[0] || {});
+    } catch (error) {
+      setLoadError(true);
+      toast.error('Failed to load data');
+    } finally {
+      setLoading(false);
+    }
+  }, [filter, publicKey]);
 
   useEffect(() => {
     if (!connected || !publicKey) {
       setInvoices([]);
       setStats(null);
       setLoading(false);
+      setLoadError(false);
       return;
     }
     loadData();
-  }, [filter, connected, publicKey]);
+  }, [connected, publicKey, loadData]);
 
   // Filter and search invoices
   useEffect(() => {
@@ -53,27 +87,6 @@ export default function DashboardPage() {
     setFilteredInvoices(filtered);
   }, [searchQuery, invoices]);
 
-  const loadData = async () => {
-    if (!publicKey) return;
-    try {
-      setLoading(true);
-      const [invoicesResult, statsResult] = await Promise.all([
-        invoiceApi.getAll({
-          status: filter === 'all' ? undefined : filter.toUpperCase(),
-          limit: 50,
-          sellerPublicKey: publicKey,
-        }),
-        invoiceApi.getStats(publicKey),
-      ]);
-      setInvoices(invoicesResult.data);
-      setStats(statsResult.data[0] || {});
-    } catch (error) {
-      toast.error('Failed to load data');
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const handleExportCSV = () => {
     if (filteredInvoices.length === 0) {
       toast.error('No invoices to export');
@@ -94,9 +107,12 @@ export default function DashboardPage() {
       <div className="accent-blob accent-blob-2"></div>
       <header className="fixed top-0 left-0 right-0 z-50 premium-header border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
-          <Link href="/" className="font-display text-xl tracking-tight text-[var(--ink)] hover:opacity-80 transition-opacity">
-            Quittance
-          </Link>
+          <div className="flex items-center gap-3">
+            <Link href="/" className="font-display text-xl tracking-tight text-[var(--ink)] hover:opacity-80 transition-opacity">
+              Quittance
+            </Link>
+            <NetworkBadge />
+          </div>
           <div className="flex items-center gap-3">
             {!connected ? (
               <WalletConnect />
@@ -260,21 +276,68 @@ export default function DashboardPage() {
             </div>
 
             {loading ? (
-              <div className="flex items-center justify-center py-12">
-                <Loader2 className="w-12 h-12 animate-spin text-cyan-500" />
+              <div className="card py-10" role="status" aria-live="polite" aria-busy="true">
+                <div className="text-center mb-8">
+                  <h3 className="text-xl font-semibold text-gray-900 mb-2">
+                    Loading invoices
+                  </h3>
+                  <p className="text-gray-600">
+                    Fetching invoices for your connected wallet.
+                  </p>
+                </div>
+                <div
+                  className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-pulse"
+                  aria-hidden="true"
+                >
+                  {[0, 1, 2].map((item) => (
+                    <div
+                      key={item}
+                      className="rounded-lg border border-gray-200 p-5 space-y-4"
+                    >
+                      <div className="flex items-center justify-between gap-4">
+                        <div className="h-6 w-28 rounded bg-gray-200" />
+                        <div className="h-6 w-20 rounded-full bg-gray-200" />
+                      </div>
+                      <div className="h-4 w-full rounded bg-gray-200" />
+                      <div className="h-4 w-2/3 rounded bg-gray-200" />
+                      <div className="h-10 w-full rounded bg-gray-200" />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : loadError ? (
+              <div className="card text-center py-12" role="alert">
+                <AlertCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
+                <h3 className="text-xl font-semibold text-gray-900 mb-2">
+                  We couldn&apos;t load your invoices
+                </h3>
+                <p className="text-gray-600 mb-6">
+                  Check your connection and try again. Your invoice data has not been changed.
+                </p>
+                <button
+                  type="button"
+                  onClick={loadData}
+                  className="btn btn-primary inline-flex items-center gap-2"
+                >
+                  <RefreshCw className="w-5 h-5" />
+                  Try again
+                </button>
               </div>
             ) : filteredInvoices.length === 0 ? (
               <div className="card text-center py-12">
                 <FileText className="w-16 h-16 text-gray-400 mx-auto mb-4" />
                 <h3 className="text-xl font-semibold text-gray-700 mb-2">
-                  {searchQuery ? 'No Matching Invoices' : 'No Invoices Found'}
+                  {searchQuery ? 'No matching invoices' : 'No invoices yet'}
                 </h3>
                 <p className="text-gray-600 mb-6">
-                  {searchQuery ? 'Try a different search term' : 'Create your first invoice to get started'}
+                  {searchQuery
+                    ? 'Try a different search term.'
+                    : 'Create your first invoice to start tracking payments.'}
                 </p>
                 {!searchQuery && (
-                  <Link href="/" className="btn btn-primary">
-                    Create Invoice
+                  <Link href="/" className="btn btn-primary inline-flex items-center gap-2">
+                    <Plus className="w-5 h-5" />
+                    Create invoice
                   </Link>
                 )}
               </div>
@@ -302,4 +365,3 @@ export default function DashboardPage() {
     </div>
   );
 }
-

@@ -15,9 +15,13 @@ import { formatAddress } from '@/lib/utils';
 
 interface WalletConnectProps {
   onConnect?: (publicKey: string) => void;
+  onConnectionFailure?: () => void;
 }
 
-export default function WalletConnect({ onConnect }: WalletConnectProps = {}) {
+export default function WalletConnect({
+  onConnect,
+  onConnectionFailure,
+}: WalletConnectProps = {}) {
   const [loading, setLoading] = useState(false);
   const [monitoringActive, setMonitoringActive] = useState(false);
   const { publicKey, balance, connected, setWallet, updateBalance, disconnect } = useWalletStore();
@@ -59,12 +63,16 @@ export default function WalletConnect({ onConnect }: WalletConnectProps = {}) {
           await loadBalance(key);
           toast.success('Wallet connected');
           onConnect?.(key);
+        } else {
+          onConnectionFailure?.();
         }
       } else {
         toast.error('Access denied');
+        onConnectionFailure?.();
       }
     } catch (error: any) {
       toast.error('Failed to connect. Install Freighter wallet.');
+      onConnectionFailure?.();
     } finally {
       setLoading(false);
     }
@@ -177,4 +185,3 @@ export default function WalletConnect({ onConnect }: WalletConnectProps = {}) {
     </button>
   );
 }
-

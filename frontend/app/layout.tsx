@@ -15,6 +15,14 @@ export const metadata: Metadata = {
   title: 'Quittance — Invoice on Stellar. Keep the proof.',
   description:
     'Create Stellar invoices, get paid on-chain, and download or email your payment proof — without exposing anyone else’s wallet history.',
+  openGraph: {
+    title: 'Quittance — Invoice on Stellar. Keep the proof.',
+    description:
+      'Create Stellar invoices, get paid on-chain, and download or email your payment proof — without exposing anyone else’s wallet history.',
+    siteName: 'Quittance',
+    locale: 'en_US',
+    type: 'website',
+  },
 };
 
 export default function RootLayout({

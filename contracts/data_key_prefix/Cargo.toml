@@ -1,0 +1,16 @@
+[package]
+name        = "quittance-data-key-prefix"
+version     = "0.1.0"
+edition     = "2021"
+description = "Pure helper: prefix instance/persistent storage keys so future Soroban contract upgrades avoid collisions."
+license     = "MIT"
+publish     = false
+
+# Intentionally dependency-free so this helper can be used inside Soroban
+# contracts without pulling in unnecessary dependencies. Key-derived names
+# rely only on `core` and standard Rust types.
+
+[workspace]
+
+[lib]
+crate-type = ["rlib"]

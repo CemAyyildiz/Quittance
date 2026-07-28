@@ -1,10 +1,12 @@
 import express, { Application, Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import { requestId } from './middleware/request-id';
 import { createInvoiceSchema } from './utils/validation';
 import invoiceService from './services/invoice-memory.service';
-import { generatePaymentQR, generateStellarPaymentQR } from './utils/qrcode';
+import { generatePaymentQR, generateStellarPaymentQR, buildStellarPaymentUri } from './utils/qrcode';
 import stellarService from './services/stellar.service';
+import healthDetailRouter from './routes/health-detail';
 
 // Load environment variables
 dotenv.config();
@@ -23,6 +25,8 @@ app.use(cors({
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+app.use(requestId);
+
 // Request logging
 app.use((req: Request, res: Response, next: NextFunction) => {
   console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
@@ -39,6 +43,9 @@ app.get('/', (req: Request, res: Response) => {
     documentation: '/api/health',
   });
 });
+
+// Health detail router (mounted before the simple health check)
+app.use('/api', healthDetailRouter);
 
 // Health check
 app.get('/api/health', (req: Request, res: Response) => {
@@ -63,7 +70,15 @@ app.post('/api/invoices', async (req: Request, res: Response) => {
       invoice.sellerPublicKey,
       invoice.amount.toString(),
       invoice.assetCode,
-      invoice.memo
+      invoice.memo,
+      invoice.assetIssuer
+    );
+    const stellarPaymentUri = buildStellarPaymentUri(
+      invoice.sellerPublicKey,
+      invoice.amount.toString(),
+      invoice.assetCode,
+      invoice.memo,
+      invoice.assetIssuer
     );
 
     res.status(201).json({
@@ -73,6 +88,7 @@ app.post('/api/invoices', async (req: Request, res: Response) => {
         paymentUrl,
         qrCode: qrCodeDataUrl,
         stellarQrCode,
+        stellarPaymentUri,
       },
     });
   } catch (error: any) {
@@ -169,6 +185,13 @@ app.get('/api/invoices/:id/payment-info', async (req: Request, res: Response) =>
       invoice.memo,
       invoice.assetIssuer
     );
+    const stellarPaymentUri = buildStellarPaymentUri(
+      invoice.sellerPublicKey,
+      invoice.amount.toString(),
+      invoice.assetCode,
+      invoice.memo,
+      invoice.assetIssuer
+    );
 
     res.json({
       success: true,
@@ -176,6 +199,7 @@ app.get('/api/invoices/:id/payment-info', async (req: Request, res: Response) =>
         paymentUrl,
         qrCode: qrCodeDataUrl,
         stellarQrCode,
+        stellarPaymentUri,
         invoice,
       },
     });

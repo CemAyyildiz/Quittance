@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import Image from 'next/image';
 import { getAssetByCode } from '@/lib/assets';
 
@@ -8,19 +9,36 @@ interface AssetLogoProps {
   size?: number;
   showName?: boolean;
   className?: string;
+  priority?: boolean;
 }
 
 export default function AssetLogo({ 
   code, 
   size = 24, 
   showName = true,
-  className = '' 
+  className = '',
+  priority = false
 }: AssetLogoProps) {
   const asset = getAssetByCode(code);
+  const [imageError, setImageError] = useState(false);
 
   if (!asset) {
     return <span className={className}>{code}</span>;
   }
+
+  const fallbackContent = (
+    <div 
+      className="rounded-full flex items-center justify-center text-white font-bold"
+      style={{ 
+        width: size - 4,
+        height: size - 4,
+        backgroundColor: asset.color,
+        fontSize: size * 0.4
+      }}
+    >
+      {asset.code.slice(0, 2)}
+    </div>
+  );
 
   return (
     <div className={`inline-flex items-center gap-2 ${className}`}>
@@ -34,15 +52,20 @@ export default function AssetLogo({
           padding: '2px'
         }}
       >
-        <Image
-          src={asset.logo}
-          alt={asset.name}
-          width={size - 4}
-          height={size - 4}
-          className="object-contain rounded-full"
-          unoptimized
-          priority
-        />
+        {imageError ? (
+          fallbackContent
+        ) : (
+          <Image
+            src={asset.logo}
+            alt={asset.name}
+            width={size - 4}
+            height={size - 4}
+            className="object-contain rounded-full"
+            unoptimized
+            priority={priority}
+            onError={() => setImageError(true)}
+          />
+        )}
       </div>
       {showName && (
         <span className="font-semibold">{asset.code}</span>

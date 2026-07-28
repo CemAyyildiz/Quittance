@@ -1,0 +1,16 @@
+[package]
+name        = "quittance-fee-bps-clamp"
+version     = "0.1.0"
+edition     = "2021"
+description = "Pure helper: clamp a basis-points value into the valid 0..=10000 range. Not wired into Quittance payments."
+license     = "MIT"
+publish     = false
+
+# This crate is intentionally dependency-free so it can be reused both inside
+# future Soroban contracts and in off-chain workers with no extra compile cost.
+# It mirrors the standalone layout of `contracts/amount_scale/`; a workspace
+# root at `contracts/Cargo.toml` is only worth adding once several crates want
+# to share a lockfile and profile settings.
+
+[lib]
+crate-type = ["rlib"]

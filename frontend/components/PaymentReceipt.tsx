@@ -94,7 +94,7 @@ Stellar Blockchain Payment System
         <div className="bg-gradient-to-br from-green-50 to-green-100 border-2 border-green-200 rounded-xl p-6 text-center">
           <p className="text-sm text-gray-600 mb-3">Amount Paid</p>
           <div className="flex items-center justify-center gap-3">
-            <AssetLogo code={invoice.assetCode} size={36} showName={false} />
+            <AssetLogo code={invoice.assetCode} size={36} showName={false} priority={true} />
             <div>
               <p className="text-4xl font-bold text-green-700">
                 {formatAmount(invoice.amount, 7)}

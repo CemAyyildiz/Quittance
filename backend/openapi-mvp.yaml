@@ -1,0 +1,779 @@
+openapi: 3.0.3
+info:
+  title: Quittance API — MVP
+  description: |
+    Invoice-and-proof backend for the Quittance payment proof platform.
+    Runs in-memory with Horizon-backed on-chain verification.
+
+    **Base URL:** `http://localhost:3001`
+    **Mode:** MVP (in-memory storage, no database)
+  version: 1.0.0
+  contact:
+    name: Quittance Team
+    url: https://quittance.app
+
+servers:
+  - url: http://localhost:3001
+    description: Local development server (MVP mode)
+  - url: https://quittance-api.onrender.com
+    description: Production MVP deployment (example)
+
+paths:
+  /:
+    get:
+      summary: API root
+      description: Returns service identity and version metadata.
+      operationId: getRoot
+      tags:
+        - System
+      responses:
+        "200":
+          description: Service metadata
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RootResponse"
+
+  /api/health:
+    get:
+      summary: Health check
+      description: |
+        Liveness probe for the MVP server. Returns current status,
+        timestamp, and operational mode.
+      operationId: healthCheck
+      tags:
+        - System
+      responses:
+        "200":
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+
+  /api/invoices:
+    post:
+      summary: Create an invoice
+      description: |
+        Creates a new invoice linked to the connected Freighter wallet.
+        Returns a payment URL, QR code, and Stellar QR code for
+        the payer. The seller must provide their Stellar public key.
+      operationId: createInvoice
+      tags:
+        - Invoices
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateInvoiceRequest"
+      responses:
+        "201":
+          description: Invoice created successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreateInvoiceResponse"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    get:
+      summary: List invoices by seller
+      description: |
+        Returns invoices scoped to a seller's Stellar public key.
+        Supports optional status filtering, pagination via limit
+        and offset. The sellerPublicKey query parameter is required.
+      operationId: listInvoices
+      tags:
+        - Invoices
+      parameters:
+        - name: sellerPublicKey
+          in: query
+          required: true
+          description: Stellar public key of the seller
+          schema:
+            type: string
+            pattern: ^G[A-Z2-7]{55}$
+            example: GBS43EIXZ65C5...JUPK7TB5IB6
+        - name: status
+          in: query
+          required: false
+          description: Filter by invoice status
+          schema:
+            type: string
+            enum:
+              - PENDING
+              - PAID
+              - CANCELLED
+        - name: limit
+          in: query
+          required: false
+          description: Maximum number of invoices to return
+          schema:
+            type: integer
+            default: 50
+            minimum: 1
+            maximum: 200
+        - name: offset
+          in: query
+          required: false
+          description: Number of invoices to skip
+          schema:
+            type: integer
+            default: 0
+            minimum: 0
+      responses:
+        "200":
+          description: List of invoices with pagination
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InvoiceListResponse"
+        "400":
+          description: Missing or invalid sellerPublicKey
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/invoices/stats:
+    get:
+      summary: Get invoice statistics
+      description: |
+        Returns aggregated statistics for a seller's invoices,
+        including counts by status and total amounts.
+        The sellerPublicKey query parameter is required.
+      operationId: getInvoiceStats
+      tags:
+        - Invoices
+      parameters:
+        - name: sellerPublicKey
+          in: query
+          required: true
+          description: Stellar public key of the seller
+          schema:
+            type: string
+            pattern: ^G[A-Z2-7]{55}$
+            example: GBS43EIXZ65C5...JUPK7TB5IB6
+      responses:
+        "200":
+          description: Invoice statistics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatsResponse"
+        "400":
+          description: Missing sellerPublicKey
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/invoices/{id}:
+    get:
+      summary: Get an invoice by ID
+      description: Fetches a single invoice by its unique identifier.
+      operationId: getInvoiceById
+      tags:
+        - Invoices
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Invoice UUID
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Invoice details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InvoiceResponse"
+        "404":
+          description: Invoice not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/invoices/{id}/payment-info:
+    get:
+      summary: Get payment info for an invoice
+      description: |
+        Returns the payment URL, QR code data URLs, and full invoice
+        details for the given invoice. Useful for the pay page.
+      operationId: getPaymentInfo
+      tags:
+        - Invoices
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Invoice UUID
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Payment information including QR codes
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaymentInfoResponse"
+        "404":
+          description: Invoice not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/invoices/{id}/cancel:
+    post:
+      summary: Cancel an invoice
+      description: |
+        Marks a PENDING invoice as CANCELLED. Only invoices in
+        PENDING status can be cancelled. PAID invoices cannot
+        be cancelled.
+      operationId: cancelInvoice
+      tags:
+        - Invoices
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Invoice UUID
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Invoice cancelled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InvoiceResponse"
+        "400":
+          description: Invoice cannot be cancelled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Invoice not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/invoices/{id}/verify:
+    post:
+      summary: Verify payment on Stellar
+      description: |
+        Verifies a payment transaction on Stellar (via Horizon).
+        Checks memo, amount, asset, and destination match the invoice.
+        On success the invoice status moves to PAID.
+      operationId: verifyPayment
+      tags:
+        - Verification
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Invoice UUID
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VerifyPaymentRequest"
+      responses:
+        "200":
+          description: Payment verified successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VerifyPaymentResponse"
+        "400":
+          description: Verification failed (memo, amount, asset, or destination mismatch)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Invoice not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/invoices/{id}/simulate-payment:
+    post:
+      summary: Simulate a payment (dev only)
+      description: |
+        Simulates a payment on a PENDING invoice for local testing.
+        Only available when ALLOW_SIMULATE=true is set. Returns a
+        mock transaction hash and marks the invoice as PAID.
+      operationId: simulatePayment
+      tags:
+        - Verification
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Invoice UUID
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Payment simulated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SimulatePaymentResponse"
+        "400":
+          description: Invoice not pending or already paid
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Invoice not found or simulate disabled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/stellar/account:
+    get:
+      summary: Get Stellar account mock data
+      description: |
+        Returns mock account information including balances,
+        sequence number, and subentry count. Used for UI
+        development and testing.
+      operationId: getStellarAccount
+      tags:
+        - Stellar
+      parameters:
+        - name: publicKey
+          in: query
+          required: false
+          description: Stellar public key
+          schema:
+            type: string
+            pattern: ^G[A-Z2-7]{55}$
+      responses:
+        "200":
+          description: Mock account data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StellarAccountResponse"
+
+components:
+  schemas:
+    # ------------------------------------------------------------------
+    # Response wrappers
+    # ------------------------------------------------------------------
+    SuccessResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+
+    ErrorResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        error:
+          type: string
+          description: Human-readable error message
+          example: Invoice not found
+
+    # ------------------------------------------------------------------
+    # System
+    # ------------------------------------------------------------------
+    RootResponse:
+      type: object
+      properties:
+        name:
+          type: string
+          example: Quittance API (MVP)
+        version:
+          type: string
+          example: 1.0.0
+        status:
+          type: string
+          example: running
+        mode:
+          type: string
+          example: in-memory
+        documentation:
+          type: string
+          example: /api/health
+
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: ok
+        timestamp:
+          type: string
+          format: date-time
+        service:
+          type: string
+          example: Quittance API
+        mode:
+          type: string
+          description: Operational mode description
+          example: MVP - In-Memory Storage (Dynamic Seller)
+        message:
+          type: string
+          example: Each user uses their own wallet for payments
+
+    # ------------------------------------------------------------------
+    # Invoice
+    # ------------------------------------------------------------------
+    Invoice:
+      type: object
+      description: Core invoice entity stored in memory
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique invoice identifier
+        amount:
+          type: number
+          description: Invoice amount in the specified asset
+          example: 10
+        assetCode:
+          type: string
+          description: Stellar asset code
+          example: XLM
+        assetIssuer:
+          type: string
+          nullable: true
+          description: Stellar asset issuer (null for native XLM)
+          example: null
+        description:
+          type: string
+          nullable: true
+          description: Invoice line item description
+          example: Logo design service
+        memo:
+          type: string
+          description: Unique memo for payment correlation
+          example: QTTN-abc123
+        status:
+          type: string
+          enum:
+            - PENDING
+            - PAID
+            - CANCELLED
+          description: Current invoice lifecycle status
+        sellerPublicKey:
+          type: string
+          description: Stellar public key of the invoice creator
+          example: GBS43EIXZ65C5...JUPK7TB5IB6
+        sellerName:
+          type: string
+          nullable: true
+          description: Optional seller display name
+        sellerEmail:
+          type: string
+          nullable: true
+          format: email
+          description: Optional seller email for mailto proof delivery
+        customerName:
+          type: string
+          nullable: true
+          description: Optional payer display name
+        customerEmail:
+          type: string
+          nullable: true
+          format: email
+          description: Optional payer email for mailto invoice delivery
+        payerPublicKey:
+          type: string
+          nullable: true
+          description: Stellar public key of the payer (set on payment)
+        txHash:
+          type: string
+          nullable: true
+          description: Stellar transaction hash (set on payment)
+        createdAt:
+          type: string
+          format: date-time
+          description: Invoice creation timestamp
+        expiresAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Invoice expiration timestamp
+        paidAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Payment timestamp
+
+    CreateInvoiceRequest:
+      type: object
+      required:
+        - amount
+        - sellerPublicKey
+      properties:
+        amount:
+          type: number
+          description: Invoice amount in the specified asset
+          example: 10
+        assetCode:
+          type: string
+          description: Stellar asset code (defaults to XLM)
+          default: XLM
+          example: XLM
+        assetIssuer:
+          type: string
+          description: Stellar asset issuer (omitted for native XLM)
+          example: null
+        description:
+          type: string
+          maxLength: 500
+          description: Invoice description
+          example: Logo design service
+        sellerPublicKey:
+          type: string
+          description: Freighter wallet public key (seller)
+          example: GBS43EIXZ65C5...JUPK7TB5IB6
+        sellerName:
+          type: string
+          maxLength: 255
+          description: Optional seller display name
+        sellerEmail:
+          type: string
+          format: email
+          description: Optional seller email
+        customerName:
+          type: string
+          maxLength: 255
+          description: Optional client name
+        customerEmail:
+          type: string
+          format: email
+          description: Optional client email for sending invoice link
+        expiresInDays:
+          type: integer
+          description: Days until invoice expires
+          default: 7
+          minimum: 1
+          maximum: 365
+
+    CreateInvoiceResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: object
+          properties:
+            invoice:
+              $ref: "#/components/schemas/Invoice"
+            paymentUrl:
+              type: string
+              description: Frontend payment page URL
+              example: https://quittance.app/pay/550e8400-e29b-41d4-a716-446655440000
+            qrCode:
+              type: string
+              description: Data URL for the payment page QR code (PNG base64)
+            stellarQrCode:
+              type: string
+              description: Data URL for the Stellar wallet QR code (PNG base64)
+
+    InvoiceResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          $ref: "#/components/schemas/Invoice"
+
+    InvoiceListResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Invoice"
+        pagination:
+          type: object
+          properties:
+            limit:
+              type: integer
+              example: 50
+            offset:
+              type: integer
+              example: 0
+            total:
+              type: integer
+              description: Number of invoices returned in this page
+              example: 3
+
+    # ------------------------------------------------------------------
+    # Payment Info
+    # ------------------------------------------------------------------
+    PaymentInfoResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: object
+          properties:
+            paymentUrl:
+              type: string
+              description: Frontend payment page URL
+            qrCode:
+              type: string
+              description: Data URL for the payment page QR code
+            stellarQrCode:
+              type: string
+              description: Data URL for the Stellar wallet QR code
+            invoice:
+              $ref: "#/components/schemas/Invoice"
+
+    # ------------------------------------------------------------------
+    # Verification
+    # ------------------------------------------------------------------
+    VerifyPaymentRequest:
+      type: object
+      required:
+        - txHash
+      properties:
+        txHash:
+          type: string
+          description: Stellar transaction hash (64 hex characters)
+          example: a1b2c3d4e5f6...7890abcdef
+
+    VerifyPaymentResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          $ref: "#/components/schemas/Invoice"
+        message:
+          type: string
+          example: Payment verified on Stellar
+
+    SimulatePaymentResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          $ref: "#/components/schemas/Invoice"
+        message:
+          type: string
+          example: Payment simulated successfully
+
+    # ------------------------------------------------------------------
+    # Stats
+    # ------------------------------------------------------------------
+    InvoiceStats:
+      type: object
+      properties:
+        total:
+          type: integer
+          description: Total number of invoices
+          example: 10
+        pending:
+          type: integer
+          example: 6
+        paid:
+          type: integer
+          example: 3
+        cancelled:
+          type: integer
+          example: 1
+        totalAmountPending:
+          type: number
+          description: Sum of amounts for PENDING invoices
+          example: 60
+        totalAmountPaid:
+          type: number
+          description: Sum of amounts for PAID invoices
+          example: 30
+
+    StatsResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          $ref: "#/components/schemas/InvoiceStats"
+
+    # ------------------------------------------------------------------
+    # Stellar (mock)
+    # ------------------------------------------------------------------
+    StellarBalance:
+      type: object
+      properties:
+        assetCode:
+          type: string
+          example: XLM
+        balance:
+          type: string
+          example: 1000.0000000
+
+    StellarAccountResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: object
+          properties:
+            publicKey:
+              type: string
+              example: GBS43EIXZ65C5...
+            balances:
+              type: array
+              items:
+                $ref: "#/components/schemas/StellarBalance"
+            sequence:
+              type: string
+              example: "12345678"
+            subentryCount:
+              type: integer
+              example: 0
+
+tags:
+  - name: System
+    description: Health and service metadata endpoints
+  - name: Invoices
+    description: Invoice CRUD and lifecycle operations
+  - name: Verification
+    description: On-chain payment verification (Horizon)
+  - name: Stellar
+    description: Stellar network mock data for UI development
