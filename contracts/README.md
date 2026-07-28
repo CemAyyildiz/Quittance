@@ -8,13 +8,13 @@ projects and are not touched from this directory.
 
 ```
 contracts/
-├── Cargo.toml        # Workspace manifest
-├── Makefile          # Local build/test shortcuts (`make test`)
-├── README.md
-└── example/          # Smoke-test crate so the workspace builds
-    ├── Cargo.toml
-    └── src/
-        └── lib.rs
+|-- Cargo.toml        # Workspace manifest
+|-- Makefile          # Local build/test shortcuts (`make test`)
+|-- README.md
++-- example/          # Smoke-test crate so the workspace builds
+    |-- Cargo.toml
+    +-- src/
+        +-- lib.rs
 ```
 
 New contract crates should be added as additional `[workspace] members` in

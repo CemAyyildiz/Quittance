@@ -1,4 +1,4 @@
-//! Quittance contracts workspace — example crate.
+//! Quittance contracts workspace -- example crate.
 //!
 //! This crate exists so the workspace has at least one build/test
 //! target. New on-chain contract crates should be added alongside

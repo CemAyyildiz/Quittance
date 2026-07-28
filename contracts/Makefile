@@ -1,4 +1,4 @@
-# Quittance contracts — local build/test shortcuts.
+# Quittance contracts -- local build/test shortcuts.
 #
 # Run `make test` from this directory to execute the workspace test
 # suite. All targets are thin wrappers around `cargo` so they work
