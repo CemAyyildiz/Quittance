@@ -1,105 +1,108 @@
-import { describe, it, expect } from 'vitest';
-import { amountParse } from './amountParse';
+import test from 'node:test';
+import assert from 'node:assert/strict';
 
-describe('amountParse', () => {
-  it('parses a plain integer string', () => {
-    expect(amountParse('1234')).toBe('1234');
-  });
+import { parseAmount } from './amountParse.ts';
 
-  it('parses zero', () => {
-    expect(amountParse('0')).toBe('0');
-  });
+test('parses integer string', () => {
+  assert.equal(parseAmount('1234'), '1234');
+});
 
-  it('parses a dot-decimal amount', () => {
-    expect(amountParse('1234.56')).toBe('1234.56');
-  });
+test('parses US-formatted amount', () => {
+  assert.equal(parseAmount('1,234.56'), '1234.56');
+});
 
-  it('parses an amount with many decimal places', () => {
-    expect(amountParse('0.0000001')).toBe('0.0000001');
-  });
+test('parses European-formatted amount', () => {
+  assert.equal(parseAmount('1.234,56'), '1234.56');
+});
 
-  it('trims surrounding whitespace', () => {
-    expect(amountParse('  1234.56  ')).toBe('1234.56');
-  });
+test('parses amount with dot decimal only', () => {
+  assert.equal(parseAmount('1234.56'), '1234.56');
+});
 
-  it('strips redundant leading zeros', () => {
-    expect(amountParse('01234')).toBe('1234');
-    expect(amountParse('000')).toBe('0');
-    expect(amountParse('007.50')).toBe('7.50');
-  });
+test('returns undefined for empty string', () => {
+  assert.equal(parseAmount(''), undefined);
+});
 
-  describe('US-style separators (comma thousands, dot decimal)', () => {
-    it('parses a US-formatted amount with cents', () => {
-      expect(amountParse('1,234.56')).toBe('1234.56');
-    });
+test('returns undefined for whitespace-only string', () => {
+  assert.equal(parseAmount('   '), undefined);
+});
 
-    it('parses an amount with multiple US thousands separators', () => {
-      expect(amountParse('1,234,567.89')).toBe('1234567.89');
-    });
+test('returns undefined for non-numeric input', () => {
+  assert.equal(parseAmount('abc'), undefined);
+});
 
-    it('parses a sole thousands separator with no decimal part', () => {
-      expect(amountParse('1,234')).toBe('1234');
-    });
+test('returns undefined for negative amount', () => {
+  assert.equal(parseAmount('-5'), undefined);
+});
 
-    it('parses multiple thousands groups with no decimal part', () => {
-      expect(amountParse('1,234,567')).toBe('1234567');
-    });
-  });
+test('parses zero', () => {
+  assert.equal(parseAmount('0'), '0');
+});
 
-  describe('European-style separators (dot thousands, comma decimal)', () => {
-    it('parses a European-formatted amount with cents', () => {
-      expect(amountParse('1.234,56')).toBe('1234.56');
-    });
+test('parses amount with many decimal places', () => {
+  assert.equal(parseAmount('0.0000001'), '0.0000001');
+});
 
-    it('parses an amount with multiple European thousands separators', () => {
-      expect(amountParse('1.234.567,89')).toBe('1234567.89');
-    });
-  });
+test('parses trimmed amount', () => {
+  assert.equal(parseAmount('  1234.56  '), '1234.56');
+});
 
-  describe('ambiguous single separator', () => {
-    it('treats a short trailing group as a decimal point', () => {
-      expect(amountParse('1,5')).toBe('1.5');
-      expect(amountParse('1.5')).toBe('1.5');
-      expect(amountParse('1,23')).toBe('1.23');
-    });
+test('parses amount with multiple thousands separators (US)', () => {
+  assert.equal(parseAmount('1,234,567.89'), '1234567.89');
+});
 
-    it('treats a long trailing group as a decimal point', () => {
-      expect(amountParse('1,2345')).toBe('1.2345');
-    });
+test('parses amount with multiple thousands separators (EU)', () => {
+  assert.equal(parseAmount('1.234.567,89'), '1234567.89');
+});
 
-    it('treats a 3-digit trailing group after a long leading group as a decimal point', () => {
-      expect(amountParse('1234,567')).toBe('1234.567');
-    });
-  });
+test('returns undefined for multiple decimal dots', () => {
+  assert.equal(parseAmount('12.34.56'), undefined);
+});
 
-  describe('invalid input', () => {
-    it('rejects an empty string', () => {
-      expect(amountParse('')).toBeUndefined();
-    });
+test('returns undefined for string with mixed invalid characters', () => {
+  assert.equal(parseAmount('abc123'), undefined);
+});
 
-    it('rejects a whitespace-only string', () => {
-      expect(amountParse('   ')).toBeUndefined();
-    });
+test('returns undefined for amount with both comma and dot as decimal (invalid)', () => {
+  assert.equal(parseAmount('1,234.56,78'), undefined);
+});
 
-    it('rejects non-numeric text', () => {
-      expect(amountParse('abc')).toBeUndefined();
-      expect(amountParse('abc123')).toBeUndefined();
-    });
+// --- Delta: sole-separator ambiguity and thousands-grouping fixes ---
+//
+// The cases above never exercise a *single* comma with no dot, or a
+// *repeated* comma/dot with no decimal part at all. Both shapes are
+// ambiguous (or, for a decimal point, outright impossible to repeat) and
+// were previously mishandled: a lone "1,234" was parsed as the decimal
+// 1.234 instead of the thousands amount 1234, and "1,234,567" (no
+// decimal part) was rejected outright instead of parsing to 1234567.
 
-    it('rejects negative amounts', () => {
-      expect(amountParse('-5')).toBeUndefined();
-    });
+test('parses a sole thousands separator with no decimal part as US grouping', () => {
+  assert.equal(parseAmount('1,234'), '1234');
+});
 
-    it('rejects multiple decimal points', () => {
-      expect(amountParse('12.34.56')).toBeUndefined();
-    });
+test('parses multiple thousands groups with no decimal part (US)', () => {
+  assert.equal(parseAmount('1,234,567'), '1234567');
+});
 
-    it('rejects mixed separators that both look like decimal points', () => {
-      expect(amountParse('1,234.56,78')).toBeUndefined();
-    });
+test('parses multiple thousands groups with no decimal part (EU)', () => {
+  assert.equal(parseAmount('1.234.567'), '1234567');
+});
 
-    it('rejects malformed thousands grouping', () => {
-      expect(amountParse('1,23,456')).toBeUndefined();
-    });
-  });
+test('treats a short trailing group after a sole separator as a decimal point', () => {
+  assert.equal(parseAmount('1,5'), '1.5');
+  assert.equal(parseAmount('1.5'), '1.5');
+  assert.equal(parseAmount('1,23'), '1.23');
+});
+
+test('treats a long trailing group after a sole separator as a decimal point', () => {
+  assert.equal(parseAmount('1,2345'), '1.2345');
+});
+
+test('treats a 3-digit trailing group after a long leading group as a decimal point', () => {
+  assert.equal(parseAmount('1234,567'), '1234.567');
+});
+
+test('returns undefined for malformed thousands grouping', () => {
+  assert.equal(parseAmount('1,23,456'), undefined);
+  assert.equal(parseAmount('12.34.56.789'), undefined);
 });
