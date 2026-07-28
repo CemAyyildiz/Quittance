@@ -31,7 +31,9 @@ const NETWORK_SEGMENT: Record<'testnet' | 'public', string> = {
 /** Derive the explorer network segment from props + env, defaulting to testnet. */
 function resolveNetwork(network?: 'testnet' | 'public'): 'testnet' | 'public' {
   if (network) return network;
-  return 'testnet';
+  return process.env.NEXT_PUBLIC_STELLAR_NETWORK === 'PUBLIC'
+    ? 'public'
+    : 'testnet';
 }
 
 /** Build the full explorer URL for a transaction hash. */
