@@ -6,27 +6,22 @@ description = "Soroban helper: compare ledger timestamp vs invoice expiry timest
 license     = "MIT"
 publish     = false
 
-# Declare a standalone workspace so Cargo does not try to join this crate
-# into the parent contracts/Cargo.toml workspace (which only lists init_once,
-# example, max_amount, and min_amount).
-[workspace]
-
 [lib]
 crate-type = ["rlib"]
 
 [dependencies]
 # Pin to 22.0.0 for consistency with the other rlib helper crates in
-# this repository (see storage_ttl).  The Env type and ledger()
-# accessor are stable across the 22.x line, and the ledger timestamp
-# is a plain u64, so no SDK feature flags are needed at runtime.
+# this repository (see storage_ttl).  The Env type and ledger() accessor
+# are stable across the 22.x line, and the ledger timestamp is a plain
+# u64, so no SDK feature flags are needed at runtime.
 #
-# We deliberately leave testutils OFF in dev-dependencies: on SDK
-# 22.0.0 the `testutils` feature is uncompilable due to an upstream
+# We deliberately leave testutils OFF in dev-dependencies: on SDK 22.0.0
+# the `testutils` feature is uncompilable due to an upstream
 # ed25519-dalek / rand trait-graph conflict (see the comment in
-# `contracts/storage_ttl/Cargo.toml` for the same rationale).  The
-# pure u64 helpers in this crate are unit-tested exhaustively without
-# the Soroban host; the Env wrappers are guarded by signature-level
-# smoke tests, mirroring the pattern in storage_ttl.
+# `contracts/storage_ttl/Cargo.toml` for the same rationale).  The pure
+# u64 helpers in this crate are unit-tested exhaustively without the
+# Soroban host; the Env wrappers are guarded by signature-level smoke
+# tests, mirroring the pattern in storage_ttl.
 soroban-sdk = "=22.0.0"
 
 [dev-dependencies]
