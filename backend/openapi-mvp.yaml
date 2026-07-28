@@ -1,3 +1,4 @@
+---
 openapi: 3.0.3
 info:
   title: Quittance API — MVP
@@ -50,6 +51,25 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthResponse"
+
+  /api/health/detail:
+    get:
+      summary: Detailed health check
+      description: |
+        Returns detailed health information about the server: version,
+        network environment, uptime, and available endpoints. This
+        endpoint is purely informational and does not perform database
+        health checks.
+      operationId: healthCheckDetail
+      tags:
+        - System
+      responses:
+        "200":
+          description: Detailed service health
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthDetailResponse"
 
   /api/invoices:
     post:
@@ -442,6 +462,50 @@ components:
         message:
           type: string
           example: Each user uses their own wallet for payments
+
+    HealthDetailResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: ok
+        service:
+          type: string
+          example: Quittance API
+        version:
+          type: string
+          example: 1.0.0
+        network:
+          type: string
+          description: Stellar network environment
+          example: TESTNET
+        environment:
+          type: string
+          description: Node environment
+          example: development
+        uptime:
+          type: object
+          properties:
+            seconds:
+              type: integer
+              description: Uptime in seconds
+              example: 3700
+            human:
+              type: string
+              description: Human-readable uptime
+              example: 1h 1m 40s
+        timestamp:
+          type: string
+          format: date-time
+        endpoints:
+          type: object
+          properties:
+            health:
+              type: string
+              example: /api/health
+            detail:
+              type: string
+              example: /api/health/detail
 
     # ------------------------------------------------------------------
     # Invoice
