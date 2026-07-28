@@ -1,0 +1,3 @@
+[workspace]
+members = ["init_once", "max_amount", "min_amount"]
+resolver = "2"

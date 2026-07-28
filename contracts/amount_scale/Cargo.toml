@@ -1,0 +1,15 @@
+[package]
+name        = "quittance-amount-scale"
+version     = "0.1.0"
+edition     = "2021"
+description = "Pure helper: convert between stroops (i128) and display units for 7-decimal Stellar assets."
+license     = "MIT"
+publish     = false
+
+# This crate is intentionally dependency-free so it can be used both inside
+# future Soroban contracts and in off-chain workers with no extra compile cost.
+# Add a workspace root at `contracts/Cargo.toml` only when a second contract
+# crate joins the repository.
+
+[lib]
+crate-type = ["rlib"]

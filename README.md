@@ -36,6 +36,17 @@ Ship plan: [`PLAN.md`](./PLAN.md).
 
 Identity is the **wallet**. Email is an **optional delivery channel**, not a login gate.
 
+### Payment QR and copy behavior
+
+On the invoice detail and pay pages, Quittance shows two labeled QR codes:
+
+| Label | Payload | Use |
+|-------|---------|-----|
+| **Payment link** | HTTPS URL to `/pay/:id` | Browser checkout; copy/share this URL |
+| **SEP-0007 wallet payment** | `web+stellar:pay?…` URI | Compatible Stellar wallets pre-fill pay fields |
+
+Copy actions always place the URL or URI on the clipboard — never a PNG `data:` URL. The API also returns legacy `qrCode` / `stellarQrCode` image fields for older clients; the UI generates QR SVGs from `paymentUrl` and `stellarPaymentUri` instead.
+
 ---
 
 ## Stack
