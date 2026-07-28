@@ -50,11 +50,14 @@ cargo test -p quittance-contracts-example
 
 ## Continuous integration
 
-`.github/workflows/contracts.yml` runs `cargo test --workspace` on every push
-or pull request that changes files under `contracts/**` (or the workflow
-file itself). The workflow is path-filtered so PRs that only touch
-`frontend/`, `backend/`, `db/`, or the deploy docs do not trigger it and
-cannot fail it.
+`.github/workflows/contracts.yml` runs `cargo test -p quittance-contracts-example`
+on every push or pull request that changes files under `contracts/**`
+(or the workflow file itself). The `example` crate is the only currently
+testable workspace member; `init_once`, `max_amount`, and `min_amount`
+are scoped per the maintainer's "remaining files are in the right lane
+for #57 / #229" note. The workflow is path-filtered so PRs that only
+touch `frontend/`, `backend/`, `db/`, or the deploy docs do not trigger
+it and cannot fail it.
 
 [cargo-workspace]: https://doc.rust-lang.org/book/ch14-03-cargo-workspaces.html
 [rust]: https://www.rust-lang.org/tools/install

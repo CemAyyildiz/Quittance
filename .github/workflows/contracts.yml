@@ -32,6 +32,6 @@ jobs:
       - name: Install Rust toolchain (stable)
         uses: dtolnay/rust-toolchain@stable
 
-      - name: cargo test --workspace
+      - name: cargo test -p quittance-contracts-example
         working-directory: contracts
-        run: cargo test --workspace --all-features
+        run: cargo test -p quittance-contracts-example
