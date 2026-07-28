@@ -4,14 +4,17 @@ import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { invoiceApi } from '@/lib/api';
-import QRCodeDisplay from '@/components/QRCodeDisplay';
+import PaymentQrCodes from '@/components/PaymentQrCodes';
+import { buildStellarPaymentUri } from '@/lib/stellar-payment-uri';
 import PaymentStatus from '@/components/PaymentStatus';
 import WalletConnect from '@/components/WalletConnect';
 import UserProfile from '@/components/UserProfile';
 import PaymentReceipt from '@/components/PaymentReceipt';
-import { formatAmount, formatDate, getShareUrl } from '@/lib/utils';
+import AssetLogo from '@/components/AssetLogo';
+import { formatAmount, formatDate, copyToClipboard } from '@/lib/utils';
+import { openInvoicePDF } from '@/lib/export';
 import { useCountdown } from '@/lib/useCountdown';
-import { ArrowLeft, Share2, Loader2 } from 'lucide-react';
+import { ArrowLeft, Share2, Loader2, Download } from 'lucide-react';
 import { toast } from 'sonner';
 
 export default function InvoiceDetailPage() {
@@ -46,8 +49,10 @@ export default function InvoiceDetailPage() {
     }
   };
 
+  const getPaymentShareUrl = () => `${window.location.origin}/pay/${invoice.id}`;
+
   const handleShare = async () => {
-    const url = getShareUrl(invoice.id);
+    const url = getPaymentShareUrl();
 
     if (navigator.share) {
       try {
@@ -60,9 +65,16 @@ export default function InvoiceDetailPage() {
         // User cancelled share
       }
     } else {
-      await navigator.clipboard.writeText(url);
-      toast.success('Invoice link copied');
+      const success = await copyToClipboard(url);
+      if (success) {
+        toast.success('Invoice link copied');
+      }
     }
+  };
+
+  const handleDownloadProof = () => {
+    openInvoicePDF(invoice);
+    toast.success('Opening payment proof');
   };
 
   if (loading) {
@@ -129,6 +141,15 @@ export default function InvoiceDetailPage() {
                   <span className="hidden sm:inline">Share</span>
                 </button>
               )}
+              {invoice.status === 'PAID' && (
+                <button
+                  onClick={handleDownloadProof}
+                  className="btn btn-primary flex items-center gap-2"
+                >
+                  <Download className="w-5 h-5" />
+                  <span className="hidden sm:inline">Download Proof</span>
+                </button>
+              )}
             </div>
           </div>
         </header>
@@ -146,10 +167,25 @@ export default function InvoiceDetailPage() {
 
                 <div className="bg-gradient-to-br from-cyan-50 to-blue-50 p-6 rounded-2xl border-2 border-cyan-200/50 shadow-lg">
                   <p className="text-xs text-gray-600 mb-3 font-semibold uppercase tracking-wide">Amount</p>
-                  <p className="text-4xl sm:text-5xl font-bold bg-gradient-to-r from-cyan-600 to-blue-600 bg-clip-text text-transparent">
-                    {formatAmount(invoice.amount, 7)} <span className="text-2xl">{invoice.assetCode}</span>
-                  </p>
+                  <div className="flex items-center gap-3">
+                    <AssetLogo code={invoice.assetCode} size={40} showName={false} />
+                    <p className="text-4xl sm:text-5xl font-bold bg-gradient-to-r from-cyan-600 to-blue-600 bg-clip-text text-transparent">
+                      {formatAmount(invoice.amount, 7)}{' '}
+                      <span className="text-2xl">{invoice.assetCode}</span>
+                    </p>
+                  </div>
                 </div>
+
+                {invoice.status === 'PAID' && (
+                  <button
+                    type="button"
+                    onClick={handleDownloadProof}
+                    className="btn btn-primary w-full flex items-center justify-center gap-2"
+                  >
+                    <Download className="w-5 h-5" />
+                    Download Proof
+                  </button>
+                )}
 
                 {invoice.description && (
                   <div className="border-b pb-4">
@@ -214,10 +250,19 @@ export default function InvoiceDetailPage() {
                   <h3 className="text-lg font-semibold mb-4 text-center">
                     Payment QR Code
                   </h3>
-                  <QRCodeDisplay
-                    value={paymentInfo.paymentUrl}
+                  <PaymentQrCodes
+                    paymentUrl={paymentInfo.paymentUrl}
+                    stellarPaymentUri={
+                      paymentInfo.stellarPaymentUri ??
+                      buildStellarPaymentUri(
+                        invoice.sellerPublicKey,
+                        invoice.amount.toString(),
+                        invoice.assetCode,
+                        invoice.memo,
+                        invoice.assetIssuer
+                      )
+                    }
                     size={200}
-                    showCopy={true}
                   />
                   <Link
                     href={`/pay/${invoice.id}`}
