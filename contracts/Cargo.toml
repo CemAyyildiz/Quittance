@@ -16,7 +16,6 @@ publish = false
 
 [workspace.dependencies]
 soroban-sdk = "22"
-soroban-env-host = "22"
 
 [profile.release]
 opt-level = "z"
