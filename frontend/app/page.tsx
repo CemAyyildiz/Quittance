@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { motion } from 'motion/react';
 import InvoiceForm from '@/components/InvoiceForm';
@@ -13,13 +13,60 @@ import { useWalletStore } from '@/lib/store';
 import { Mail } from 'lucide-react';
 import { toast } from 'sonner';
 import { shareInvoiceByEmail } from '@/lib/export';
+import { checkWalletConnection } from '@/lib/stellar';
+import {
+  FREIGHTER_INSTALL_URL,
+  shouldShowFreighterInstallGuidance,
+} from '@/lib/freighterGuidance';
+
+function FreighterInstallGuidance() {
+  return (
+    <p role="alert" className="text-sm leading-relaxed text-[var(--muted)]">
+      Freighter is unavailable or access failed.{' '}
+      <a
+        href={FREIGHTER_INSTALL_URL}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="font-medium text-[var(--teal)] underline underline-offset-4 hover:text-[var(--ink)]"
+      >
+        Install Freighter
+      </a>
+      , unlock it, then try connecting again.
+    </p>
+  );
+}
 
 export default function HomePage() {
   const [createdInvoice, setCreatedInvoice] = useState<any>(null);
+  const [freighterUnavailable, setFreighterUnavailable] = useState(false);
   const { publicKey, connected } = useWalletStore();
+  const showFreighterGuidance = shouldShowFreighterInstallGuidance(
+    connected,
+    freighterUnavailable,
+  );
 
   const handleInvoiceCreated = (result: any) => setCreatedInvoice(result);
   const handleWalletDisconnected = () => setCreatedInvoice(null);
+  const handleWalletConnected = () => setFreighterUnavailable(false);
+  const handleWalletConnectionFailure = () => setFreighterUnavailable(true);
+
+  useEffect(() => {
+    if (connected) {
+      setFreighterUnavailable(false);
+      return;
+    }
+
+    let active = true;
+    checkWalletConnection().then((available) => {
+      if (active && !available) {
+        setFreighterUnavailable(true);
+      }
+    });
+
+    return () => {
+      active = false;
+    };
+  }, [connected]);
 
   const scrollToCreate = () => {
     document.getElementById('create')?.scrollIntoView({ behavior: 'smooth' });
@@ -43,7 +90,10 @@ export default function HomePage() {
               Dashboard
             </Link>
             {!connected ? (
-              <WalletConnect />
+              <WalletConnect
+                onConnect={handleWalletConnected}
+                onConnectionFailure={handleWalletConnectionFailure}
+              />
             ) : (
               <UserProfile userWallet={publicKey} onDisconnect={handleWalletDisconnected} />
             )}
@@ -85,12 +135,25 @@ export default function HomePage() {
                 Create invoice
               </button>
             ) : (
-              <WalletConnect />
+              <WalletConnect
+                onConnect={handleWalletConnected}
+                onConnectionFailure={handleWalletConnectionFailure}
+              />
             )}
             <Link href="/dashboard" className="btn btn-outline px-7 py-3">
               Dashboard
             </Link>
           </motion.div>
+          {!connected && showFreighterGuidance && (
+            <motion.div
+              className="mt-5 max-w-md"
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3 }}
+            >
+              <FreighterInstallGuidance />
+            </motion.div>
+          )}
         </div>
       </section>
 
@@ -162,8 +225,16 @@ export default function HomePage() {
                     Your wallet is your identity. No Google account required.
                   </p>
                   <div className="flex justify-center">
-                    <WalletConnect />
+                    <WalletConnect
+                      onConnect={handleWalletConnected}
+                      onConnectionFailure={handleWalletConnectionFailure}
+                    />
                   </div>
+                  {showFreighterGuidance && (
+                    <div className="mt-5 max-w-sm mx-auto">
+                      <FreighterInstallGuidance />
+                    </div>
+                  )}
                 </div>
               ) : (
                 <>
@@ -193,7 +264,7 @@ export default function HomePage() {
                   </div>
 
                   <div className="flex items-baseline gap-3">
-                    <AssetLogo code={createdInvoice.invoice.assetCode} size={28} showName={false} />
+                    <AssetLogo code={createdInvoice.invoice.assetCode} size={28} showName={false} priority={true} />
                     <span className="font-display text-4xl">
                       {createdInvoice.invoice.amount}
                     </span>

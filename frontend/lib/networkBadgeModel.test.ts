@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { networkBadgeModel } from './networkBadgeModel.ts';
+import { networkBadgeModel } from './networkBadgeModel';
 
 test('returns TESTNET for testnet values', () => {
   assert.equal(networkBadgeModel('TESTNET'), 'TESTNET');

@@ -1,11 +1,12 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { invoiceApi } from '@/lib/api';
 import PaymentButton from '@/components/PaymentButton';
-import QRCodeDisplay from '@/components/QRCodeDisplay';
+import PaymentQrCodes from '@/components/PaymentQrCodes';
+import { buildStellarPaymentUri } from '@/lib/stellar-payment-uri';
 import WalletConnect from '@/components/WalletConnect';
 import UserProfile from '@/components/UserProfile';
 import PaymentReceipt from '@/components/PaymentReceipt';
@@ -24,6 +25,7 @@ export default function PaymentPage() {
   const [loading, setLoading] = useState(true);
   const [paymentInfo, setPaymentInfo] = useState<any>(null);
   const [polling, setPolling] = useState(true);
+  const verifiedRef = useRef(false);
   const [userWallet, setUserWallet] = useState<string | null>(null);
   const timeRemaining = useCountdown(invoice?.status === 'PENDING' ? invoice.expiresAt : null);
 
@@ -43,7 +45,7 @@ export default function PaymentPage() {
         if (result.data.status !== 'PENDING') {
           setInvoice(result.data);
           setPolling(false);
-          if (result.data.status === 'PAID') {
+          if (result.data.status === 'PAID' && !verifiedRef.current) {
             toast.success('Payment confirmed!');
           }
         }
@@ -71,8 +73,8 @@ export default function PaymentPage() {
   };
 
   const handlePaymentSuccess = async (txHash: string) => {
-    toast.success('Payment sent! Verifying...');
-    setPolling(true); // Restart polling
+    verifiedRef.current = true;
+    setPolling(true);
     setTimeout(async () => {
       await loadInvoice();
     }, 2000);
@@ -176,7 +178,7 @@ export default function PaymentPage() {
                 <div className="flex items-center justify-center gap-4">
                   <div className="relative">
                     <div className="absolute inset-0 bg-gradient-to-r from-cyan-400 to-blue-500 rounded-full blur-lg opacity-40"></div>
-                    <AssetLogo code={invoice.assetCode} size={50} showName={false} />
+                    <AssetLogo code={invoice.assetCode} size={50} showName={false} priority={true} />
                   </div>
                   <div>
                     <p className="text-5xl sm:text-6xl font-bold bg-gradient-to-r from-cyan-600 to-blue-600 bg-clip-text text-transparent">
@@ -193,24 +195,6 @@ export default function PaymentPage() {
                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                   <p className="text-sm text-gray-600 mb-1">Payment For</p>
                   <p className="text-gray-800 font-medium">{invoice.description}</p>
-                </div>
-              )}
-
-              {(invoice.sellerName || invoice.sellerEmail) && (
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-2">
-                  <p className="text-sm text-blue-600 font-semibold">Seller Information</p>
-                  {invoice.sellerName && (
-                    <div>
-                      <p className="text-xs text-blue-500">Name</p>
-                      <p className="text-sm text-blue-800">{invoice.sellerName}</p>
-                    </div>
-                  )}
-                  {invoice.sellerEmail && (
-                    <div>
-                      <p className="text-xs text-blue-500">Email</p>
-                      <p className="text-sm text-blue-800">{invoice.sellerEmail}</p>
-                    </div>
-                  )}
                 </div>
               )}
 
@@ -361,14 +345,22 @@ export default function PaymentPage() {
               <>
                 <div className="card">
                   <h3 className="text-lg font-semibold text-center mb-4">Scan QR Code</h3>
-                  <QRCodeDisplay
-                    value={paymentInfo?.stellarQrCode || paymentInfo?.paymentUrl}
-                    title=""
-                    size={220}
-                  />
-                  <p className="text-sm text-gray-600 text-center mt-4">
-                    Scan with your Stellar wallet app to pay instantly
-                  </p>
+                  {paymentInfo && (
+                    <PaymentQrCodes
+                      paymentUrl={paymentInfo.paymentUrl}
+                      stellarPaymentUri={
+                        paymentInfo.stellarPaymentUri ??
+                        buildStellarPaymentUri(
+                          invoice.sellerPublicKey,
+                          invoice.amount.toString(),
+                          invoice.assetCode,
+                          invoice.memo,
+                          invoice.assetIssuer
+                        )
+                      }
+                      size={220}
+                    />
+                  )}
                 </div>
 
                 <div className="card">

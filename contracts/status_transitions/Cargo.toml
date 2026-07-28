@@ -1,0 +1,17 @@
+[package]
+name        = "quittance-status-transitions"
+version     = "0.1.0"
+edition     = "2021"
+description = "Pure helper: validate invoice status transitions for the Quittance protocol."
+license     = "MIT"
+publish     = false
+
+# This crate is intentionally dependency-free so it can be used both inside
+# future Soroban contracts and in off-chain workers with no extra compile cost.
+
+# Declare a standalone workspace so Cargo does not try to join this crate
+# into the parent contracts/Cargo.toml workspace (which only lists init_once).
+[workspace]
+
+[lib]
+crate-type = ["rlib"]

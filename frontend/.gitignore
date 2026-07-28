@@ -9,4 +9,4 @@ dist
 .env.test.local
 .env.production.local
 .vercel
-
+tsconfig.tsbuildinfo

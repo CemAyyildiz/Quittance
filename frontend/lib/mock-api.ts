@@ -1,13 +1,34 @@
 // Mock API - Backend olmadan UI test için
 
+import { buildStellarPaymentUri } from '@/lib/stellar-payment-uri';
+
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
+type MockInvoice = {
+  id: string;
+  amount: number;
+  assetCode: string;
+  assetIssuer?: string;
+  description: string;
+  customerName: string;
+  customerEmail?: string;
+  status: string;
+  memo: string;
+  sellerPublicKey: string;
+  createdAt: string;
+  paidAt?: string;
+  expiresAt: string;
+  paymentTxHash?: string;
+  payerPublicKey?: string;
+};
+
 // Mock invoice data
-const mockInvoices = [
+const mockInvoices: MockInvoice[] = [
   {
     id: '1',
     amount: 100.50,
     assetCode: 'XLM',
+    assetIssuer: undefined,
     description: 'Web geliştirme hizmeti',
     customerName: 'Ahmet Yılmaz',
     customerEmail: 'ahmet@example.com',
@@ -24,6 +45,7 @@ const mockInvoices = [
     id: '2',
     amount: 250.00,
     assetCode: 'XLM',
+    assetIssuer: undefined,
     description: 'Logo tasarımı',
     customerName: 'Ayşe Kaya',
     status: 'PENDING',
@@ -36,6 +58,7 @@ const mockInvoices = [
     id: '3',
     amount: 75.25,
     assetCode: 'XLM',
+    assetIssuer: undefined,
     description: 'Danışmanlık ücreti',
     customerName: 'Mehmet Demir',
     status: 'PENDING',
@@ -48,6 +71,7 @@ const mockInvoices = [
     id: '4',
     amount: 500.00,
     assetCode: 'USDC',
+    assetIssuer: 'GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5',
     description: 'Mobil uygulama geliştirme',
     customerName: 'Fatma Şahin',
     status: 'EXPIRED',
@@ -68,6 +92,7 @@ export const mockInvoiceApi = {
       status: 'PENDING',
       memo: `INV-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).substr(2, 4).toUpperCase()}`,
       sellerPublicKey: 'GABC123EXAMPLE456789',
+      assetIssuer: data.assetIssuer,
       createdAt: new Date().toISOString(),
       expiresAt: new Date(Date.now() + (data.expiresInDays || 7) * 24 * 60 * 60 * 1000).toISOString(),
     };
@@ -76,6 +101,13 @@ export const mockInvoiceApi = {
 
     const paymentUrl = `${window.location.origin}/pay/${newInvoice.id}`;
     const qrCode = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+    const stellarPaymentUri = buildStellarPaymentUri(
+      newInvoice.sellerPublicKey,
+      newInvoice.amount.toString(),
+      newInvoice.assetCode,
+      newInvoice.memo,
+      newInvoice.assetIssuer
+    );
 
     return {
       success: true,
@@ -84,6 +116,7 @@ export const mockInvoiceApi = {
         paymentUrl,
         qrCode,
         stellarQrCode: qrCode,
+        stellarPaymentUri,
       },
     };
   },
@@ -131,6 +164,13 @@ export const mockInvoiceApi = {
 
     const paymentUrl = `${window.location.origin}/pay/${invoice.id}`;
     const qrCode = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+    const stellarPaymentUri = buildStellarPaymentUri(
+      invoice.sellerPublicKey,
+      invoice.amount.toString(),
+      invoice.assetCode,
+      invoice.memo,
+      invoice.assetIssuer
+    );
 
     return {
       success: true,
@@ -138,6 +178,7 @@ export const mockInvoiceApi = {
         paymentUrl,
         qrCode,
         stellarQrCode: qrCode,
+        stellarPaymentUri,
         invoice,
       },
     };
@@ -256,4 +297,3 @@ export const mockHealthCheck = async () => {
     service: 'Quittance API (Mock)',
   };
 };
-
