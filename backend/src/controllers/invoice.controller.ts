@@ -2,7 +2,7 @@ import { Request, Response } from 'express';
 import invoiceService from '../services/invoice.service';
 import stellarService from '../services/stellar.service';
 import { createInvoiceSchema } from '../utils/validation';
-import { generatePaymentQR, generateStellarPaymentQR } from '../utils/qrcode';
+import { generatePaymentQR, generateStellarPaymentQR, buildStellarPaymentUri } from '../utils/qrcode';
 import { SELLER_PUBLIC_KEY } from '../config/stellar';
 
 class InvoiceController {
@@ -17,7 +17,15 @@ class InvoiceController {
         invoice.sellerPublicKey,
         invoice.amount.toString(),
         invoice.assetCode,
-        invoice.memo
+        invoice.memo,
+        invoice.assetIssuer
+      );
+      const stellarPaymentUri = buildStellarPaymentUri(
+        invoice.sellerPublicKey,
+        invoice.amount.toString(),
+        invoice.assetCode,
+        invoice.memo,
+        invoice.assetIssuer
       );
 
       res.status(201).json({
@@ -27,6 +35,7 @@ class InvoiceController {
           paymentUrl,
           qrCode: qrCodeDataUrl,
           stellarQrCode,
+          stellarPaymentUri,
         },
       });
     } catch (error: any) {
@@ -207,7 +216,15 @@ class InvoiceController {
         invoice.sellerPublicKey,
         invoice.amount.toString(),
         invoice.assetCode,
-        invoice.memo
+        invoice.memo,
+        invoice.assetIssuer
+      );
+      const stellarPaymentUri = buildStellarPaymentUri(
+        invoice.sellerPublicKey,
+        invoice.amount.toString(),
+        invoice.assetCode,
+        invoice.memo,
+        invoice.assetIssuer
       );
 
       res.json({
@@ -216,6 +233,7 @@ class InvoiceController {
           paymentUrl,
           qrCode: qrCodeDataUrl,
           stellarQrCode,
+          stellarPaymentUri,
           invoice,
         },
       });

@@ -1,21 +1,106 @@
 # Contributing to Quittance
 
-Thanks for contributing. Quittance is an invoice-and-proof tool for freelancers on Stellar. See [`README.md`](./README.md) for an overview and [`PLAN.md`](./PLAN.md) for the product and delivery plan.
+Thanks for your interest in contributing! Quittance helps freelancers create invoices, accept payments on Stellar, and generate payment proof.
 
-## House rules
+## Repository
 
-- **English only** — code, comments, docs, UI strings, and commit messages.
-- **One issue = one PR.** Do not bundle multiple Wave issues or unrelated changes in the same PR.
-- **Owned files only.** Only touch the files listed in the issue's _Context_ / _Owned files_ section. If the issue says "Own CONTRIBUTING.md only," do not edit anything else.
-- **Do not touch hot paths.** The issue lists hot files that are off-limits. Respect that list exactly.
-- **Do not edit** `package.json`, `package-lock.json`, `vitest.config.ts`, or `contracts/Cargo.toml` unless the issue explicitly owns that tooling path.
+- **README.md** — overview, quick start, and deployment guide
+- **PLAN.md** — product model, scope, DoD, phases, and commit order (canonical plan)
+- **ROADMAP.md** — short execution checklist (must not diverge from PLAN.md)
+- **EVIDENCE.md** — demo URL and testnet proof for reviewers
 
-## Wave — single-file ownership and no bundling
+Read **`PLAN.md`** first. It defines what is in scope for v0.1 and what is not. Do not invent alternate product paths.
 
-Quittance uses a **[Wave](https://www.drips.network/)** contribution system. Every Wave issue is scoped to a specific set of files. The core rules:
+---
 
-1. **Single-file ownership.** Each issue owns exactly the file(s) listed in its _Context_ block. If the issue says _"Own CONTRIBUTING.md only,"_ your PR must contain only changes to `CONTRIBUTING.md`.
-2. **No bundling.** Do not combine two Wave issues in one PR. Do not slip in refactors, unrelated fixes, or "while I'm here" changes. If it is not part of the issue's owned files, it does not go in the PR.
-3. **One PR per issue.** Open one PR per assigned Wave issue. The PR description should reference the issue number.
+## Stellar Wave checklist
 
-Before starting, read the issue carefully: the _Context_ tells you which files you own, the _Rules_ tell you what not to touch, and the _Acceptance criteria_ tell you what must be true when you are done.
+All contributors must follow these rules before opening a pull request.
+
+### Language
+
+- [ ] All content is **English-only**: documentation, UI strings, comments, commit messages, and code identifiers
+- [ ] No Turkish in tracked files
+
+### Scope
+
+- [ ] Change is within **v0.1 scope** defined in [`PLAN.md`](./PLAN.md) §7
+- [ ] Identity is **Freighter wallet only** — no Google login gate for create or pay flows
+- [ ] Does not introduce features listed as **Out (v0.1)** — no SMTP/Gmail API, no Postgres/Redis, no escrow, no mainnet requirement
+- [ ] Does not create overlapping how-to guides; link official Freighter docs when needed
+
+### Ownership
+
+- [ ] One issue per contributor — no shared file ownership within a single PR
+- [ ] Additive or new-file changes preferred over editing existing files
+
+### Hot-file conflict rule
+
+Do **not** edit these files — they have open PRs or active work:
+
+| File | Reason |
+|------|--------|
+| `frontend/app/pay/[id]/page.tsx` | Open PRs #11, #29 |
+| `frontend/lib/export.ts` | Open PRs #23, #28 |
+| `frontend/components/PaymentReceipt.tsx` | Open PR #24 |
+| `frontend/components/TransactionHistory.tsx` | Open PR #25 |
+| `frontend/components/PaymentButton.tsx` | Open PR #12 |
+| `frontend/components/InvoiceForm.tsx` | Open PR #12 |
+| `frontend/lib/stellar.ts` | Open PR #12 |
+
+### Commit discipline
+
+- [ ] One commit = one [`PLAN.md`](./PLAN.md) row
+- [ ] Commit messages follow **conventional commits**: `feat:`, `fix:`, `chore:`, `docs:`, `refactor:`, `test:`
+- [ ] Local smoke test passes after each commit
+
+### Pull request
+
+- [ ] PR targets the **default branch** of `CemAyyildiz/Quittance`
+- [ ] PR body starts with `Closes #<issue-number>` on the first line
+- [ ] PR includes a **Summary** section (2–4 bullets) and a **Testing** section
+- [ ] No Co-Authored-By or AI-generated attribution trailers
+
+---
+
+## Development workflow
+
+### Setup
+
+```bash
+# Backend (in-memory MVP — no Postgres/Redis required)
+cd backend
+npm install
+cp env.mvp.example .env
+npm run dev:mvp     # http://localhost:3001
+
+# Frontend
+cd frontend
+npm install
+cp env.mvp.local .env.local
+npm run dev         # http://localhost:3000
+```
+
+### Before committing
+
+1. Run a local smoke test: create an invoice, check the API health endpoint
+2. Run `npx tsc --noEmit` in the affected workspace if you changed TypeScript files
+3. Ensure your author identity matches your GitHub account
+
+### Code style
+
+- TypeScript with strict mode
+- Tailwind for styling (no CSS modules or styled-components)
+- Prettier formatting — run `npm run format` in `frontend/` if applicable
+- Follow existing patterns in the codebase; match surrounding code conventions
+
+---
+
+## Questions?
+
+Open a discussion or check the existing issues before starting work.
+
+For the full product context, see:
+- [`README.md`](./README.md) — setup, deploy, and project layout
+- [`PLAN.md`](./PLAN.md) — product model, scope, and release phases
+- [`ROADMAP.md`](./ROADMAP.md) — commit execution order

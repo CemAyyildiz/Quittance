@@ -1,0 +1,18 @@
+[workspace]
+
+[package]
+name = "error-codes"
+version = "0.1.0"
+edition = "2021"
+description = "Shared Soroban contract error codes with stable numeric values and English messages for the Quittance ecosystem."
+license = "MIT"
+publish = false
+
+[lib]
+crate-type = ["lib"]
+
+[dependencies]
+soroban-sdk = "25.0.0"
+
+[dev-dependencies]
+soroban-sdk = { version = "25.0.0", features = ["testutils"] }
