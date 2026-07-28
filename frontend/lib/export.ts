@@ -328,15 +328,15 @@ export function generatePDFContent(
     <p>This is an automatically generated report. All transactions are recorded on the Stellar blockchain.</p>
   </div>
 
-  <div style="position: fixed; top: 10px; right: 10px; background: #06b6d4; color: white; padding: 15px; border-radius: 8px; z-index: 1000; max-width: 300px; font-family: Arial, sans-serif;">
-    <h3 style="margin: 0 0 10px 0; font-size: 14px;">PDF olarak kaydetmek için:</h3>
+  <div class="no-print" style="position: fixed; top: 10px; right: 10px; background: #06b6d4; color: white; padding: 15px; border-radius: 8px; z-index: 1000; max-width: 300px; font-family: Arial, sans-serif;">
+    <h3 style="margin: 0 0 10px 0; font-size: 14px;">To save as PDF:</h3>
     <ol style="margin: 0; padding-left: 20px; font-size: 12px;">
-      <li>Ctrl+P (Windows) veya Cmd+P (Mac)</li>
-      <li>"Hedef" → "PDF olarak kaydet"</li>
-      <li>"Yazdır" butonuna bas</li>
+      <li>Press Ctrl+P (Windows) or Cmd+P (Mac)</li>
+      <li>Choose “Save as PDF” as the destination</li>
+      <li>Click "Print"</li>
     </ol>
     <button onclick="window.print()" style="background: white; color: #06b6d4; border: none; padding: 8px 16px; border-radius: 4px; margin-top: 10px; cursor: pointer; font-weight: bold; font-size: 12px;">
-      PDF Olarak Kaydet
+      Save as PDF
     </button>
   </div>
 
@@ -617,10 +617,13 @@ export function generateInvoicePDF(invoice: Invoice): string {
       margin-bottom: 15px; 
       border-left: 3px solid #f59e0b; 
     }
-    .blockchain-info p { 
-      font-size: 10px; 
-      color: #92400e; 
-      line-height: 1.4; 
+    .blockchain-info p {
+      font-size: 10px;
+      color: #92400e;
+      line-height: 1.4;
+    }
+    @media print {
+      .no-print { display: none; }
     }
   </style>
 </head>
@@ -698,15 +701,15 @@ export function generateInvoicePDF(invoice: Invoice): string {
     <p style="margin-top: 10px;">This is an automatically generated invoice.</p>
   </div>
 
-  <div style="position: fixed; top: 10px; right: 10px; background: #06b6d4; color: white; padding: 15px; border-radius: 8px; z-index: 1000; max-width: 300px; font-family: Arial, sans-serif;">
-    <h3 style="margin: 0 0 10px 0; font-size: 14px;">PDF olarak kaydetmek için:</h3>
+  <div class="no-print" style="position: fixed; top: 10px; right: 10px; background: #06b6d4; color: white; padding: 15px; border-radius: 8px; z-index: 1000; max-width: 300px; font-family: Arial, sans-serif;">
+    <h3 style="margin: 0 0 10px 0; font-size: 14px;">To save as PDF:</h3>
     <ol style="margin: 0; padding-left: 20px; font-size: 12px;">
-      <li>Ctrl+P (Windows) veya Cmd+P (Mac)</li>
-      <li>"Hedef" → "PDF olarak kaydet"</li>
-      <li>"Yazdır" butonuna bas</li>
+      <li>Press Ctrl+P (Windows) or Cmd+P (Mac)</li>
+      <li>Choose “Save as PDF” as the destination</li>
+      <li>Click "Print"</li>
     </ol>
     <button onclick="window.print()" style="background: white; color: #06b6d4; border: none; padding: 8px 16px; border-radius: 4px; margin-top: 10px; cursor: pointer; font-weight: bold; font-size: 12px;">
-      PDF Olarak Kaydet
+      Save as PDF
     </button>
   </div>
 

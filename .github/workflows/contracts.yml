@@ -1,0 +1,37 @@
+name: contracts
+
+# Path-filtered so PRs that only change the app frontend or backend
+# cannot fail this workflow. Runs when anything under contracts/ (or
+# this file itself) is modified on main or on a pull request targeting
+# main. workflow_dispatch allows an explicit manual trigger.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'contracts/**'
+      - '.github/workflows/contracts.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'contracts/**'
+      - '.github/workflows/contracts.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: cargo test -p quittance-contracts-example
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain (stable)
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: cargo test -p quittance-contracts-example
+        working-directory: contracts
+        run: cargo test -p quittance-contracts-example

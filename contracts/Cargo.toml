@@ -1,3 +1,19 @@
 [workspace]
-members = ["init_once", "max_amount", "min_amount"]
 resolver = "2"
+members = [
+  "example",
+  "init_once",
+  "max_amount",
+  "min_amount",
+]
+
+[workspace.package]
+edition = "2021"
+version = "0.1.0"
+license = "MIT"
+publish = false
+
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1

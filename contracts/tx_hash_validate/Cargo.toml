@@ -1,0 +1,18 @@
+[workspace]
+
+[package]
+name        = "tx-hash-validate"
+version     = "0.1.0"
+edition     = "2021"
+description = "Pure Soroban helper: validate 64-char hex transaction hashes for the Quittance ecosystem."
+license     = "MIT"
+publish     = false
+
+[lib]
+crate-type = ["lib"]
+
+[dependencies]
+soroban-sdk = "25.0.0"
+
+[dev-dependencies]
+soroban-sdk = { version = "25.0.0", features = ["testutils"] }
