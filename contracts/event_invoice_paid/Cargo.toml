@@ -1,0 +1,29 @@
+[package]
+name = "event_invoice_paid"
+version = "0.1.0"
+edition = "2021"
+description = "Soroban helper crate for the Quittance `invoice_paid` event topic and data builder."
+license = "MIT"
+
+[lib]
+crate-type = ["rlib"]
+path = "src/lib.rs"
+
+[dependencies]
+# Exact pin for reproducible builds — this crate's topic layout is
+# part of its public ABI, so the SDK version that emits must stay
+# stable across releases until this crate goes 1.x.
+#
+# Note: `soroban-sdk v22.0.0` hard-pins `soroban-env-host = "=22.1.0"`,
+# and env-host 22.1.0's `testutils` lambda has an upstream
+# `ChaCha20Rng: ed25519_dalek::rand_core::CryptoRng` trait-bound
+# conflict, so we deliberately leave the `testutils` feature off in
+# this crate's own dev-dependencies. The tests use only the regular
+# `soroban_sdk` API (`Address::from_str`, `Env::default`,
+# `Symbol::new`, `String::from_str`, `Vec::from_array`, `IntoVal`,
+# `ToString`) so this works.
+soroban-sdk = "=22.0.0"
+
+[dev-dependencies]
+# No `testutils` feature here — see the dependency note above.
+soroban-sdk = "=22.0.0"

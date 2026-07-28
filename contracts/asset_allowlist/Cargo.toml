@@ -1,0 +1,7 @@
+[package]
+name = "asset-allowlist"
+version = "0.1.0"
+edition = "2021"
+description = "Quittance MVP asset code allowlist (XLM, USDC)."
+license = "MIT"
+publish = false
