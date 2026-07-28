@@ -264,7 +264,7 @@ export default function HomePage() {
                   </div>
 
                   <div className="flex items-baseline gap-3">
-                    <AssetLogo code={createdInvoice.invoice.assetCode} size={28} showName={false} />
+                    <AssetLogo code={createdInvoice.invoice.assetCode} size={28} showName={false} priority={true} />
                     <span className="font-display text-4xl">
                       {createdInvoice.invoice.amount}
                     </span>
