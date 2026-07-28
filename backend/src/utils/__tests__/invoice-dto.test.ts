@@ -103,7 +103,7 @@ describe('toInvoiceDTO', () => {
       sellerPublicKey: 'GD5Q...ABCD',
       payerPublicKey: 'GD6R...WXYZ',
     });
-    const result = toInvoiceDTO(invoice) as Record<string, unknown>;
+    const result = toInvoiceDTO(invoice);
 
     const ownKeys = Object.keys(result);
     expect(ownKeys).not.toContain('userId');
