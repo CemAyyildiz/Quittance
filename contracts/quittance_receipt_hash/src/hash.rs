@@ -40,7 +40,7 @@ pub fn compute(domain: &DomainSeparator, fields: &ReceiptFields) -> ReceiptHash 
     hasher.update(&preimage);
     let digest = hasher.finalize();
     let mut out = [0u8; 32];
-    out.copy_from_slice(digest.as_slice());
+    out.copy_from_slice(&digest);
     ReceiptHash(out)
 }
 

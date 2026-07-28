@@ -123,7 +123,7 @@ pub fn compute_with_domain(
 
     let digest = hasher.finalize();
     let mut out = [0u8; 32];
-    out.copy_from_slice(digest.as_slice());
+    out.copy_from_slice(&digest);
     ClaimHash(out)
 }
 
