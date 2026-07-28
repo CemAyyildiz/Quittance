@@ -1,0 +1,51 @@
+name: Contracts CI
+
+on:
+  push:
+    paths:
+      - "contracts/**"
+  pull_request:
+    paths:
+      - "contracts/**"
+
+jobs:
+  contracts:
+    name: Build & Test Contracts
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: contracts
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+          targets: wasm32-unknown-unknown
+          components: rustfmt, clippy
+
+      - name: Cache Cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            contracts/target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('contracts/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: Check formatting
+        run: make fmt
+
+      - name: Run clippy
+        run: make clippy
+
+      - name: Build workspace
+        run: make build
+
+      - name: Run tests
+        run: make test

@@ -1,0 +1,22 @@
+[workspace]
+resolver = "2"
+# Add member crates here as they land:
+#   "network_passphrase",
+#   "payer_bind",
+members = []
+
+[workspace.package]
+edition = "2021"
+rust-version = "1.81"
+
+[workspace.dependencies]
+soroban-sdk = "22"
+soroban-env-host = "22"
+
+[profile.release]
+opt-level = "z"
+lto = true
+debug = false
+strip = "symbols"
+panic = "abort"
+codegen-units = 1
