@@ -1,5 +1,7 @@
 // Mock API - Backend olmadan UI test için
 
+import { buildStellarPaymentUri } from '@/lib/stellar-payment-uri';
+
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 // Mock invoice data
@@ -76,6 +78,13 @@ export const mockInvoiceApi = {
 
     const paymentUrl = `${window.location.origin}/pay/${newInvoice.id}`;
     const qrCode = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+    const stellarPaymentUri = buildStellarPaymentUri(
+      newInvoice.sellerPublicKey,
+      newInvoice.amount.toString(),
+      newInvoice.assetCode,
+      newInvoice.memo,
+      newInvoice.assetIssuer
+    );
 
     return {
       success: true,
@@ -84,6 +93,7 @@ export const mockInvoiceApi = {
         paymentUrl,
         qrCode,
         stellarQrCode: qrCode,
+        stellarPaymentUri,
       },
     };
   },
@@ -131,6 +141,13 @@ export const mockInvoiceApi = {
 
     const paymentUrl = `${window.location.origin}/pay/${invoice.id}`;
     const qrCode = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+    const stellarPaymentUri = buildStellarPaymentUri(
+      invoice.sellerPublicKey,
+      invoice.amount.toString(),
+      invoice.assetCode,
+      invoice.memo,
+      invoice.assetIssuer
+    );
 
     return {
       success: true,
@@ -138,6 +155,7 @@ export const mockInvoiceApi = {
         paymentUrl,
         qrCode,
         stellarQrCode: qrCode,
+        stellarPaymentUri,
         invoice,
       },
     };

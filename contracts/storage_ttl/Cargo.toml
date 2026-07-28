@@ -1,0 +1,29 @@
+[package]
+name        = "quittance-storage-ttl"
+version     = "0.1.0"
+edition     = "2021"
+description = "Soroban helper: wrap extend_ttl-style bump for instance / persistent / temporary data keys."
+license     = "MIT"
+publish     = false
+
+# Declare a standalone workspace so Cargo does not try to join this crate
+# into the parent contracts/Cargo.toml workspace (which only lists init_once).
+[workspace]
+
+[lib]
+crate-type = ["rlib"]
+
+[dependencies]
+# Pin to 22.0.0 for consistency with the other rlib helper crates in
+# this repository.  The extend_ttl API is stable across 22.x and 25.x,
+# but the SDK version that a *consuming contract* compiles against must
+# match the version of the soroban-sdk types that this crate exposes
+# (Env, Symbol, Val, etc.).  We deliberately leave testutils off in
+# dev-dependencies because the v22.0.0 / env-host 22.1.0 / rand 0.8 /
+# ed25519-dalek 3.x trait graph is uncompilable with testutils for
+# ChaCha20Rng.  The unit tests instead verify that the helpers compile
+# and execute without panicking against Env::default().
+soroban-sdk = "=22.0.0"
+
+[dev-dependencies]
+soroban-sdk = "=22.0.0"

@@ -1,0 +1,11 @@
+[package]
+name = "usdc-testnet-issuer"
+version = "0.1.0"
+edition = "2021"
+description = "Read-only accessor for the Stellar testnet USDC issuer constant used by Quittance."
+license = "MIT"
+repository = "https://github.com/CemAyyildiz/Quittance"
+publish = false
+
+[lib]
+path = "src/lib.rs"
