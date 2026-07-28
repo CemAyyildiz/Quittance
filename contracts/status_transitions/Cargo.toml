@@ -11,7 +11,6 @@ publish     = false
 
 # Declare a standalone workspace so Cargo does not try to join this crate
 # into the parent contracts/Cargo.toml workspace (which only lists init_once).
-[workspace]
 
 [lib]
 crate-type = ["rlib"]

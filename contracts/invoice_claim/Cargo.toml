@@ -1,4 +1,3 @@
-[workspace]
 
 [package]
 name        = "invoice-claim"

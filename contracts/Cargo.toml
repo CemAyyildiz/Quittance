@@ -1,10 +1,30 @@
 [workspace]
 resolver = "2"
 members = [
+  "amount_scale",
+  "asset_allowlist",
+  "auth_one_address",
+  "data_key_prefix",
+  "destination_guard",
+  "error_codes",
+  "event_invoice_paid",
   "example",
+  "fee_bps_clamp",
   "init_once",
+  "invoice_claim",
   "max_amount",
+  "memo_validator",
+  "meta_info",
   "min_amount",
+  "paid_status",
+  "payer_bind",
+  "proof_meta",
+  "quittance_receipt_hash",
+  "seller_bind",
+  "status_transitions",
+  "storage_ttl",
+  "tx_hash_validate",
+  "usdc_testnet_issuer",
 ]
 
 [workspace.package]

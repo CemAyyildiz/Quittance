@@ -10,7 +10,6 @@ publish     = false
 # contracts without pulling in unnecessary dependencies. Key-derived names
 # rely only on `core` and standard Rust types.
 
-[workspace]
 
 [lib]
 crate-type = ["rlib"]
