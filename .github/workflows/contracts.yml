@@ -1,0 +1,85 @@
+# Contracts CI workflow
+#
+# Builds and tests all Soroban smart contract crates under contracts/
+# on every PR that touches files under that directory.
+#
+# Workspace members are tested together.  Standalone crates each run
+# as a separate matrix job so a single failure does not hide results
+# from the other crates.
+
+name: Contracts CI
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'contracts/**'
+
+jobs:
+  workspace:
+    name: workspace
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: contracts
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+
+      - name: Test workspace members
+        run: cargo test
+
+  standalone:
+    name: ${{ matrix.crate }}
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: contracts
+
+    strategy:
+      fail-fast: false
+      matrix:
+        crate:
+          - amount_scale
+          - asset_allowlist
+          - data_key_prefix
+          - destination_guard
+          - error_codes
+          - event_invoice_paid
+          - fee_bps_clamp
+          - invoice_claim
+          - meta_info
+          - paid_status
+          - payer_bind
+          - proof_meta
+          - quittance_receipt_hash
+          - seller_bind
+          - status_transitions
+          - storage_ttl
+          - usdc_testnet_issuer
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+
+      - name: Test ${{ matrix.crate }}
+        run: cargo test --manifest-path ${{ matrix.crate }}/Cargo.toml

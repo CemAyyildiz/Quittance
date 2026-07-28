@@ -17,33 +17,64 @@ Soroban smart contracts and supporting libraries for the Quittance invoice-on-St
 
 ## Quick start
 
-Test every crate individually:
+### Using the Makefile (recommended)
+
+A `Makefile` at the root of `contracts/` provides convenient targets for building and testing every crate:
 
 ```bash
 cd contracts
 
-# Workspace member (init_once)
-cargo test -p init_once
+# Test every crate (workspace members + standalone)
+make test
 
-# Standalone crates
-cargo test -p amount_scale
-cargo test -p asset_allowlist
-cargo test -p error-codes
-cargo test -p event-invoice-paid
-cargo test -p quittance-receipt-hash
-cargo test -p seller-bind
-cargo test -p usdc-testnet-issuer
+# Build every crate
+make build
+
+# Test a single crate
+make test-error_codes
+make test-event_invoice_paid
+
+# List all known crate directories
+make list
 ```
 
-Or run tests from inside a single crate directory:
+Pass additional `cargo` flags via `CARGO_FLAGS`:
+
+```bash
+make test CARGO_FLAGS="--release"
+```
+
+### Without the Makefile
+
+Test workspace members together:
+
+```bash
+cd contracts
+cargo test
+```
+
+Test a standalone crate by changing into its directory:
 
 ```bash
 cd contracts/error_codes && cargo test
+cd contracts/seller_bind && cargo test
+```
+
+Or by specifying its manifest path:
+
+```bash
+cargo test --manifest-path contracts/amount_scale/Cargo.toml
+cargo test --manifest-path contracts/asset_allowlist/Cargo.toml
+cargo test --manifest-path contracts/error_codes/Cargo.toml
+cargo test --manifest-path contracts/event_invoice_paid/Cargo.toml
+cargo test --manifest-path contracts/quittance_receipt_hash/Cargo.toml
+cargo test --manifest-path contracts/seller_bind/Cargo.toml
+cargo test --manifest-path contracts/usdc_testnet_issuer/Cargo.toml
 ```
 
 ## Workspace
 
-`contracts/Cargo.toml` defines a virtual workspace. Only `init_once` is currently a member; the other crates are standalone (each has its own `[workspace]` table and lockfile). They can be added to the workspace as they become `soroban-sdk`-version-aligned.
+`contracts/Cargo.toml` defines a virtual workspace with three contract members (`init_once`, `max_amount`, `min_amount`). The other crates are standalone (each has its own `[workspace]` table and lockfile). They can be added to the workspace as they become `soroban-sdk`-version-aligned.
 
 ## Status
 
