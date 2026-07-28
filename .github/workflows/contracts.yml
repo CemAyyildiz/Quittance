@@ -22,16 +22,39 @@ permissions:
 
 jobs:
   test:
-    name: cargo test -p quittance-contracts-example
+    name: Build & Test Contracts
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: contracts
+
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
 
       - name: Install Rust toolchain (stable)
         uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+          components: rustfmt, clippy
 
-      - name: cargo test -p quittance-contracts-example
-        working-directory: contracts
-        run: cargo test -p quittance-contracts-example
+      - name: Cache Cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            contracts/target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('contracts/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: Check formatting
+        run: make fmt
+
+      - name: Run clippy
+        run: make clippy
+
+      - name: Run tests
+        run: make test

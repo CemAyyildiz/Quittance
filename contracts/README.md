@@ -29,7 +29,27 @@ New contract crates should be added as additional `[workspace] members` in
 
 ```bash
 cd contracts
-make test          # equivalent to: cargo test --workspace
+
+# Run all checks (fmt, clippy, check, build, test)
+make all
+
+# Run only unit tests
+make test
+
+# Build all crates
+make build
+
+# Check that all crates compile (faster than a full build)
+make check
+
+# Check formatting
+make fmt
+
+# Run clippy lints
+make clippy
+
+# Clean build artifacts
+make clean
 ```
 
 Direct equivalents (no make):
@@ -40,6 +60,7 @@ cargo build  --workspace
 cargo check  --workspace --all-targets
 cargo test   --workspace
 cargo fmt    --all -- --check
+cargo clippy --workspace --all-targets -- -D warnings
 ```
 
 To target a single crate:
@@ -50,12 +71,9 @@ cargo test -p quittance-contracts-example
 
 ## Continuous integration
 
-`.github/workflows/contracts.yml` runs `cargo test -p quittance-contracts-example`
+`.github/workflows/contracts.yml` runs `cargo test --workspace` (via `make test`)
 on every push or pull request that changes files under `contracts/**`
-(or the workflow file itself). The `example` crate is the only currently
-testable workspace member; `init_once`, `max_amount`, and `min_amount`
-are scoped per the maintainer's "remaining files are in the right lane
-for #57 / #229" note. The workflow is path-filtered so PRs that only
+(or the workflow file itself). The workflow is path-filtered so PRs that only
 touch `frontend/`, `backend/`, `db/`, or the deploy docs do not trigger
 it and cannot fail it.
 
