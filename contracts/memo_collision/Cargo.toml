@@ -1,0 +1,11 @@
+[workspace]
+
+[package]
+name = "memo-collision"
+version = "0.1.0"
+edition = "2021"
+description = "Stub in-memory memo collision guard for Soroban multi-memo uniqueness (test-only pattern)."
+license = "MIT"
+publish = false
+
+[dependencies]
