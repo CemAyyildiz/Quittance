@@ -1,37 +1,85 @@
-name: contracts
+# Contracts CI workflow
+#
+# Builds and tests all Soroban smart contract crates under contracts/
+# on every PR that touches files under that directory.
+#
+# Workspace members are tested together.  Standalone crates each run
+# as a separate matrix job so a single failure does not hide results
+# from the other crates.
 
-# Path-filtered so PRs that only change the app frontend or backend
-# cannot fail this workflow. Runs when anything under contracts/ (or
-# this file itself) is modified on main or on a pull request targeting
-# main. workflow_dispatch allows an explicit manual trigger.
+name: Contracts CI
+
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'contracts/**'
-      - '.github/workflows/contracts.yml'
-  pull_request:
-    branches: [main]
-    paths:
-      - 'contracts/**'
-      - '.github/workflows/contracts.yml'
   workflow_dispatch:
-
-permissions:
-  contents: read
+  pull_request:
+    paths:
+      - 'contracts/**'
 
 jobs:
-  test:
-    name: cargo test -p quittance-contracts-example
+  workspace:
+    name: workspace
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+
+    defaults:
+      run:
+        working-directory: contracts
+
     steps:
-      - name: Check out repository
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install Rust toolchain (stable)
-        uses: dtolnay/rust-toolchain@stable
+      - name: Install Rust toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
 
-      - name: cargo test -p quittance-contracts-example
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+
+      - name: Test workspace members
+        run: cargo test
+
+  standalone:
+    name: ${{ matrix.crate }}
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
         working-directory: contracts
-        run: cargo test -p quittance-contracts-example
+
+    strategy:
+      fail-fast: false
+      matrix:
+        crate:
+          - amount_scale
+          - asset_allowlist
+          - data_key_prefix
+          - destination_guard
+          - error_codes
+          - event_invoice_paid
+          - fee_bps_clamp
+          - invoice_claim
+          - meta_info
+          - paid_status
+          - payer_bind
+          - proof_meta
+          - quittance_receipt_hash
+          - seller_bind
+          - status_transitions
+          - storage_ttl
+          - usdc_testnet_issuer
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+
+      - name: Test ${{ matrix.crate }}
+        run: cargo test --manifest-path ${{ matrix.crate }}/Cargo.toml
