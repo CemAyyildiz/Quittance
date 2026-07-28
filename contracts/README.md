@@ -1,54 +1,63 @@
-# Quittance Soroban contracts
+# Quittance contracts
 
-Soroban smart contracts and supporting libraries for the Quittance invoice-on-Stellar protocol.
+Minimal [Cargo workspace][cargo-workspace] that owns the on-chain Quittance
+contracts. The frontend (`frontend/`) and backend (`backend/`) are separate
+projects and are not touched from this directory.
 
 ## Layout
 
-| Crate | Type | Description |
-|-------|------|-------------|
-| `amount_scale` | Library (`rlib`) | Stroop-to-display-unit conversion for 7-decimal Stellar assets. Pure math, no dependencies. |
-| `asset_allowlist` | Library (`rlib`) | MVP asset code allowlist: exact `"XLM"` / `"USDC"` match. No issuer or trustline checks. |
-| `error_codes` | Library (`rlib`) | Shared `ErrorCode` enum with stable `#[repr(u32)]` values and English `message()` strings for all Quittance contracts. |
-| `event_invoice_paid` | Library (`rlib`) | Canonical `invoice_paid` event topic and data builder. Ensures every Quittance contract emits the same event shape. |
-| `init_once` | Contract (`cdylib`) | Minimal one-shot initialiser guard. Panics on double-init. |
-| `quittance_receipt_hash` | Library (`rlib`) | Domain-separated SHA-256 receipt hash for payment proof. Reproducible on-chain via `env.crypto().sha256()`. |
-| `seller_bind` | Contract (`cdylib`) | Assert that a provided seller address matches a stored binding. `init` / `set_seller` / `get_seller` / `check_seller`. |
-| `usdc_testnet_issuer` | Library (`rlib`) | Read-only accessor for the Stellar testnet USDC issuer constant (`GBBD47IF…`). |
+```
+contracts/
+|-- Cargo.toml        # Workspace manifest
+|-- Makefile          # Local build/test shortcuts (`make test`)
+|-- README.md
++-- example/          # Smoke-test crate so the workspace builds
+    |-- Cargo.toml
+    +-- src/
+        +-- lib.rs
+```
 
-## Quick start
+New contract crates should be added as additional `[workspace] members` in
+`contracts/Cargo.toml` and inherit shared metadata from `[workspace.package]`.
 
-Test every crate individually:
+## Prerequisites
+
+- [Rust toolchain][rust] (stable)
+- `cargo` on `PATH`
+
+## Run locally
 
 ```bash
 cd contracts
-
-# Workspace member (init_once)
-cargo test -p init_once
-
-# Standalone crates
-cargo test -p amount_scale
-cargo test -p asset_allowlist
-cargo test -p error-codes
-cargo test -p event-invoice-paid
-cargo test -p quittance-receipt-hash
-cargo test -p seller-bind
-cargo test -p usdc-testnet-issuer
+make test          # equivalent to: cargo test --workspace
 ```
 
-Or run tests from inside a single crate directory:
+Direct equivalents (no make):
 
 ```bash
-cd contracts/error_codes && cargo test
+cd contracts
+cargo build  --workspace
+cargo check  --workspace --all-targets
+cargo test   --workspace
+cargo fmt    --all -- --check
 ```
 
-## Workspace
+To target a single crate:
 
-`contracts/Cargo.toml` defines a virtual workspace. Only `init_once` is currently a member; the other crates are standalone (each has its own `[workspace]` table and lockfile). They can be added to the workspace as they become `soroban-sdk`-version-aligned.
+```bash
+cargo test -p quittance-contracts-example
+```
 
-## Status
+## Continuous integration
 
-These contracts are not yet deployed or wired into the Quittance web demo (Next.js / Express MVP). The demo works on testnet with manual payments and Horizon verification — deploying Soroban contracts is not required to use the application.
+`.github/workflows/contracts.yml` runs `cargo test -p quittance-contracts-example`
+on every push or pull request that changes files under `contracts/**`
+(or the workflow file itself). The `example` crate is the only currently
+testable workspace member; `init_once`, `max_amount`, and `min_amount`
+are scoped per the maintainer's "remaining files are in the right lane
+for #57 / #229" note. The workflow is path-filtered so PRs that only
+touch `frontend/`, `backend/`, `db/`, or the deploy docs do not trigger
+it and cannot fail it.
 
-## Scope
-
-Each crate is additive and self-contained. No crate in `contracts/` imports or modifies the frontend or backend MVP. Cross-crate dependencies between Soroban crates will be introduced in a future phase.
+[cargo-workspace]: https://doc.rust-lang.org/book/ch14-03-cargo-workspaces.html
+[rust]: https://www.rust-lang.org/tools/install

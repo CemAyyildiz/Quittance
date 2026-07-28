@@ -23,6 +23,7 @@ describe('VerifyErrorCode', () => {
     expect(VerifyErrorCode.DESTINATION_MISMATCH).toBe('DESTINATION_MISMATCH');
     expect(VerifyErrorCode.ASSET_MISMATCH).toBe('ASSET_MISMATCH');
     expect(VerifyErrorCode.INVOICE_ALREADY_PAID).toBe('INVOICE_ALREADY_PAID');
+    expect(VerifyErrorCode.INVOICE_NOT_PENDING).toBe('INVOICE_NOT_PENDING');
     expect(VerifyErrorCode.INVOICE_EXPIRED).toBe('INVOICE_EXPIRED');
     expect(VerifyErrorCode.VERIFY_FAILED).toBe('VERIFY_FAILED');
   });
@@ -75,6 +76,9 @@ describe('VerifyErrorCode', () => {
     );
     expect(verifyErrorMessage(VerifyErrorCode.MEMO_MISMATCH)).toBe('Memo mismatch');
     expect(verifyErrorMessage(VerifyErrorCode.AMOUNT_MISMATCH)).toBe('Amount mismatch');
+    expect(verifyErrorMessage(VerifyErrorCode.INVOICE_NOT_PENDING)).toBe(
+      'Invoice is not pending',
+    );
     expect(verifyErrorMessage(VerifyErrorCode.VERIFY_FAILED)).toBe(
       'Failed to verify payment',
     );
