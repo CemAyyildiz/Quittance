@@ -1,0 +1,40 @@
+// Prettier configuration for the Quittance frontend.
+//
+// This config is tuned to match the existing source style (single quotes,
+// 2-space indent, semicolons, trailing commas, JSX attribute double quotes).
+// The intent is clear: running `npm run format` for the first time should be
+// a near no-op on already-conformant files, and MUST NOT churn the
+// conflict-sensitive hot files this PR is leaving alone.
+//
+// See `.prettierignore` for hard exclusions.
+{
+  // Width: Next.js + utility-class strings routinely exceed 80 chars.
+  // 100 keeps long JSX lines together without breaking each prop onto
+  // its own line.
+  printWidth: 100,
+
+  // Indent: matches 2-space indents used throughout the codebase.
+  tabWidth: 2,
+  useTabs: false,
+
+  // Statements: every existing source file ends statements with ';'.
+  semi: true,
+
+  // Strings: every existing source file prefers single quotes
+  // ('use client', 'react', `<div className=...>`).
+  singleQuote: true,
+
+  // JSX attribute quotes: keep double quotes so attribute values
+  // can contain apostrophes cleanly ("don't") and stay diff-friendly
+  // vs the existing source.
+  jsxSingleQuote: false,
+
+  // Trailing commas: current code uses them in multi-line literals;
+  // keep that for stable diffs across rewrites.
+  trailingComma: 'all',
+
+  // Spacing / arrows / line endings: Prettier defaults are correct.
+  bracketSpacing: true,
+  arrowParens: 'always',
+  endOfLine: 'lf',
+}

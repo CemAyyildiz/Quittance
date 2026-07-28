@@ -1,10 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { invoiceApi } from '@/lib/api';
 import { toast } from 'sonner';
 import { Loader2 } from 'lucide-react';
 import { STELLAR_ASSETS, getAssetByCode } from '@/lib/assets';
+import { checkAssetReadiness } from '@/lib/stellar';
 import AssetLogo from './AssetLogo';
 
 interface InvoiceFormProps {
@@ -19,6 +20,28 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
   const [description, setDescription] = useState('');
   const [customerName, setCustomerName] = useState('');
   const [customerEmail, setCustomerEmail] = useState('');
+  const [trustlineWarning, setTrustlineWarning] = useState<string | null>(null);
+
+  const selectedAsset = getAssetByCode(assetCode);
+
+  useEffect(() => {
+    setTrustlineWarning(null);
+    const asset = getAssetByCode(assetCode);
+    if (!userWallet || !asset?.issuer) return;
+    let cancelled = false;
+    checkAssetReadiness(userWallet, asset.code, asset.issuer)
+      .then((readiness) => {
+        if (!cancelled && readiness === 'no-trustline') {
+          setTrustlineWarning(
+            `Your wallet has no ${asset.code} trustline yet, so it cannot receive ${asset.code}. Add the asset in Freighter before sharing this invoice.`
+          );
+        }
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [userWallet, assetCode]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -98,6 +121,18 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
             </div>
           </div>
         </div>
+        {selectedAsset?.issuer && (
+          <div className="text-xs text-gray-500 mt-2 break-all">
+            <p>
+              {selectedAsset.code} payments require a {selectedAsset.code} trustline in the
+              payer's Freighter wallet (testnet issuer {selectedAsset.issuer}). XLM needs no
+              setup.
+            </p>
+            {trustlineWarning && (
+              <p className="text-amber-600 font-semibold mt-1">{trustlineWarning}</p>
+            )}
+          </div>
+        )}
       </div>
 
       <div>

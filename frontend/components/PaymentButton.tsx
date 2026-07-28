@@ -5,6 +5,7 @@ import { sendPayment, checkWalletConnection, requestWalletAccess } from '@/lib/s
 import { toast } from 'sonner';
 import { Wallet, Loader2 } from 'lucide-react';
 import { invoiceApi } from '@/lib/api';
+import { getAssetByCode } from '@/lib/assets';
 
 interface PaymentButtonProps {
   destination: string;
@@ -33,6 +34,8 @@ export default function PaymentButton({
 }: PaymentButtonProps) {
   const [loading, setLoading] = useState(false);
 
+  const issuer = assetIssuer || getAssetByCode(assetCode)?.issuer;
+
   const handlePayment = async () => {
     setLoading(true);
     try {
@@ -46,7 +49,7 @@ export default function PaymentButton({
       }
 
       toast.loading('Confirm in wallet...', { id: PAY_TOAST_ID });
-      const txHash = await sendPayment(destination, amount, memo, assetCode, assetIssuer);
+      const txHash = await sendPayment(destination, amount, memo, assetCode, issuer);
 
       if (invoiceId) {
         toast.loading('Verifying payment...', { id: PAY_TOAST_ID });
@@ -85,22 +88,35 @@ export default function PaymentButton({
   };
 
   return (
-    <button
-      onClick={handlePayment}
-      disabled={loading}
-      className="btn btn-primary w-full flex items-center justify-center gap-2 text-lg py-4"
-    >
-      {loading ? (
-        <>
-          <Loader2 className="w-6 h-6 animate-spin" />
-          Processing...
-        </>
-      ) : (
-        <>
-          <Wallet className="w-6 h-6" />
-          Pay with Freighter
-        </>
+    <div>
+      {assetCode !== 'XLM' && issuer && (
+        <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-4">
+          <p className="text-sm text-amber-800 font-semibold mb-1">
+            Paying with {assetCode} (testnet)
+          </p>
+          <p className="text-xs text-amber-700 break-all">
+            Your Freighter wallet needs a {assetCode} trustline to issuer {issuer} and at
+            least {amount} {assetCode}. Without it the payment cannot go through.
+          </p>
+        </div>
       )}
-    </button>
+      <button
+        onClick={handlePayment}
+        disabled={loading}
+        className="btn btn-primary w-full flex items-center justify-center gap-2 text-lg py-4"
+      >
+        {loading ? (
+          <>
+            <Loader2 className="w-6 h-6 animate-spin" />
+            Processing...
+          </>
+        ) : (
+          <>
+            <Wallet className="w-6 h-6" />
+            Pay with Freighter
+          </>
+        )}
+      </button>
+    </div>
   );
 }

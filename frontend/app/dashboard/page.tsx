@@ -7,6 +7,7 @@ import WalletConnect from '@/components/WalletConnect';
 import UserProfile from '@/components/UserProfile';
 import TransactionHistory from '@/components/TransactionHistory';
 import { useWalletStore } from '@/lib/store';
+import NetworkBadge from '@/components/NetworkBadge';
 import Link from 'next/link';
 import { Loader2, Plus, TrendingUp, DollarSign, FileText, Download } from 'lucide-react';
 import { toast } from 'sonner';
@@ -94,9 +95,12 @@ export default function DashboardPage() {
       <div className="accent-blob accent-blob-2"></div>
       <header className="fixed top-0 left-0 right-0 z-50 premium-header border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
-          <Link href="/" className="font-display text-xl tracking-tight text-[var(--ink)] hover:opacity-80 transition-opacity">
-            Quittance
-          </Link>
+          <div className="flex items-center gap-3">
+            <Link href="/" className="font-display text-xl tracking-tight text-[var(--ink)] hover:opacity-80 transition-opacity">
+              Quittance
+            </Link>
+            <NetworkBadge />
+          </div>
           <div className="flex items-center gap-3">
             {!connected ? (
               <WalletConnect />

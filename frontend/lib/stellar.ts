@@ -91,6 +91,41 @@ export const getAccountBalance = async (
   }
 };
 
+export type AssetReadiness = 'ok' | 'no-trustline' | 'insufficient-balance';
+
+const getAssetReadiness = (
+  balances: any[],
+  assetCode: string,
+  assetIssuer: string,
+  amount?: string
+): AssetReadiness => {
+  const line = balances.find(
+    (balance: any) =>
+      balance.asset_code === assetCode && balance.asset_issuer === assetIssuer
+  );
+  if (!line) {
+    return 'no-trustline';
+  }
+  if (amount && parseFloat(line.balance) < parseFloat(amount)) {
+    return 'insufficient-balance';
+  }
+  return 'ok';
+};
+
+/**
+ * Check whether an account holds a trustline (and optionally enough balance)
+ * for a non-native asset. Used to guide USDC payers before Freighter fails.
+ */
+export const checkAssetReadiness = async (
+  publicKey: string,
+  assetCode: string,
+  assetIssuer: string,
+  amount?: string
+): Promise<AssetReadiness> => {
+  const account = await loadAccount(publicKey);
+  return getAssetReadiness(account.balances as any[], assetCode, assetIssuer, amount);
+};
+
 /**
  * Send payment with memo
  */
@@ -123,6 +158,26 @@ export const sendPayment = async (
         throw new Error('Account not funded. Please get test XLM from Stellar Laboratory first.');
       }
       throw error;
+    }
+
+    // Fail fast with clear guidance instead of an opaque Horizon error
+    if (assetCode !== 'XLM' && assetIssuer) {
+      const readiness = getAssetReadiness(
+        account.balances as any[],
+        assetCode,
+        assetIssuer,
+        amount
+      );
+      if (readiness === 'no-trustline') {
+        throw new Error(
+          `Your wallet has no ${assetCode} trustline. Add ${assetCode} (issuer ${assetIssuer}) as an asset in Freighter, then try again.`
+        );
+      }
+      if (readiness === 'insufficient-balance') {
+        throw new Error(
+          `Insufficient ${assetCode} balance to send ${amount} ${assetCode}. Fund your wallet with testnet ${assetCode}, then try again.`
+        );
+      }
     }
 
     // Create asset
@@ -165,6 +220,21 @@ export const sendPayment = async (
     return result.hash;
   } catch (error: any) {
     console.error('Payment error:', error);
+    if (assetCode !== 'XLM') {
+      const opCodes: string[] =
+        error?.response?.data?.extras?.result_codes?.operations || [];
+      // Payer-side no_trust is caught above, so this one is the destination's
+      if (opCodes.includes('op_no_trust')) {
+        throw new Error(
+          `The destination account has no ${assetCode} trustline, so it cannot receive ${assetCode} yet.`
+        );
+      }
+      if (opCodes.includes('op_underfunded')) {
+        throw new Error(
+          `Insufficient ${assetCode} balance to send ${amount} ${assetCode}.`
+        );
+      }
+    }
     throw new Error(error.message || 'Payment failed');
   }
 };
@@ -248,6 +318,7 @@ export default {
   getUserPublicKey,
   loadAccount,
   getAccountBalance,
+  checkAssetReadiness,
   sendPayment,
   getTransaction,
   checkTransactionStatus,

@@ -8,6 +8,7 @@ import QRCodeDisplay from '@/components/QRCodeDisplay';
 import WalletConnect from '@/components/WalletConnect';
 import UserProfile from '@/components/UserProfile';
 import AssetLogo from '@/components/AssetLogo';
+import NetworkBadge from '@/components/NetworkBadge';
 import { useWalletStore } from '@/lib/store';
 import { Mail } from 'lucide-react';
 import { toast } from 'sonner';
@@ -28,9 +29,12 @@ export default function HomePage() {
     <div className="min-h-screen bg-[var(--paper)] text-[var(--ink)]">
       <header className="fixed top-0 left-0 right-0 z-50 premium-header">
         <div className="max-w-6xl mx-auto px-5 sm:px-8 h-16 flex items-center justify-between">
-          <Link href="/" className="font-display text-2xl tracking-tight text-[var(--ink)]">
-            Quittance
-          </Link>
+          <div className="flex items-center gap-3">
+            <Link href="/" className="font-display text-2xl tracking-tight text-[var(--ink)]">
+              Quittance
+            </Link>
+            <NetworkBadge />
+          </div>
           <nav className="flex items-center gap-3 sm:gap-5">
             <Link
               href="/dashboard"

@@ -1,7 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { formatAmount, formatDate, getStatusColor, getTimeRemaining } from '@/lib/utils';
+import { formatAmount, formatDate, getStatusColor } from '@/lib/utils';
+import { useCountdown } from '@/lib/useCountdown';
 import { Clock, ExternalLink, Copy, Mail, Download } from 'lucide-react';
 import { copyToClipboard } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -36,6 +37,7 @@ interface InvoiceCardProps {
 export default function InvoiceCard({ invoice }: InvoiceCardProps) {
   const statusColor = getStatusColor(invoice.status);
   const paymentUrl = `${window.location.origin}/pay/${invoice.id}`;
+  const timeRemaining = useCountdown(invoice.status === 'PENDING' ? invoice.expiresAt : null);
 
   const handleCopyLink = async () => {
     const success = await copyToClipboard(paymentUrl);
@@ -86,7 +88,7 @@ export default function InvoiceCard({ invoice }: InvoiceCardProps) {
         {invoice.status === 'PENDING' && (
           <div className="flex items-center gap-2 text-xs text-gray-500">
             <Clock className="w-4 h-4" />
-            <span>Expires: {getTimeRemaining(invoice.expiresAt)}</span>
+            <span>Expires: {timeRemaining}</span>
           </div>
         )}
       </div>
