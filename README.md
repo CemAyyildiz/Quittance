@@ -98,6 +98,14 @@ npm run dev
 
 App: `http://localhost:3000`
 
+### Frontend e2e tests
+
+```bash
+cd frontend
+npx playwright install
+npm run test:e2e
+```
+
 ### Env reference
 
 - Backend: `backend/env.mvp.example`  
