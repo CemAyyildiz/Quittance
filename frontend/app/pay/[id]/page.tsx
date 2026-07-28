@@ -198,24 +198,6 @@ export default function PaymentPage() {
                 </div>
               )}
 
-              {(invoice.sellerName || invoice.sellerEmail) && (
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-2">
-                  <p className="text-sm text-blue-600 font-semibold">Seller Information</p>
-                  {invoice.sellerName && (
-                    <div>
-                      <p className="text-xs text-blue-500">Name</p>
-                      <p className="text-sm text-blue-800">{invoice.sellerName}</p>
-                    </div>
-                  )}
-                  {invoice.sellerEmail && (
-                    <div>
-                      <p className="text-xs text-blue-500">Email</p>
-                      <p className="text-sm text-blue-800">{invoice.sellerEmail}</p>
-                    </div>
-                  )}
-                </div>
-              )}
-
               {invoice.sellerName && (
                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-center">
                   <p className="text-sm text-blue-600 font-semibold">Pay to</p>
