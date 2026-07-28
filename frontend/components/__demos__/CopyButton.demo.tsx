@@ -30,6 +30,6 @@ export default function CopyButtonDemo() {
           label="Copy TX"
         />
       </section>
-    </div>
+     </div>
   );
 }
