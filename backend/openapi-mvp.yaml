@@ -1,3 +1,4 @@
+---
 openapi: 3.0.3
 info:
   title: Quittance API — MVP
@@ -50,6 +51,24 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthResponse"
+
+  /api/health/detail:
+    get:
+      summary: Detailed health check
+      description: |
+        Returns detailed health information including the server version,
+        Stellar network environment, human-readable uptime, and links
+        to available endpoints. No database health check is performed.
+      operationId: healthDetail
+      tags:
+        - System
+      responses:
+        "200":
+          description: Detailed service health information
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthDetailResponse"
 
   /api/invoices:
     post:
@@ -302,7 +321,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/VerifyPaymentResponse"
         "400":
-          description: Verification failed (memo, amount, asset, or destination mismatch)
+          description: Verification failed (memo, amount, asset, or
+            destination mismatch)
           content:
             application/json:
               schema:
@@ -442,6 +462,54 @@ components:
         message:
           type: string
           example: Each user uses their own wallet for payments
+
+    HealthDetailResponse:
+      type: object
+      description: Detailed health information including version, network,
+        uptime, and available endpoints.
+      properties:
+        status:
+          type: string
+          example: ok
+        service:
+          type: string
+          example: Quittance API
+        version:
+          type: string
+          example: 1.0.0
+        network:
+          type: string
+          description: Stellar network name
+          example: TESTNET
+        environment:
+          type: string
+          description: Node environment
+          example: development
+        uptime:
+          type: object
+          description: Server runtime since last start
+          properties:
+            seconds:
+              type: integer
+              description: Uptime in seconds
+              example: 12345
+            human:
+              type: string
+              description: Human-readable uptime
+              example: 3h 25m 45s
+        timestamp:
+          type: string
+          format: date-time
+        endpoints:
+          type: object
+          description: Links to available health endpoints
+          properties:
+            health:
+              type: string
+              example: /api/health
+            detail:
+              type: string
+              example: /api/health/detail
 
     # ------------------------------------------------------------------
     # Invoice
@@ -593,7 +661,8 @@ components:
             paymentUrl:
               type: string
               description: Frontend payment page URL
-              example: https://quittance.app/pay/550e8400-e29b-41d4-a716-446655440000
+              example: >-
+                https://quittance.app/pay/550e8400-e29b-41d4-a716-446655440000
             qrCode:
               type: string
               description: Data URL for the payment page QR code (PNG base64)
