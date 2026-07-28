@@ -22,7 +22,7 @@ permissions:
 
 jobs:
   test:
-    name: cargo test --workspace
+    name: cargo test -p quittance-contracts-example
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
