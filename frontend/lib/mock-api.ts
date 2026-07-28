@@ -4,8 +4,26 @@ import { buildStellarPaymentUri } from '@/lib/stellar-payment-uri';
 
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
+type MockInvoice = {
+  id: string;
+  amount: number;
+  assetCode: string;
+  assetIssuer?: string;
+  description: string;
+  customerName: string;
+  customerEmail?: string;
+  status: string;
+  memo: string;
+  sellerPublicKey: string;
+  createdAt: string;
+  paidAt?: string;
+  expiresAt: string;
+  paymentTxHash?: string;
+  payerPublicKey?: string;
+};
+
 // Mock invoice data
-const mockInvoices = [
+const mockInvoices: MockInvoice[] = [
   {
     id: '1',
     amount: 100.50,
@@ -274,4 +292,3 @@ export const mockHealthCheck = async () => {
     service: 'Quittance API (Mock)',
   };
 };
-
