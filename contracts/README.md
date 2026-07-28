@@ -1,59 +1,63 @@
-# Quittance Contracts (Soroban)
+# Quittance contracts
 
-Soroban smart contracts for the Quittance invoicing protocol on Stellar.
+Minimal [Cargo workspace][cargo-workspace] that owns the on-chain Quittance
+contracts. The frontend (`frontend/`) and backend (`backend/`) are separate
+projects and are not touched from this directory.
 
-## Prerequisites
-
-- [Rust](https://www.rust-lang.org/tools/install) 1.81+
-- `rustup target add wasm32-unknown-unknown`
-- Optional: [Soroban CLI](https://soroban.stellar.org/docs/cli) for integration tests
-
-## Workspace structure
+## Layout
 
 ```
 contracts/
-├── Cargo.toml          # Workspace manifest
-├── Makefile            # Build & test targets
-└── README.md           # This file
+|-- Cargo.toml        # Workspace manifest
+|-- Makefile          # Local build/test shortcuts (`make test`)
+|-- README.md
++-- example/          # Smoke-test crate so the workspace builds
+    |-- Cargo.toml
+    +-- src/
+        +-- lib.rs
 ```
 
-Crate directories (e.g. `network_passphrase/`, `payer_bind/`) will be added by future
-issues. Update `Cargo.toml` `members` when a new crate lands.
+New contract crates should be added as additional `[workspace] members` in
+`contracts/Cargo.toml` and inherit shared metadata from `[workspace.package]`.
 
-## Running tests locally
+## Prerequisites
+
+- [Rust toolchain][rust] (stable)
+- `cargo` on `PATH`
+
+## Run locally
 
 ```bash
-# From the contracts/ directory:
-
-# Run all checks (fmt, clippy, build, test)
-make all
-
-# Run only unit tests
-make test
-
-# Build all crates
-make build
-
-# Check formatting
-make fmt
-
-# Run clippy lints
-make clippy
-
-# Clean build artifacts
-make clean
+cd contracts
+make test          # equivalent to: cargo test --workspace
 ```
 
-Individual Make targets can also be scoped:
+Direct equivalents (no make):
 
 ```bash
-# Run tests for a single crate
-cargo test -p network_passphrase
-
-# Build a single crate
-cargo build -p payer_bind
+cd contracts
+cargo build  --workspace
+cargo check  --workspace --all-targets
+cargo test   --workspace
+cargo fmt    --all -- --check
 ```
 
-## CI
+To target a single crate:
 
-Contract tests run on every push and pull request that touches `contracts/**`. See `.github/workflows/contracts.yml`.
+```bash
+cargo test -p quittance-contracts-example
+```
+
+## Continuous integration
+
+`.github/workflows/contracts.yml` runs `cargo test -p quittance-contracts-example`
+on every push or pull request that changes files under `contracts/**`
+(or the workflow file itself). The `example` crate is the only currently
+testable workspace member; `init_once`, `max_amount`, and `min_amount`
+are scoped per the maintainer's "remaining files are in the right lane
+for #57 / #229" note. The workflow is path-filtered so PRs that only
+touch `frontend/`, `backend/`, `db/`, or the deploy docs do not trigger
+it and cannot fail it.
+
+[cargo-workspace]: https://doc.rust-lang.org/book/ch14-03-cargo-workspaces.html
+[rust]: https://www.rust-lang.org/tools/install

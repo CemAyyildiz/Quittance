@@ -1,11 +1,23 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { ArrowUpRight, ArrowDownLeft, ExternalLink, Loader2, Clock, Download, FileText, FileSpreadsheet } from 'lucide-react';
+import {
+  ArrowUpRight,
+  ArrowDownLeft,
+  ExternalLink,
+  Loader2,
+  RefreshCw,
+  Download,
+  FileText,
+  FileSpreadsheet,
+  AlertCircle,
+  Inbox,
+} from 'lucide-react';
 import { format } from 'date-fns';
 import { formatAddress } from '@/lib/utils';
 import { downloadCSV, downloadPDF, downloadJSON } from '@/lib/export';
 import { toast } from 'sonner';
+import { networkBadgeModel } from '@/lib/networkBadgeModel';
 import AssetLogo from './AssetLogo';
 
 export interface Transaction {
@@ -27,9 +39,24 @@ interface TransactionHistoryProps {
   limit?: number;
 }
 
-export default function TransactionHistory({ publicKey, limit = 20 }: TransactionHistoryProps) {
+/**
+ * Map the configured Stellar network to the segment used by stellar.expert URLs.
+ * Uses the shared networkBadgeModel so casing/whitespace/null all resolve the
+ * same way as the network badge in the app chrome. Unknown values fall back to
+ * "public" to mirror how `networkBadgeModel` treats them.
+ */
+const explorerNetworkSegment = (): 'testnet' | 'public' =>
+  networkBadgeModel(process.env.NEXT_PUBLIC_STELLAR_NETWORK) === 'TESTNET'
+    ? 'testnet'
+    : 'public';
+
+export default function TransactionHistory({
+  publicKey,
+  limit = 20,
+}: TransactionHistoryProps) {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<'all' | 'sent' | 'received'>('all');
   const [showExportMenu, setShowExportMenu] = useState(false);
 
@@ -41,7 +68,7 @@ export default function TransactionHistory({ publicKey, limit = 20 }: Transactio
 
   // Close export menu when clicking outside
   useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
+    const handleClickOutside = () => {
       if (showExportMenu) {
         setShowExportMenu(false);
       }
@@ -58,10 +85,12 @@ export default function TransactionHistory({ publicKey, limit = 20 }: Transactio
 
   const loadTransactions = async () => {
     setLoading(true);
+    setError(null);
+    setTransactions([]);
     try {
       // Import dynamically to avoid SSR issues
       const { server } = await import('@/lib/stellar');
-      
+
       const payments = await server
         .payments()
         .forAccount(publicKey)
@@ -87,7 +116,8 @@ export default function TransactionHistory({ publicKey, limit = 20 }: Transactio
             from: op.from || op.funder || '',
             to: op.to || op.account || '',
             amount: op.amount || op.starting_balance || '0',
-            assetCode: op.asset_type === 'native' ? 'XLM' : op.asset_code || 'XLM',
+            assetCode:
+              op.asset_type === 'native' ? 'XLM' : op.asset_code || 'XLM',
             assetIssuer: op.asset_issuer,
             memo: transaction.memo || undefined,
             createdAt: payment.created_at,
@@ -99,8 +129,12 @@ export default function TransactionHistory({ publicKey, limit = 20 }: Transactio
       }
 
       setTransactions(txs);
-    } catch (error) {
-      console.error('Error loading transactions:', error);
+    } catch (err: any) {
+      console.error('Error loading transactions:', err);
+      setError(
+        err?.message ||
+          'We could not load your transactions. Check your connection and try again.',
+      );
     } finally {
       setLoading(false);
     }
@@ -112,8 +146,11 @@ export default function TransactionHistory({ publicKey, limit = 20 }: Transactio
   });
 
   const openExplorer = (hash: string) => {
-    const network = process.env.NEXT_PUBLIC_STELLAR_NETWORK === 'TESTNET' ? 'testnet' : 'public';
-    window.open(`https://stellar.expert/explorer/${network}/tx/${hash}`, '_blank');
+    const network = explorerNetworkSegment();
+    window.open(
+      `https://stellar.expert/explorer/${network}/tx/${hash}`,
+      '_blank',
+    );
   };
 
   const handleExportCSV = () => {
@@ -145,11 +182,54 @@ export default function TransactionHistory({ publicKey, limit = 20 }: Transactio
     }
   };
 
+  // ---- States: loading, error, list --------------------------------------
+
   if (loading) {
     return (
       <div className="card">
-        <div className="flex items-center justify-center py-12">
+        <div
+          className="flex flex-col items-center justify-center py-12 gap-3"
+          role="status"
+          aria-live="polite"
+          data-testid="tx-history-loading"
+        >
           <Loader2 className="w-8 h-8 animate-spin text-stellar-600" />
+          <p className="text-sm font-medium text-gray-700">
+            Loading your transaction history…
+          </p>
+          <p className="text-xs text-gray-500">
+            This may take a moment on first load.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="card">
+        <div
+          className="flex flex-col items-center justify-center py-10 gap-4 text-center"
+          role="alert"
+          data-testid="tx-history-error"
+        >
+          <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center">
+            <AlertCircle className="w-6 h-6 text-red-600" />
+          </div>
+          <div>
+            <h3 className="text-lg font-semibold text-gray-900 mb-1">
+              Unable to load transactions
+            </h3>
+            <p className="text-sm text-gray-600 max-w-md mx-auto">{error}</p>
+          </div>
+          <button
+            onClick={loadTransactions}
+            className="btn btn-primary flex items-center gap-2"
+            type="button"
+          >
+            <RefreshCw className="w-4 h-4" />
+            <span>Try again</span>
+          </button>
         </div>
       </div>
     );
@@ -222,9 +302,27 @@ export default function TransactionHistory({ publicKey, limit = 20 }: Transactio
       </div>
 
       {filteredTransactions.length === 0 ? (
-        <div className="text-center py-8 text-gray-500">
-          <Clock className="w-12 h-12 mx-auto mb-3 opacity-50" />
-          <p>No {filter !== 'all' ? filter : ''} transactions yet</p>
+        <div
+          className="text-center py-10 text-gray-500"
+          data-testid="tx-history-empty"
+        >
+          <Inbox className="w-12 h-12 mx-auto mb-3 opacity-50" />
+          <p className="text-base font-medium text-gray-700 mb-1">
+            {filter !== 'all'
+              ? `No ${filter} transactions yet`
+              : 'No transactions yet'}
+          </p>
+          <p className="text-sm text-gray-500 max-w-md mx-auto">
+            Payments you send or receive on this wallet will appear here. Use
+            Refresh to check for new activity.
+          </p>
+          <button
+            onClick={loadTransactions}
+            className="mt-4 text-sm text-stellar-600 hover:text-stellar-700 font-medium"
+            type="button"
+          >
+            Refresh
+          </button>
         </div>
       ) : (
         <div className="space-y-3">
@@ -257,11 +355,16 @@ export default function TransactionHistory({ publicKey, limit = 20 }: Transactio
                       {tx.type === 'received' ? 'Received from' : 'Sent to'}
                     </span>
                     <span className="text-sm text-gray-600 font-mono">
-                      {formatAddress(tx.type === 'received' ? tx.from : tx.to, 6)}
+                      {formatAddress(
+                        tx.type === 'received' ? tx.from : tx.to,
+                        6,
+                      )}
                     </span>
                   </div>
                   <div className="flex items-center gap-3 text-sm text-gray-500">
-                    <span>{format(new Date(tx.createdAt), 'MMM dd, yyyy HH:mm')}</span>
+                    <span>
+                      {format(new Date(tx.createdAt), 'MMM dd, yyyy HH:mm')}
+                    </span>
                     {tx.memo && (
                       <>
                         <span>•</span>
@@ -293,7 +396,10 @@ export default function TransactionHistory({ publicKey, limit = 20 }: Transactio
                 <button
                   onClick={() => openExplorer(tx.hash)}
                   className="p-2 text-gray-400 hover:text-stellar-600 hover:bg-white rounded-lg transition-colors"
-                  title="View on Explorer"
+                  title={`View on Stellar Explorer (${
+                    explorerNetworkSegment() === 'testnet' ? 'Testnet' : 'Public'
+                  })`}
+                  aria-label="View transaction on Stellar Explorer"
                 >
                   <ExternalLink className="w-4 h-4" />
                 </button>
@@ -308,6 +414,7 @@ export default function TransactionHistory({ publicKey, limit = 20 }: Transactio
           <button
             onClick={loadTransactions}
             className="text-sm text-stellar-600 hover:text-stellar-700 font-medium"
+            type="button"
           >
             Refresh Transactions
           </button>
@@ -316,4 +423,3 @@ export default function TransactionHistory({ publicKey, limit = 20 }: Transactio
     </div>
   );
 }
-

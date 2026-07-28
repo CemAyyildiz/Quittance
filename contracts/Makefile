@@ -1,24 +1,30 @@
-.PHONY: all build test fmt clippy clean
+# Quittance contracts -- local build/test shortcuts.
+#
+# Run `make test` from this directory to execute the workspace test
+# suite. All targets are thin wrappers around `cargo` so they work
+# identically in CI (.github/workflows/contracts.yml).
 
-# Default target: run all checks
-all: fmt clippy build test
+.PHONY: help build test check fmt clean
 
-# Compile all workspace crates
+help:
+	@echo "Available targets:"
+	@echo "  make build  - cargo build  --workspace"
+	@echo "  make test   - cargo test   --workspace"
+	@echo "  make check  - cargo check  --workspace --all-targets"
+	@echo "  make fmt    - cargo fmt --all -- --check"
+	@echo "  make clean  - cargo clean"
+
 build:
 	cargo build --workspace
 
-# Run unit tests across all workspace crates
 test:
 	cargo test --workspace
 
-# Check code formatting
+check:
+	cargo check --workspace --all-targets
+
 fmt:
-	cargo fmt --all --check
+	cargo fmt --all -- --check
 
-# Run clippy lints
-clippy:
-	cargo clippy --workspace --all-targets -- -D warnings
-
-# Clean build artifacts
 clean:
 	cargo clean

@@ -1,0 +1,21 @@
+[package]
+name = "quittance-receipt-hash"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.74"
+description = "Domain-separated SHA-256 receipt hash for Quittance payment proofs on Stellar."
+license = "MIT"
+readme = "README.md"
+keywords = ["stellar", "soroban", "sha256", "receipt", "quittance"]
+categories = ["cryptography"]
+publish = false
+
+[lib]
+name = "quittance_receipt_hash"
+path = "src/lib.rs"
+
+[dependencies]
+sha2 = "0.10"
+hex = "0.4"
+
+[dev-dependencies]

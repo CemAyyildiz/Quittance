@@ -1,6 +1,7 @@
 import express, { Application, Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import { requestId } from './middleware/request-id';
 import routes from './routes';
 import { pool } from './config/database';
 import { validateStellarConfig } from './config/stellar';
@@ -20,6 +21,8 @@ app.use(cors({
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+app.use(requestId);
 
 app.use((req: Request, res: Response, next: NextFunction) => {
   console.log(`${req.method} ${req.path}`);

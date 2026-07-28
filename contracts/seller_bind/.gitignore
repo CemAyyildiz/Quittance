@@ -1,0 +1,7 @@
+# Soroban build artifacts.
+target/
+test_snapshots/
+
+# Editor / OS noise.
+.DS_Store
+*.swp
