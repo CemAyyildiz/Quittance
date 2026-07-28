@@ -3,7 +3,7 @@
  *
  * This is a pure, additive helper that returns a human-readable label
  * for each invoice status. It handles the four canonical statuses:
- * `'PENDING'`, `'PAID'`, `'EXPIRED'`, and `'CANCELLED'`. Unknown
+ * `'PENDING'`, `'PAID'`, `'EXPIRED'`, and `'CANCELLED'` (also accepts US spelling `'CANCELED'`). Unknown
  * inputs return the fallback label `'Unknown'`.
  *
  * The input is normalised by trimming whitespace and lower-casing so
@@ -32,6 +32,8 @@ const STATUS_LABELS: Readonly<Record<string, string>> = {
   paid: 'Paid',
   expired: 'Expired',
   cancelled: 'Cancelled',
+  // US spelling variant sometimes seen in JSON payloads
+  canceled: 'Cancelled',
 };
 
 /** Fallback label returned for any unrecognised or invalid input. */
@@ -82,6 +84,17 @@ export function invoiceStatusLabel(status: unknown): string {
 export function invoiceStatusLabelSafe(status: InvoiceStatus): string {
   // The lookup is guaranteed to succeed for canonical statuses.
   return STATUS_LABELS[status.toLowerCase()]!;
+}
+
+
+/**
+ * Returns true when `status` maps to a known invoice label
+ * (including the US spelling alias `canceled`).
+ */
+export function isKnownInvoiceStatus(status: unknown): boolean {
+  if (typeof status !== 'string') return false;
+  const normalized = status.trim().toLowerCase();
+  return Object.prototype.hasOwnProperty.call(STATUS_LABELS, normalized);
 }
 
 export default invoiceStatusLabel;

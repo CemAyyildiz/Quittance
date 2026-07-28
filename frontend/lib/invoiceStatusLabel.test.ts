@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   invoiceStatusLabel,
   invoiceStatusLabelSafe,
+  isKnownInvoiceStatus,
 } from './invoiceStatusLabel';
 
 // ---------------------------------------------------------------------------
@@ -92,5 +93,34 @@ describe('invoiceStatusLabelSafe — type-safe variant', () => {
     expect(invoiceStatusLabelSafe('PAID')).toBe('Paid');
     expect(invoiceStatusLabelSafe('EXPIRED')).toBe('Expired');
     expect(invoiceStatusLabelSafe('CANCELLED')).toBe('Cancelled');
+  });
+});
+
+
+// ---------------------------------------------------------------------------
+// US spelling alias + isKnownInvoiceStatus
+// ---------------------------------------------------------------------------
+
+describe('invoiceStatusLabel — US spelling alias', () => {
+  it('maps canceled (US) to Cancelled', () => {
+    expect(invoiceStatusLabel('canceled')).toBe('Cancelled');
+    expect(invoiceStatusLabel('CANCELED')).toBe('Cancelled');
+    expect(invoiceStatusLabel('  Canceled  ')).toBe('Cancelled');
+  });
+});
+
+describe('isKnownInvoiceStatus', () => {
+  it('returns true for canonical statuses and US alias', () => {
+    expect(isKnownInvoiceStatus('PENDING')).toBe(true);
+    expect(isKnownInvoiceStatus('paid')).toBe(true);
+    expect(isKnownInvoiceStatus('CANCELED')).toBe(true);
+    expect(isKnownInvoiceStatus('cancelled')).toBe(true);
+  });
+
+  it('returns false for unknown or invalid inputs', () => {
+    expect(isKnownInvoiceStatus('REFUNDED')).toBe(false);
+    expect(isKnownInvoiceStatus('')).toBe(false);
+    expect(isKnownInvoiceStatus(null)).toBe(false);
+    expect(isKnownInvoiceStatus(undefined)).toBe(false);
   });
 });
