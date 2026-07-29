@@ -19,8 +19,7 @@
 /// This is the same value documented in Quittance's front-end asset list
 /// (`frontend/lib/assets.ts`) and is the standard testnet USDC issuer on
 /// the public Stellar testnet.
-pub const USDC_TESTNET_ISSUER: &str =
-    "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5";
+pub const USDC_TESTNET_ISSUER: &str = "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5";
 
 /// Read-only accessor returning the documented Stellar testnet USDC issuer.
 ///

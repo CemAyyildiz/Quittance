@@ -178,10 +178,7 @@ mod test {
         // Test a representative sample of allowed characters.
         let chars = [" ", "A", "z", "0", "9", "!", "~"];
         for ch in chars {
-            assert!(
-                validate(&env, &contract_id, ch),
-                "expected valid: '{ch}'"
-            );
+            assert!(validate(&env, &contract_id, ch), "expected valid: '{ch}'");
         }
     }
 

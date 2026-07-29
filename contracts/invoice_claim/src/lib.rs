@@ -187,8 +187,9 @@ mod tests {
     #[test]
     fn deterministic_across_calls() {
         let (seller, amount, memo, expiry) = sample();
-        let hashes: Vec<ClaimHash> =
-            (0..10).map(|_| compute(seller, amount, memo, expiry)).collect();
+        let hashes: Vec<ClaimHash> = (0..10)
+            .map(|_| compute(seller, amount, memo, expiry))
+            .collect();
         for h in &hashes[1..] {
             assert_eq!(hashes[0], *h);
         }

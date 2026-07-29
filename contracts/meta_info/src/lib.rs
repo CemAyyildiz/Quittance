@@ -108,13 +108,7 @@ mod test {
         let v = client.version();
 
         assert_ne!(n, v, "name and version must be different strings");
-        assert!(
-            !n.is_empty(),
-            "name must not be empty"
-        );
-        assert!(
-            !v.is_empty(),
-            "version must not be empty"
-        );
+        assert!(!n.is_empty(), "name must not be empty");
+        assert!(!v.is_empty(), "version must not be empty");
     }
 }

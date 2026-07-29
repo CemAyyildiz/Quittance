@@ -196,7 +196,10 @@ mod tests {
     #[test]
     fn from_stroops_truncates_fractions() {
         // 12.3456789 XLM exactly:
-        assert_eq!(from_stroops(123_456_789 * STROOPS_PER_UNIT), Some(12_345_678));
+        assert_eq!(
+            from_stroops(123_456_789 * STROOPS_PER_UNIT),
+            Some(12_345_678)
+        );
         // Anything below 1 display unit floors to 0:
         assert_eq!(from_stroops(1), Some(0));
         assert_eq!(from_stroops(STROOPS_PER_UNIT - 1), Some(0));
@@ -230,7 +233,10 @@ mod tests {
     #[test]
     fn remainder_stroops_sub_unit_residue() {
         assert_eq!(remainder_stroops(STROOPS_PER_UNIT + 500_000), Some(500_000));
-        assert_eq!(remainder_stroops(123_456_789 * STROOPS_PER_UNIT + 1), Some(1));
+        assert_eq!(
+            remainder_stroops(123_456_789 * STROOPS_PER_UNIT + 1),
+            Some(1)
+        );
     }
 
     #[test]

@@ -335,7 +335,10 @@ mod tests {
             PaidStatus::Pending.message(),
             "Invoice has been issued but no payment has been confirmed."
         );
-        assert_eq!(PaidStatus::Paid.message(), "Payment confirmed on the ledger.");
+        assert_eq!(
+            PaidStatus::Paid.message(),
+            "Payment confirmed on the ledger."
+        );
         assert_eq!(
             PaidStatus::Expired.message(),
             "Settlement window elapsed without a confirmed payment."

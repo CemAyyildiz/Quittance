@@ -80,7 +80,9 @@ pub const DEFAULT_LEDGERS: u32 = 120;
 /// }
 /// ```
 pub fn bump_instance(env: &Env, threshold: u32, ledgers_to_add: u32) {
-    env.storage().instance().extend_ttl(threshold, ledgers_to_add);
+    env.storage()
+        .instance()
+        .extend_ttl(threshold, ledgers_to_add);
 }
 
 /// Convenience form of [`bump_instance`] that uses [`DEFAULT_THRESHOLD`]
@@ -117,7 +119,9 @@ pub fn bump_persistent<K>(env: &Env, key: &K, threshold: u32, ledgers_to_add: u3
 where
     K: IntoVal<Env, Val>,
 {
-    env.storage().persistent().extend_ttl(key, threshold, ledgers_to_add);
+    env.storage()
+        .persistent()
+        .extend_ttl(key, threshold, ledgers_to_add);
 }
 
 /// Convenience form of [`bump_persistent`] that uses
@@ -155,7 +159,9 @@ pub fn bump_temporary<K>(env: &Env, key: &K, threshold: u32, ledgers_to_add: u32
 where
     K: IntoVal<Env, Val>,
 {
-    env.storage().temporary().extend_ttl(key, threshold, ledgers_to_add);
+    env.storage()
+        .temporary()
+        .extend_ttl(key, threshold, ledgers_to_add);
 }
 
 /// Convenience form of [`bump_temporary`] that uses
@@ -286,8 +292,10 @@ mod tests {
         // Type-check: generic parameter K resolves to Symbol.
         #[allow(unused_variables)]
         {
-            let bump_p: fn(&Env, &soroban_sdk::Symbol, u32, u32) = bump_persistent::<soroban_sdk::Symbol>;
-            let bump_t: fn(&Env, &soroban_sdk::Symbol, u32, u32) = bump_temporary::<soroban_sdk::Symbol>;
+            let bump_p: fn(&Env, &soroban_sdk::Symbol, u32, u32) =
+                bump_persistent::<soroban_sdk::Symbol>;
+            let bump_t: fn(&Env, &soroban_sdk::Symbol, u32, u32) =
+                bump_temporary::<soroban_sdk::Symbol>;
             let bump_i: fn(&Env, u32, u32) = bump_instance;
             let _ = (&key, bump_p, bump_t, bump_i);
         }

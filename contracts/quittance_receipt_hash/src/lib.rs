@@ -16,5 +16,5 @@ mod hash;
 mod receipt;
 
 pub use crate::domain::DomainSeparator;
-pub use crate::hash::{ReceiptHash, compute, compute_hex};
+pub use crate::hash::{compute, compute_hex, ReceiptHash};
 pub use crate::receipt::{Asset, BuildError, ReceiptFields, ReceiptFieldsBuilder};

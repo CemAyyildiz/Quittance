@@ -190,9 +190,7 @@ impl ReceiptFieldsBuilder {
     /// field has not been set.
     pub fn build(self) -> Result<ReceiptFields, BuildError> {
         Ok(ReceiptFields {
-            network_passphrase: self
-                .network_passphrase
-                .ok_or(BuildError::MissingNetwork)?,
+            network_passphrase: self.network_passphrase.ok_or(BuildError::MissingNetwork)?,
             tx_hash: self.tx_hash.ok_or(BuildError::MissingTxHash)?,
             ledger: self.ledger.ok_or(BuildError::MissingLedger)?,
             seller: self.seller.ok_or(BuildError::MissingSeller)?,
