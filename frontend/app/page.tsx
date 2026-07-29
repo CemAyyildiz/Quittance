@@ -356,6 +356,9 @@ export default function HomePage() {
             <Link href="/dashboard" className="hover:text-[var(--ink)]">
               Dashboard
             </Link>
+            <Link href="/feedback" className="hover:text-[var(--ink)]">
+              Feedback
+            </Link>
             <a href="https://www.stellar.org" target="_blank" rel="noopener noreferrer" className="hover:text-[var(--ink)]">
               Stellar
             </a>

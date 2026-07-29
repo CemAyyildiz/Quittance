@@ -1,27 +1,25 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { 
-  checkWalletConnection, 
-  requestWalletAccess, 
+import {
+  checkWalletConnection,
+  requestWalletAccess,
   getUserPublicKey,
-  getAccountBalance 
+  getAccountBalance,
 } from '@/lib/stellar';
 import { useWalletStore } from '@/lib/store';
 import { paymentMonitor } from '@/lib/payment-monitor';
 import { Wallet, LogOut, Loader2, ExternalLink, Bell, BellOff } from 'lucide-react';
 import { toast } from 'sonner';
 import { formatAddress } from '@/lib/utils';
+import { explorerAccountUrl } from '@/lib/explorerUrl';
 
 interface WalletConnectProps {
   onConnect?: (publicKey: string) => void;
   onConnectionFailure?: () => void;
 }
 
-export default function WalletConnect({
-  onConnect,
-  onConnectionFailure,
-}: WalletConnectProps = {}) {
+export default function WalletConnect({ onConnect, onConnectionFailure }: WalletConnectProps = {}) {
   const [loading, setLoading] = useState(false);
   const [monitoringActive, setMonitoringActive] = useState(false);
   const { publicKey, balance, connected, setWallet, updateBalance, disconnect } = useWalletStore();
@@ -42,7 +40,7 @@ export default function WalletConnect({
   const loadBalance = async (key: string) => {
     try {
       const balances = await getAccountBalance(key);
-      const xlmBalance = balances.find(b => b.assetCode === 'XLM');
+      const xlmBalance = balances.find((b) => b.assetCode === 'XLM');
       const balanceStr = xlmBalance ? parseFloat(xlmBalance.balance).toFixed(2) : '0.00';
       setWallet(key, balanceStr);
     } catch (error: any) {
@@ -101,8 +99,8 @@ export default function WalletConnect({
   };
 
   const openExplorer = () => {
-    const network = process.env.NEXT_PUBLIC_STELLAR_NETWORK === 'TESTNET' ? 'testnet' : 'public';
-    window.open(`https://stellar.expert/explorer/${network}/account/${publicKey}`, '_blank');
+    if (!publicKey) return;
+    window.open(explorerAccountUrl(publicKey), '_blank');
   };
 
   if (connected && publicKey) {
@@ -111,9 +109,7 @@ export default function WalletConnect({
         {/* Balance */}
         <div className="hidden md:flex flex-col items-end mr-2">
           <span className="text-xs text-gray-500 font-medium">Balance</span>
-          <span className="text-sm font-semibold text-gray-900">
-            {balance} XLM
-          </span>
+          <span className="text-sm font-semibold text-gray-900">{balance} XLM</span>
         </div>
 
         {/* Address */}
@@ -122,9 +118,7 @@ export default function WalletConnect({
           className="hidden sm:flex items-center gap-2 px-3 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
         >
           <Wallet className="w-4 h-4 text-cyan-600" />
-          <span className="text-sm font-mono text-gray-900">
-            {formatAddress(publicKey, 4)}
-          </span>
+          <span className="text-sm font-mono text-gray-900">{formatAddress(publicKey, 4)}</span>
           <ExternalLink className="w-3 h-3 text-gray-500" />
         </button>
 
@@ -146,11 +140,7 @@ export default function WalletConnect({
           }`}
           title={monitoringActive ? 'Monitoring active' : 'Start monitoring'}
         >
-          {monitoringActive ? (
-            <Bell className="w-5 h-5" />
-          ) : (
-            <BellOff className="w-5 h-5" />
-          )}
+          {monitoringActive ? <Bell className="w-5 h-5" /> : <BellOff className="w-5 h-5" />}
         </button>
 
         {/* Disconnect */}
