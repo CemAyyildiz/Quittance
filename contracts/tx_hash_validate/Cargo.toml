@@ -9,7 +9,7 @@ license     = "MIT"
 publish     = false
 
 [lib]
-crate-type = ["lib"]
+crate-type = ["rlib"]
 
 [dependencies]
 soroban-sdk = "25.0.0"

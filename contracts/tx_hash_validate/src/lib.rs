@@ -192,10 +192,9 @@ mod tests {
     }
 
     #[test]
-    fn validate_rejects_uppercase_g() {
+    fn validate_rejects_uppercase_z() {
+        // 'Z' is outside the hex character set (0-9, a-f, A-F).
         let mut chars: Vec<char> = VALID_LOWER.chars().collect();
-        chars[0] = 'G'; // 'G' is a valid hex digit? No, 'G' is NOT valid hex.
-        // Actually 'G' is NOT a hex digit. Let's use 'Z'.
         chars[0] = 'Z';
         let bad: String = chars.into_iter().collect();
         assert_eq!(validate_tx_hash(&bad), Err(TxHashError::InvalidCharacter));
@@ -227,11 +226,12 @@ mod tests {
 
     #[test]
     fn validate_rejects_unicode_characters() {
+        // 'é' (U+00E9) is 2 bytes in UTF-8, so the total byte length
+        // becomes 65, which fails the length check before any character
+        // validation runs.
         let mut chars: Vec<char> = VALID_LOWER.chars().collect();
         chars[0] = 'é';
         let bad: String = chars.into_iter().collect();
-        // é is multi-byte in UTF-8, so the total byte length exceeds 64,
-        // triggering InvalidLength before the character check.
         assert_eq!(validate_tx_hash(&bad), Err(TxHashError::InvalidLength));
     }
 
