@@ -9,5 +9,9 @@ dist
 .env.test.local
 .env.production.local
 .vercel
-coverage/
+tsconfig.tsbuildinfo
+
+# Playwright
+playwright-report/
+test-results/
 

@@ -1,0 +1,13 @@
+[package]
+name        = "quittance-proof-meta"
+version     = "0.1.0"
+edition     = "2021"
+description = "Pack/unpack a small proof metadata struct (amount, asset code, memo, tx hash bytes) for Soroban payment proofs."
+license     = "MIT"
+publish     = false
+
+# This crate is intentionally dependency-free so it can be used both inside
+# future Soroban contracts and in off-chain workers with no extra compile cost.
+
+[lib]
+crate-type = ["rlib"]
