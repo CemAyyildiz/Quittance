@@ -179,12 +179,7 @@ fn data_handles_zero_and_large_values() {
     let decoded_zero: (i128, Address, u64) = zero.into_val(&env);
     assert_eq!(decoded_zero, (0_i128, asset.clone(), 0_u64));
 
-    let big: Val = data(
-        &env,
-        i128::MAX / 2,
-        &asset,
-        u64::MAX,
-    );
+    let big: Val = data(&env, i128::MAX / 2, &asset, u64::MAX);
     let decoded_big: (i128, Address, u64) = big.into_val(&env);
     assert_eq!(decoded_big, (i128::MAX / 2, asset, u64::MAX));
 }

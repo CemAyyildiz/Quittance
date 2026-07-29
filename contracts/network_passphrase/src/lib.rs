@@ -66,7 +66,6 @@ pub enum Network {
     Public,
 }
 
-
 /// Returns `true` when `passphrase` is exactly the Stellar Testnet passphrase.
 pub fn is_testnet_passphrase(passphrase: &str) -> bool {
     passphrase == TESTNET_PASSPHRASE
@@ -252,4 +251,3 @@ mod tests {
         assert!(!is_public_passphrase("not-a-passphrase"));
     }
 }
-

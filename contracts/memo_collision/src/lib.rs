@@ -305,10 +305,7 @@ mod tests {
 
     #[test]
     fn default_is_equivalent_to_new() {
-        assert_eq!(
-            MemoCollisionGuard::default(),
-            MemoCollisionGuard::new()
-        );
+        assert_eq!(MemoCollisionGuard::default(), MemoCollisionGuard::new());
     }
 
     #[test]

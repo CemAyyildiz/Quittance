@@ -381,10 +381,7 @@ mod tests {
     #[test]
     fn require_active_err_at_boundary_inclusive() {
         // now == expiry must be rejected (inclusive boundary).
-        assert_eq!(
-            require_active(NOW, EQUAL),
-            Err(ExpiryError::AlreadyExpired),
-        );
+        assert_eq!(require_active(NOW, EQUAL), Err(ExpiryError::AlreadyExpired),);
         assert_eq!(require_active(0, 0), Err(ExpiryError::AlreadyExpired));
         assert_eq!(
             require_active(u64::MAX, u64::MAX),
@@ -398,11 +395,11 @@ mod tests {
             require_active(NOW, BEFORE),
             Err(ExpiryError::AlreadyExpired),
         );
+        assert_eq!(require_active(AFTER, NOW), Err(ExpiryError::AlreadyExpired),);
         assert_eq!(
-            require_active(AFTER, NOW),
-            Err(ExpiryError::AlreadyExpired),
+            require_active(u64::MAX, 0),
+            Err(ExpiryError::AlreadyExpired)
         );
-        assert_eq!(require_active(u64::MAX, 0), Err(ExpiryError::AlreadyExpired));
     }
 
     #[test]
@@ -591,7 +588,9 @@ mod tests {
         // are exposed under the documented names. We deliberately
         // do NOT call them here — `env.ledger()` panics on a bare
         // Env::default() without the testutils feature.
-        let _fns: (fn(&Env, u64) -> bool, fn(&Env, u64) -> Result<(), ExpiryError>) =
-            (is_expired_env, require_active_env);
+        let _fns: (
+            fn(&Env, u64) -> bool,
+            fn(&Env, u64) -> Result<(), ExpiryError>,
+        ) = (is_expired_env, require_active_env);
     }
 }
