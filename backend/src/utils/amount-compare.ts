@@ -134,3 +134,11 @@ export function isDecimalLessThan(a: string, b: string): boolean {
 export function isDecimalGreaterThan(a: string, b: string): boolean {
   return compareDecimals(a, b) > 0;
 }
+
+/**
+ * Shorter aliases used by some Wave contributors and invoice-matching call sites.
+ * Behaviour is identical to the `isDecimal*` helpers above.
+ */
+export const decimalsEqual = isDecimalEqual;
+export const decimalsLessThan = isDecimalLessThan;
+export const decimalsGreaterThan = isDecimalGreaterThan;

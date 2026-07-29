@@ -10,6 +10,9 @@ import {
   isDecimalEqual,
   isDecimalLessThan,
   isDecimalGreaterThan,
+  decimalsEqual,
+  decimalsLessThan,
+  decimalsGreaterThan,
 } from './amount-compare';
 
 // ---------------------------------------------------------------------------
@@ -197,5 +200,25 @@ describe('isDecimalGreaterThan', () => {
 
   it('returns false when equal', () => {
     expect(isDecimalGreaterThan('1.0', '1.00')).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// decimals* aliases (Wave contributor naming)
+// ---------------------------------------------------------------------------
+describe('decimals* aliases', () => {
+  it('decimalsEqual mirrors isDecimalEqual', () => {
+    expect(decimalsEqual('1.5', '1.50')).toBe(true);
+    expect(decimalsEqual('1.5', '1.51')).toBe(false);
+  });
+
+  it('decimalsLessThan mirrors isDecimalLessThan', () => {
+    expect(decimalsLessThan('0.1', '0.2')).toBe(true);
+    expect(decimalsLessThan('0.2', '0.1')).toBe(false);
+  });
+
+  it('decimalsGreaterThan mirrors isDecimalGreaterThan', () => {
+    expect(decimalsGreaterThan('0.2', '0.1')).toBe(true);
+    expect(decimalsGreaterThan('0.1', '0.2')).toBe(false);
   });
 });
