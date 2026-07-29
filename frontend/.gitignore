@@ -10,3 +10,8 @@ dist
 .env.production.local
 .vercel
 tsconfig.tsbuildinfo
+
+# Playwright
+playwright-report/
+test-results/
+

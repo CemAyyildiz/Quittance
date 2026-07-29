@@ -30,6 +30,22 @@ export default function CopyButtonDemo() {
           label="Copy TX"
         />
       </section>
+
+      <section>
+        <h3 className="text-sm font-medium text-gray-500 mb-3">Disabled</h3>
+        <CopyButton text="Copy me" label="Copy" disabled />
+      </section>
+
+      <section>
+        <h3 className="text-sm font-medium text-gray-500 mb-3">
+          onCopy callback
+        </h3>
+        <CopyButton
+          text="Stellar address: GABCD1234"
+          label="Copy address"
+          onCopy={(success) => console.log('copy result:', success)}
+        />
+      </section>
      </div>
   );
 }

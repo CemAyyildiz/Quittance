@@ -20,9 +20,13 @@ The payment operation **amount** must match the invoice amount (within the asset
 
 The payment operation **to** field must match the invoice creator's Stellar public key. This ensures the payment was received by the correct account and not an unintended destination. The destination is read from the payment operation's `to` field via Horizon.
 
+> **Note on current implementation:** The MVP backend (`server-mvp.ts`) actively verifies the `to` field matches the invoice's `sellerPublicKey`. However, the full-server implementation (`invoice.controller.ts`) currently omits this destination check.
+
 ### Asset (implied)
 
 The payment operation's asset (native XLM or a issued asset with code and issuer) must match the asset specified in the invoice. This check is performed alongside the amount check to ensure the correct asset was sent.
+
+> **Note on current implementation:** Similar to destination verification, the MVP backend correctly enforces asset type matching (`asset_code` and `asset_type`). This validation is fully implemented in the MVP mode but is currently missing in the full-server controller implementation.
 
 ## Verification flow
 

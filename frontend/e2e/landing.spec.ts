@@ -10,5 +10,8 @@ test.describe('Landing page smoke', () => {
     // The page title should be set (Next.js default or custom).
     const title = await page.title();
     expect(title.length).toBeGreaterThan(0);
+
+    // Confirm real page content rendered (not just a blank shell).
+    await expect(page.getByText('Quittance').first()).toBeVisible();
   });
 });

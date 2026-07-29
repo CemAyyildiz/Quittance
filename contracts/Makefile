@@ -9,24 +9,16 @@
 
 CONTRACT_DIRS := $(shell find . -mindepth 2 -maxdepth 2 -name Cargo.toml -exec dirname {} \; | sort)
 
-.PHONY: help all build test check fmt clippy clean
+.PHONY: help build test check fmt clippy clean
 
 help:
 	@echo "Available targets:"
-	@echo "  make all     - fmt → clippy → check → build → test"
-	@echo "  make build   - cargo build   in every contract crate"
-	@echo "  make test    - cargo test    in every contract crate"
-	@echo "  make check   - cargo check   in every contract crate"
-	@echo "  make fmt     - cargo fmt     in every contract crate"
-	@echo "  make clippy  - cargo clippy  in every contract crate"
-	@echo "  make clean   - cargo clean   in every contract crate"
-
-# ── Default: run all checks ────────────────────────────────────────
-all: fmt clippy check build test
-
-# ── Build / Test / Check ───────────────────────────────────────────
-# Shell for-loops iterate over each contract directory.  A subshell
-# (cd "$$dir" && cmd) avoids side-effects and propagates exit codes.
+	@echo "  make build  - cargo build  --workspace"
+	@echo "  make test   - cargo test   --workspace"
+	@echo "  make check  - cargo check  --workspace --all-targets"
+	@echo "  make fmt    - cargo fmt --all -- --check"
+	@echo "  make clippy - cargo clippy --workspace -- -D warnings"
+	@echo "  make clean  - cargo clean"
 
 build:
 	@status=0; for dir in $(CONTRACT_DIRS); do \
@@ -57,6 +49,9 @@ clippy:
 		echo "==> Clippy   $$dir..."; \
 		(cd "$$dir" && cargo clippy --all-targets -- -D warnings) || status=1; \
 	done; exit $$status
+
+clippy:
+	cargo clippy --workspace -- -D warnings
 
 clean:
 	@for dir in $(CONTRACT_DIRS); do \
