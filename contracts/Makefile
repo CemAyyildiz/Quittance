@@ -4,7 +4,7 @@
 # suite. All targets are thin wrappers around `cargo` so they work
 # identically in CI (.github/workflows/contracts.yml).
 
-.PHONY: help build test check fmt clean
+.PHONY: help build test check fmt clippy clean
 
 help:
 	@echo "Available targets:"
@@ -12,6 +12,7 @@ help:
 	@echo "  make test   - cargo test   --workspace"
 	@echo "  make check  - cargo check  --workspace --all-targets"
 	@echo "  make fmt    - cargo fmt --all -- --check"
+	@echo "  make clippy - cargo clippy --workspace -- -D warnings"
 	@echo "  make clean  - cargo clean"
 
 build:
@@ -25,6 +26,9 @@ check:
 
 fmt:
 	cargo fmt --all -- --check
+
+clippy:
+	cargo clippy --workspace -- -D warnings
 
 clean:
 	cargo clean

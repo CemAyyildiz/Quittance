@@ -31,6 +31,10 @@ jobs:
 
       - name: Install Rust toolchain (stable)
         uses: dtolnay/rust-toolchain@stable
+      - name: Cache cargo registry and build artifacts
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: contracts
 
       - name: cargo test -p quittance-contracts-example
         working-directory: contracts
