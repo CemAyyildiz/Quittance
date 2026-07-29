@@ -245,11 +245,17 @@ mod tests {
         // pick a prefix that is in the alphabet but reserved for a
         // different StrKey family — `S` for secret seed, `M` for muxed.
         bad.replace_range(0..1, "S");
-        assert_eq!(check_destination(&bad), Err(DestinationError::InvalidPrefix));
+        assert_eq!(
+            check_destination(&bad),
+            Err(DestinationError::InvalidPrefix)
+        );
 
         let mut bad = ZERO_STRKEY.to_string();
         bad.replace_range(0..1, "M");
-        assert_eq!(check_destination(&bad), Err(DestinationError::InvalidPrefix));
+        assert_eq!(
+            check_destination(&bad),
+            Err(DestinationError::InvalidPrefix)
+        );
     }
 
     #[test]
@@ -260,7 +266,10 @@ mod tests {
         // `InvalidPrefix`, not `InvalidCharacter`.
         let mut bad = ZERO_STRKEY.to_string();
         bad.replace_range(0..1, "g");
-        assert_eq!(check_destination(&bad), Err(DestinationError::InvalidPrefix));
+        assert_eq!(
+            check_destination(&bad),
+            Err(DestinationError::InvalidPrefix)
+        );
     }
 
     #[test]
@@ -269,7 +278,10 @@ mod tests {
         // set, so the prefix check fires first.
         let mut bad = ZERO_STRKEY.to_string();
         bad.replace_range(0..1, "c");
-        assert_eq!(check_destination(&bad), Err(DestinationError::InvalidPrefix));
+        assert_eq!(
+            check_destination(&bad),
+            Err(DestinationError::InvalidPrefix)
+        );
     }
 
     // ── character alphabet ───────────────────────────────────────────
@@ -354,7 +366,11 @@ mod tests {
             assert!(!is_stellar_base32(c));
         }
         for c in b'a'..=b'z' {
-            assert!(!is_stellar_base32(c), "lowercase {} should be rejected", c as char);
+            assert!(
+                !is_stellar_base32(c),
+                "lowercase {} should be rejected",
+                c as char
+            );
         }
         for &c in &[b'-', b'_', b' ', b'\t', b'\n', b'!', b'?', b'.', b','] {
             assert!(!is_stellar_base32(c), "{:?} should be rejected", c as char);
@@ -421,19 +437,17 @@ mod tests {
             // `S` is reserved for secret-seed StrKeys. Derived
             // from `ZERO_STRKEY` so future fixture edits can't drift
             // the literal.
-            (format!("S{}", &ZERO_STRKEY[1..]),
-             Err(DestinationError::InvalidPrefix)),
+            (
+                format!("S{}", &ZERO_STRKEY[1..]),
+                Err(DestinationError::InvalidPrefix),
+            ),
             // Digit `0` in a non-prefix position trips the
             // alphabet scan.
             (bad_char, Err(DestinationError::InvalidCharacter)),
         ];
         for (input, expected) in &samples {
             let actual = check_destination(input);
-            assert_eq!(
-                actual, *expected,
-                "check_destination({:?}) mismatch",
-                input
-            );
+            assert_eq!(actual, *expected, "check_destination({:?}) mismatch", input);
         }
     }
 
@@ -448,7 +462,10 @@ mod tests {
         // WrongLength: takes precedence over InvalidPrefix (a non-56
         // string cannot have its first character meaningfully tested).
         let short_non_g = "G"; // 1 char, valid base32, valid prefix candidate.
-        assert_eq!(check_destination(short_non_g), Err(DestinationError::WrongLength));
+        assert_eq!(
+            check_destination(short_non_g),
+            Err(DestinationError::WrongLength)
+        );
 
         // InvalidPrefix: takes precedence over InvalidCharacter when
         // both apply (we never get to alphabet scan).

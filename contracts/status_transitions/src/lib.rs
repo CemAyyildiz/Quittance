@@ -76,7 +76,10 @@ impl InvoiceStatus {
     /// ```
     #[must_use]
     pub fn is_terminal(self) -> bool {
-        matches!(self, InvoiceStatus::Paid | InvoiceStatus::Expired | InvoiceStatus::Cancelled)
+        matches!(
+            self,
+            InvoiceStatus::Paid | InvoiceStatus::Expired | InvoiceStatus::Cancelled
+        )
     }
 }
 
@@ -105,9 +108,18 @@ pub struct Transition {
 /// transition rules). Removing a row is also a breaking change (it
 /// tightens them). Callers should pin the major version.
 pub const ALLOWED_TRANSITIONS: &[Transition] = &[
-    Transition { from: InvoiceStatus::Pending, to: InvoiceStatus::Paid },
-    Transition { from: InvoiceStatus::Pending, to: InvoiceStatus::Expired },
-    Transition { from: InvoiceStatus::Pending, to: InvoiceStatus::Cancelled },
+    Transition {
+        from: InvoiceStatus::Pending,
+        to: InvoiceStatus::Paid,
+    },
+    Transition {
+        from: InvoiceStatus::Pending,
+        to: InvoiceStatus::Expired,
+    },
+    Transition {
+        from: InvoiceStatus::Pending,
+        to: InvoiceStatus::Cancelled,
+    },
 ];
 
 /// Returns `true` if the transition `from → to` is listed in
@@ -173,8 +185,8 @@ pub fn allowed_targets(from: InvoiceStatus) -> &'static [InvoiceStatus] {
             InvoiceStatus::Expired,
             InvoiceStatus::Cancelled,
         ],
-        InvoiceStatus::Paid      => &[],
-        InvoiceStatus::Expired   => &[],
+        InvoiceStatus::Paid => &[],
+        InvoiceStatus::Expired => &[],
         InvoiceStatus::Cancelled => &[],
     }
 }
@@ -206,9 +218,8 @@ const fn build_full_matrix() -> [(InvoiceStatus, InvoiceStatus, bool); 16] {
         InvoiceStatus::Cancelled,
     ];
 
-    let mut matrix: [(InvoiceStatus, InvoiceStatus, bool); 16] = [
-        (InvoiceStatus::Pending, InvoiceStatus::Pending, false); 16
-    ];
+    let mut matrix: [(InvoiceStatus, InvoiceStatus, bool); 16] =
+        [(InvoiceStatus::Pending, InvoiceStatus::Pending, false); 16];
 
     let mut i: usize = 0;
     while i < statuses.len() {
@@ -267,7 +278,8 @@ mod tests {
                 assert!(
                     !(a.0 == b.0 && a.1 == b.1),
                     "duplicate pair in FULL_TRANSITION_MATRIX at indices {i} and {j}: ({:?}, {:?})",
-                    a.0, a.1,
+                    a.0,
+                    a.1,
                 );
             }
         }
@@ -323,7 +335,10 @@ mod tests {
 
     #[test]
     fn is_allowed_denies_cancelled_to_cancelled() {
-        assert!(!is_allowed(InvoiceStatus::Cancelled, InvoiceStatus::Cancelled));
+        assert!(!is_allowed(
+            InvoiceStatus::Cancelled,
+            InvoiceStatus::Cancelled
+        ));
     }
 
     // ── is_allowed: denied exits from terminal states ──────────────────
@@ -355,12 +370,18 @@ mod tests {
 
     #[test]
     fn is_allowed_denies_expired_to_cancelled() {
-        assert!(!is_allowed(InvoiceStatus::Expired, InvoiceStatus::Cancelled));
+        assert!(!is_allowed(
+            InvoiceStatus::Expired,
+            InvoiceStatus::Cancelled
+        ));
     }
 
     #[test]
     fn is_allowed_denies_cancelled_to_pending() {
-        assert!(!is_allowed(InvoiceStatus::Cancelled, InvoiceStatus::Pending));
+        assert!(!is_allowed(
+            InvoiceStatus::Cancelled,
+            InvoiceStatus::Pending
+        ));
     }
 
     #[test]
@@ -370,7 +391,10 @@ mod tests {
 
     #[test]
     fn is_allowed_denies_cancelled_to_expired() {
-        assert!(!is_allowed(InvoiceStatus::Cancelled, InvoiceStatus::Expired));
+        assert!(!is_allowed(
+            InvoiceStatus::Cancelled,
+            InvoiceStatus::Expired
+        ));
     }
 
     // ── allowed_targets ────────────────────────────────────────────────
@@ -483,7 +507,10 @@ mod tests {
     #[test]
     fn debug_format_is_human_readable() {
         let s = format!("{:?}", InvoiceStatus::Pending);
-        assert!(s.contains("Pending"), "Debug output should contain variant name, got: {s}");
+        assert!(
+            s.contains("Pending"),
+            "Debug output should contain variant name, got: {s}"
+        );
     }
 
     #[test]
@@ -535,9 +562,15 @@ mod tests {
         }
 
         // Two calls on the same variant must produce the same hash.
-        assert_eq!(hash_of(InvoiceStatus::Pending), hash_of(InvoiceStatus::Pending));
+        assert_eq!(
+            hash_of(InvoiceStatus::Pending),
+            hash_of(InvoiceStatus::Pending)
+        );
         assert_eq!(hash_of(InvoiceStatus::Paid), hash_of(InvoiceStatus::Paid));
         // Different variants should (almost certainly) differ.
-        assert_ne!(hash_of(InvoiceStatus::Pending), hash_of(InvoiceStatus::Paid));
+        assert_ne!(
+            hash_of(InvoiceStatus::Pending),
+            hash_of(InvoiceStatus::Paid)
+        );
     }
 }

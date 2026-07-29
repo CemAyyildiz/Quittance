@@ -23,10 +23,7 @@ fn native_xlm_differs_from_xlm_with_issuer() {
     // them. They MUST hash differently because on chain they are different
     // assets even if both speak "XLM".
     let domain = DomainSeparator::quittance_v1();
-    let native = compute(
-        &domain,
-        &basic().asset(Asset::native()).build().unwrap(),
-    );
+    let native = compute(&domain, &basic().asset(Asset::native()).build().unwrap());
     let pseudo = compute(
         &domain,
         &basic()
@@ -47,16 +44,8 @@ fn length_prefix_blocks_concatenation_collision() {
     // "seller" (whose values look the same length) never hash to the same
     // preimage even if the names were swapped.
     let domain = DomainSeparator::quittance_v1();
-    let f_a = basic()
-        .memo("ABC")
-        .invoice_id("DEF")
-        .build()
-        .unwrap();
-    let f_b = basic()
-        .memo("DEF")
-        .invoice_id("ABC")
-        .build()
-        .unwrap();
+    let f_a = basic().memo("ABC").invoice_id("DEF").build().unwrap();
+    let f_b = basic().memo("DEF").invoice_id("ABC").build().unwrap();
     assert_ne!(compute(&domain, &f_a), compute(&domain, &f_b));
 }
 
@@ -105,10 +94,7 @@ fn testnet_and_public_passphrase_differ() {
 fn compute_hex_matches_compute_to_hex() {
     let domain = DomainSeparator::quittance_v1();
     let f = basic().memo("hello").build().unwrap();
-    assert_eq!(
-        compute_hex(&domain, &f),
-        compute(&domain, &f).to_hex()
-    );
+    assert_eq!(compute_hex(&domain, &f), compute(&domain, &f).to_hex());
 }
 
 #[test]

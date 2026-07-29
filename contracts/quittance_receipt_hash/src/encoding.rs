@@ -42,10 +42,7 @@ pub(crate) const VERSION: u32 = 1;
 ///     field("invoice_id",  encode_optional(invoice_id))
 /// )
 /// ```
-pub(crate) fn build_preimage(
-    domain: &DomainSeparator,
-    fields: &ReceiptFields,
-) -> Vec<u8> {
+pub(crate) fn build_preimage(domain: &DomainSeparator, fields: &ReceiptFields) -> Vec<u8> {
     // 512 bytes is enough for the typical Quittance receipt; worst case we
     // reallocate once. The preimage is bounded because every field value is
     // length-prefixed by the writer and limited by Stellar / UUID sizes.
@@ -142,7 +139,10 @@ mod tests {
 
     #[test]
     fn optional_empty_some_differs_from_none() {
-        assert_ne!(encode_optional(&None), encode_optional(&Some(String::new())));
+        assert_ne!(
+            encode_optional(&None),
+            encode_optional(&Some(String::new()))
+        );
     }
 
     #[test]

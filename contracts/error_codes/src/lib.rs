@@ -31,7 +31,6 @@ use soroban_sdk::contracterror;
 #[repr(u32)]
 pub enum ErrorCode {
     // ── General (1–99) ──────────────────────────────────────────
-
     /// An unexpected internal error occurred.
     InternalError = 1,
     /// The caller does not have permission for this operation.
@@ -44,7 +43,6 @@ pub enum ErrorCode {
     AlreadyExists = 5,
 
     // ── Invoice (100–199) ───────────────────────────────────────
-
     /// The invoice id does not match any known invoice.
     InvoiceNotFound = 100,
     /// The invoice has already been paid.
@@ -55,7 +53,6 @@ pub enum ErrorCode {
     InvoiceCancelled = 103,
 
     // ── Payment verification (200–299) ──────────────────────────
-
     /// The transferred amount does not match the invoice amount.
     PaymentAmountMismatch = 200,
     /// The payment destination does not match the invoice seller.
@@ -68,14 +65,12 @@ pub enum ErrorCode {
     PaymentNotConfirmed = 204,
 
     // ── Asset (300–399) ─────────────────────────────────────────
-
     /// The asset is not in the allowlist and is not accepted.
     AssetNotSupported = 300,
     /// The seller has not established a trustline for this asset.
     AssetNotTrusted = 301,
 
     // ── Amount / scale (400–499) ────────────────────────────────
-
     /// The provided amount is zero or negative.
     InvalidAmount = 400,
     /// The amount exceeds the representable range.
@@ -84,14 +79,12 @@ pub enum ErrorCode {
     ScaleMismatch = 402,
 
     // ── Binding / permission (500–599) ──────────────────────────
-
     /// The seller address does not match the stored binding.
     SellerMismatch = 500,
     /// The binding contract has not been initialised.
     BindingNotInitialized = 501,
 
     // ── Initialisation (600–699) ────────────────────────────────
-
     /// The contract has not been initialised yet.
     NotInitialized = 600,
     /// The contract has already been initialised.
@@ -123,9 +116,7 @@ impl ErrorCode {
             ErrorCode::PaymentDestinationMismatch => {
                 "The payment destination does not match the invoice seller."
             }
-            ErrorCode::PaymentMemoMismatch => {
-                "The transaction memo does not match the invoice id."
-            }
+            ErrorCode::PaymentMemoMismatch => "The transaction memo does not match the invoice id.",
             ErrorCode::PaymentAssetMismatch => {
                 "The payment asset does not match the invoice asset."
             }
@@ -144,12 +135,8 @@ impl ErrorCode {
             ErrorCode::AmountOverflow => "The amount exceeds the representable range.",
             ErrorCode::ScaleMismatch => "The asset scale for the two operands does not match.",
 
-            ErrorCode::SellerMismatch => {
-                "The seller address does not match the stored binding."
-            }
-            ErrorCode::BindingNotInitialized => {
-                "The binding contract has not been initialised."
-            }
+            ErrorCode::SellerMismatch => "The seller address does not match the stored binding.",
+            ErrorCode::BindingNotInitialized => "The binding contract has not been initialised.",
 
             ErrorCode::NotInitialized => "The contract has not been initialised yet.",
             ErrorCode::AlreadyInitialized => "The contract has already been initialised.",

@@ -23,7 +23,9 @@ impl DomainSeparator {
 
     /// Build a domain separator from an arbitrary label.
     pub fn new(label: &str) -> Self {
-        Self { bytes: label.as_bytes().to_vec() }
+        Self {
+            bytes: label.as_bytes().to_vec(),
+        }
     }
 
     /// Return the default Quittance receipt hash domain separator.

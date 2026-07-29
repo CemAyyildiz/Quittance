@@ -88,12 +88,7 @@ pub fn topic(env: &Env) -> Symbol {
 ///
 /// Off-chain consumers can subscribe to a specific invoice id, seller,
 /// or payer by matching the corresponding topic position.
-pub fn topics(
-    env: &Env,
-    invoice_id: &String,
-    seller: &Address,
-    payer: &Address,
-) -> Vec<Val> {
+pub fn topics(env: &Env, invoice_id: &String, seller: &Address, payer: &Address) -> Vec<Val> {
     Vec::from_array(
         env,
         [

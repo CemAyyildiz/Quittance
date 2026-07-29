@@ -104,16 +104,13 @@ mod tests {
     use super::*;
 
     /// A valid 64-char hex string (lowercase).
-    const VALID_LOWER: &str =
-        "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789";
+    const VALID_LOWER: &str = "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789";
 
     /// A valid 64-char hex string (uppercase).
-    const VALID_UPPER: &str =
-        "ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789";
+    const VALID_UPPER: &str = "ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789";
 
     /// A valid 64-char hex string (mixed case).
-    const VALID_MIXED: &str =
-        "AbCdEf0123456789AbCdEf0123456789AbCdEf0123456789AbCdEf0123456789";
+    const VALID_MIXED: &str = "AbCdEf0123456789AbCdEf0123456789AbCdEf0123456789AbCdEf0123456789";
 
     /// A valid 64-char hex string using only digit characters.
     const VALID_DIGITS_ONLY: &str =
@@ -195,7 +192,7 @@ mod tests {
     fn validate_rejects_uppercase_g() {
         let mut chars: Vec<char> = VALID_LOWER.chars().collect();
         chars[0] = 'G'; // 'G' is a valid hex digit? No, 'G' is NOT valid hex.
-        // Actually 'G' is NOT a hex digit. Let's use 'Z'.
+                        // Actually 'G' is NOT a hex digit. Let's use 'Z'.
         chars[0] = 'Z';
         let bad: String = chars.into_iter().collect();
         assert_eq!(validate_tx_hash(&bad), Err(TxHashError::InvalidCharacter));

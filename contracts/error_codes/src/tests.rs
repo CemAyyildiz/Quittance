@@ -142,12 +142,18 @@ fn message_matches_expected_value() {
     use ErrorCode::*;
 
     // General
-    assert_eq!(InternalError.message(), "An unexpected internal error occurred.");
+    assert_eq!(
+        InternalError.message(),
+        "An unexpected internal error occurred."
+    );
     assert_eq!(
         Unauthorized.message(),
         "The caller does not have permission for this operation."
     );
-    assert_eq!(InvalidArgument.message(), "One or more arguments are invalid.");
+    assert_eq!(
+        InvalidArgument.message(),
+        "One or more arguments are invalid."
+    );
     assert_eq!(NotFound.message(), "The requested resource was not found.");
     assert_eq!(
         AlreadyExists.message(),
@@ -159,9 +165,18 @@ fn message_matches_expected_value() {
         InvoiceNotFound.message(),
         "The invoice id does not match any known invoice."
     );
-    assert_eq!(InvoiceAlreadyPaid.message(), "The invoice has already been paid.");
-    assert_eq!(InvoiceExpired.message(), "The invoice settlement window has expired.");
-    assert_eq!(InvoiceCancelled.message(), "The invoice was cancelled before settlement.");
+    assert_eq!(
+        InvoiceAlreadyPaid.message(),
+        "The invoice has already been paid."
+    );
+    assert_eq!(
+        InvoiceExpired.message(),
+        "The invoice settlement window has expired."
+    );
+    assert_eq!(
+        InvoiceCancelled.message(),
+        "The invoice was cancelled before settlement."
+    );
 
     // Payment
     assert_eq!(
@@ -196,9 +211,18 @@ fn message_matches_expected_value() {
     );
 
     // Amount / scale
-    assert_eq!(InvalidAmount.message(), "The provided amount is zero or negative.");
-    assert_eq!(AmountOverflow.message(), "The amount exceeds the representable range.");
-    assert_eq!(ScaleMismatch.message(), "The asset scale for the two operands does not match.");
+    assert_eq!(
+        InvalidAmount.message(),
+        "The provided amount is zero or negative."
+    );
+    assert_eq!(
+        AmountOverflow.message(),
+        "The amount exceeds the representable range."
+    );
+    assert_eq!(
+        ScaleMismatch.message(),
+        "The asset scale for the two operands does not match."
+    );
 
     // Binding / permission
     assert_eq!(
@@ -211,8 +235,14 @@ fn message_matches_expected_value() {
     );
 
     // Initialisation
-    assert_eq!(NotInitialized.message(), "The contract has not been initialised yet.");
-    assert_eq!(AlreadyInitialized.message(), "The contract has already been initialised.");
+    assert_eq!(
+        NotInitialized.message(),
+        "The contract has not been initialised yet."
+    );
+    assert_eq!(
+        AlreadyInitialized.message(),
+        "The contract has already been initialised."
+    );
 }
 
 #[test]
@@ -220,10 +250,7 @@ fn error_code_derives_copy_clone_debug_eq_partial_ord_ord() {
     let a = ErrorCode::NotFound;
     let b = a;
     let _c = b.clone();
-    assert_eq!(
-        alloc::format!("{:?}", a),
-        "NotFound"
-    );
+    assert_eq!(alloc::format!("{:?}", a), "NotFound");
     assert_eq!(a, a);
     assert!(a > ErrorCode::InternalError);
 }
@@ -233,10 +260,6 @@ fn from_u32_roundtrip() {
     for code in all_variants() {
         let n = code.clone() as u32;
         let reconstructed: ErrorCode = unsafe { core::mem::transmute(n) };
-        assert_eq!(
-            code, reconstructed,
-            "roundtrip failed for code {}",
-            n
-        );
+        assert_eq!(code, reconstructed, "roundtrip failed for code {}", n);
     }
 }

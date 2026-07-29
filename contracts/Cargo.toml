@@ -11,10 +11,17 @@ members = [
 [workspace.package]
 edition = "2021"
 version = "0.1.0"
+rust-version = "1.81"
 license = "MIT"
 publish = false
+
+[workspace.dependencies]
+soroban-sdk = "22"
 
 [profile.release]
 opt-level = "z"
 lto = true
+debug = false
+strip = "symbols"
+panic = "abort"
 codegen-units = 1

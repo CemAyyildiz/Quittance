@@ -7,9 +7,7 @@
 //! `pinned_canonical_sample_hash` if you intentionally change the
 //! encoding.
 
-use quittance_receipt_hash::{
-    compute_hex, Asset, DomainSeparator, ReceiptFieldsBuilder,
-};
+use quittance_receipt_hash::{compute_hex, Asset, DomainSeparator, ReceiptFieldsBuilder};
 
 fn main() {
     let fields = ReceiptFieldsBuilder::default()
