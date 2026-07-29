@@ -41,7 +41,7 @@ use soroban_sdk::{contract, contractimpl, contracttype, Env, String};
 /// ## Value
 ///
 /// `"Test SDF Network ; September 2015"`
-const TESTNET_PASSPHRASE: &str = "Test SDF Network ; September 2015";
+pub const TESTNET_PASSPHRASE: &str = "Test SDF Network ; September 2015";
 
 /// Canonical Stellar **public** (mainnet) network passphrase.
 ///
@@ -51,7 +51,7 @@ const TESTNET_PASSPHRASE: &str = "Test SDF Network ; September 2015";
 /// ## Value
 ///
 /// `"Public Global Stellar Network ; September 2015"`
-const PUBLIC_PASSPHRASE: &str = "Public Global Stellar Network ; September 2015";
+pub const PUBLIC_PASSPHRASE: &str = "Public Global Stellar Network ; September 2015";
 
 /// Identifies which Stellar network passphrase to return.
 ///
@@ -64,6 +64,17 @@ pub enum Network {
     Testnet,
     /// The public/mainnet passphrase.
     Public,
+}
+
+
+/// Returns `true` when `passphrase` is exactly the Stellar Testnet passphrase.
+pub fn is_testnet_passphrase(passphrase: &str) -> bool {
+    passphrase == TESTNET_PASSPHRASE
+}
+
+/// Returns `true` when `passphrase` is exactly the Stellar Public network passphrase.
+pub fn is_public_passphrase(passphrase: &str) -> bool {
+    passphrase == PUBLIC_PASSPHRASE
 }
 
 /// Soroban contract that exposes the standard Stellar network
@@ -224,4 +235,21 @@ mod tests {
             "testnet and public passphrases must not be equal"
         );
     }
+
+    // ----- off-chain passphrase matchers ---------------------------------
+
+    #[test]
+    fn is_testnet_passphrase_matches_constant() {
+        assert!(is_testnet_passphrase(TESTNET_PASSPHRASE));
+        assert!(!is_testnet_passphrase(PUBLIC_PASSPHRASE));
+        assert!(!is_testnet_passphrase(""));
+    }
+
+    #[test]
+    fn is_public_passphrase_matches_constant() {
+        assert!(is_public_passphrase(PUBLIC_PASSPHRASE));
+        assert!(!is_public_passphrase(TESTNET_PASSPHRASE));
+        assert!(!is_public_passphrase("not-a-passphrase"));
+    }
 }
+
