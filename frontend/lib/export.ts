@@ -409,28 +409,75 @@ interface Invoice {
   paymentTxHash?: string;
 }
 
+
+/** Escape dynamic values before interpolating into print/PDF HTML. */
+export function escapePrintHtml(value: unknown): string {
+  return String(value ?? '').replace(
+    /[&<>"']/g,
+    (character) =>
+      ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#39;',
+      })[character]!,
+  );
+}
+
+/**
+ * Return a Stellar Expert transaction URL only for a canonical 64-char hex hash.
+ * Invalid hashes must never be placed in href.
+ */
+export function getStellarExpertTransactionUrl(
+  paymentTxHash: string | undefined,
+  network: 'Testnet' | 'Mainnet',
+): string | undefined {
+  const hash = paymentTxHash?.trim();
+  if (!hash || !/^[a-fA-F0-9]{64}$/.test(hash)) {
+    return undefined;
+  }
+
+  const explorerNetwork = network === 'Testnet' ? 'testnet' : 'public';
+  return `https://stellar.expert/explorer/${explorerNetwork}/tx/${encodeURIComponent(hash)}`;
+}
+
 export function generateInvoiceCSV(invoices: Invoice[]): string {
   const headers = [
     'Invoice ID',
+    'Created At',
+    'Seller Name',
+    'Seller Email',
+    'Customer Name',
+    'Customer Email',
+    'Description',
     'Amount',
     'Asset',
     'Status',
-    'Memo',
-    'Created At',
-    'Expires At',
     'Paid At',
+    'Payer Name',
+    'Payer Email',
+    'Expires At',
+    'Memo',
     'Transaction Hash',
   ];
 
   const rows = invoices.map((inv) => [
     inv.id,
+    format(new Date(inv.createdAt), 'yyyy-MM-dd HH:mm:ss'),
+    inv.sellerName || '',
+    inv.sellerEmail || '',
+    inv.customerName || '',
+    inv.customerEmail || '',
+    inv.description || '',
     inv.amount,
     inv.assetCode,
     inv.status,
-    inv.memo,
-    format(new Date(inv.createdAt), 'yyyy-MM-dd HH:mm:ss'),
-    format(new Date(inv.expiresAt), 'yyyy-MM-dd HH:mm:ss'),
     inv.paidAt ? format(new Date(inv.paidAt), 'yyyy-MM-dd HH:mm:ss') : '',
+    inv.payerName || '',
+    inv.payerEmail || '',
+    format(new Date(inv.expiresAt), 'yyyy-MM-dd HH:mm:ss'),
+    inv.memo,
     inv.status === 'PAID' ? inv.paymentTxHash || '' : '',
   ]);
 
@@ -443,7 +490,7 @@ export function downloadInvoiceCSV(invoices: Invoice[], filename?: string) {
   const link = document.createElement('a');
   const url = URL.createObjectURL(blob);
 
-  const defaultFilename = `quittance-invoices-${format(new Date(), 'yyyy-MM-dd')}.csv`;
+  const defaultFilename = `quittance-invoices-${format(new Date(), 'yyyy-MM-dd-HHmmss')}.csv`;
   link.setAttribute('href', url);
   link.setAttribute('download', filename || defaultFilename);
   link.style.visibility = 'hidden';
@@ -463,7 +510,7 @@ export function generateInvoicePDF(invoice: Invoice): string {
 <html>
 <head>
   <meta charset="UTF-8">
-  <title>Invoice ${invoice.id}</title>
+  <title>Invoice ${escapePrintHtml(invoice.id)}</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body { 
@@ -614,16 +661,16 @@ export function generateInvoicePDF(invoice: Invoice): string {
     <div class="logo">Quittance</div>
     <div class="invoice-title">
       <h1>INVOICE</h1>
-      <div class="invoice-number">#${invoice.id.substring(0, 8).toUpperCase()}</div>
-      <span class="status-badge status-${invoice.status.toLowerCase()}">${invoice.status}</span>
+      <div class="invoice-number">#${escapePrintHtml(invoice.id.substring(0, 8).toUpperCase())}</div>
+      <span class="status-badge status-${invoice.status.toLowerCase()}">${escapePrintHtml(invoice.status)}</span>
     </div>
   </div>
 
   <div class="info-grid">
     <div class="info-section">
       <h3>Bill To</h3>
-      ${invoice.customerName ? `<div class="info-row"><div class="info-label">Customer Name</div><div class="info-value">${invoice.customerName}</div></div>` : ''}
-      ${invoice.customerEmail ? `<div class="info-row"><div class="info-label">Email</div><div class="info-value">${invoice.customerEmail}</div></div>` : ''}
+      ${invoice.customerName ? `<div class="info-row"><div class="info-label">Customer Name</div><div class="info-value">${escapePrintHtml(invoice.customerName)}</div></div>` : ''}
+      ${invoice.customerEmail ? `<div class="info-row"><div class="info-label">Email</div><div class="info-value">${escapePrintHtml(invoice.customerEmail)}</div></div>` : ''}
       ${!invoice.customerName && !invoice.customerEmail ? `<div class="info-value">N/A</div>` : ''}
     </div>
 
@@ -644,34 +691,34 @@ export function generateInvoicePDF(invoice: Invoice): string {
   ${invoice.sellerName || invoice.sellerEmail ? `
   <div class="info-section" style="margin-bottom: 20px;">
     <h3>Seller Information</h3>
-    ${invoice.sellerName ? `<div class="info-row"><div class="info-label">Name</div><div class="info-value">${invoice.sellerName}</div></div>` : ''}
-    ${invoice.sellerEmail ? `<div class="info-row"><div class="info-label">Email</div><div class="info-value">${invoice.sellerEmail}</div></div>` : ''}
+    ${invoice.sellerName ? `<div class="info-row"><div class="info-label">Name</div><div class="info-value">${escapePrintHtml(invoice.sellerName)}</div></div>` : ''}
+    ${invoice.sellerEmail ? `<div class="info-row"><div class="info-label">Email</div><div class="info-value">${escapePrintHtml(invoice.sellerEmail)}</div></div>` : ''}
   </div>` : ''}
 
   ${isPaid && (invoice.payerName || invoice.payerEmail) ? `
   <div class="info-section" style="margin-bottom: 20px;">
     <h3>Payer Information</h3>
-    ${invoice.payerName ? `<div class="info-row"><div class="info-label">Name</div><div class="info-value">${invoice.payerName}</div></div>` : ''}
-    ${invoice.payerEmail ? `<div class="info-row"><div class="info-label">Email</div><div class="info-value">${invoice.payerEmail}</div></div>` : ''}
+    ${invoice.payerName ? `<div class="info-row"><div class="info-label">Name</div><div class="info-value">${escapePrintHtml(invoice.payerName)}</div></div>` : ''}
+    ${invoice.payerEmail ? `<div class="info-row"><div class="info-label">Email</div><div class="info-value">${escapePrintHtml(invoice.payerEmail)}</div></div>` : ''}
   </div>` : ''}
 
   <div class="amount-section">
     <div class="amount-label">Amount ${isPaid ? 'Paid' : 'Due'}</div>
-    <div class="amount-value">${invoice.amount}</div>
-    <div class="amount-asset">${invoice.assetCode}</div>
+    <div class="amount-value">${escapePrintHtml(invoice.amount)}</div>
+    <div class="amount-asset">${escapePrintHtml(invoice.assetCode)}</div>
   </div>
 
-  ${invoice.description ? `<div class="info-section" style="margin-bottom: 20px;"><h3>Description</h3><p style="color: #1f2937; line-height: 1.6;">${invoice.description}</p></div>` : ''}
+  ${invoice.description ? `<div class="info-section" style="margin-bottom: 20px;"><h3>Description</h3><p style="color: #1f2937; line-height: 1.6;">${escapePrintHtml(invoice.description)}</p></div>` : ''}
 
   <table class="details-table">
-    <tr><td>Invoice ID</td><td style="font-family: monospace; font-size: 12px;">${invoice.id}</td></tr>
-    <tr><td>Memo</td><td style="font-family: monospace;">${invoice.memo}</td></tr>
-    <tr><td>Seller Address</td><td style="font-family: monospace; font-size: 11px; word-break: break-all;">${invoice.sellerPublicKey}</td></tr>
+    <tr><td>Invoice ID</td><td style="font-family: monospace; font-size: 12px;">${escapePrintHtml(invoice.id)}</td></tr>
+    <tr><td>Memo</td><td style="font-family: monospace;">${escapePrintHtml(invoice.memo)}</td></tr>
+    <tr><td>Seller Address</td><td style="font-family: monospace; font-size: 11px; word-break: break-all;">${escapePrintHtml(invoice.sellerPublicKey)}</td></tr>
     ${isPaid && invoice.paymentTxHash ? `
-    <tr><td>Transaction Hash</td><td style="font-family: monospace; font-size: 11px; word-break: break-all;">${invoice.paymentTxHash}</td></tr>
+    <tr><td>Transaction Hash</td><td style="font-family: monospace; font-size: 11px; word-break: break-all;">${escapePrintHtml(invoice.paymentTxHash)}</td></tr>
     <tr><td>Payer Address</td><td style="font-family: monospace; font-size: 11px; word-break: break-all;">${invoice.payerPublicKey || 'N/A'}</td></tr>
-    ${invoice.payerName ? `<tr><td>Payer Name</td><td>${invoice.payerName}</td></tr>` : ''}
-    ${invoice.payerEmail ? `<tr><td>Payer Email</td><td>${invoice.payerEmail}</td></tr>` : ''}` : ''}
+    ${invoice.payerName ? `<tr><td>Payer Name</td><td>${escapePrintHtml(invoice.payerName)}</td></tr>` : ''}
+    ${invoice.payerEmail ? `<tr><td>Payer Email</td><td>${escapePrintHtml(invoice.payerEmail)}</td></tr>` : ''}` : ''}
     <tr><td>Network</td><td>${network}</td></tr>
   </table>
 
