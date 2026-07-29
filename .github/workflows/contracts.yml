@@ -24,7 +24,7 @@ jobs:
   test:
     name: Build & Test Contracts
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 30
     defaults:
       run:
         working-directory: contracts
@@ -39,14 +39,14 @@ jobs:
           targets: wasm32-unknown-unknown
           components: rustfmt, clippy
 
-      - name: Cache Cargo registry
+      - name: Cache Cargo registry & per-crate targets
         uses: actions/cache@v4
         with:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
-            contracts/target
-          key: ${{ runner.os }}-cargo-${{ hashFiles('contracts/Cargo.lock') }}
+            contracts/*/target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('contracts/**/Cargo.lock') }}
           restore-keys: |
             ${{ runner.os }}-cargo-
 
