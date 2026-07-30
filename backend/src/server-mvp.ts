@@ -5,6 +5,7 @@ import { createInvoiceSchema } from './utils/validation';
 import invoiceService from './services/invoice-memory.service';
 import { generatePaymentQR, generateStellarPaymentQR } from './utils/qrcode';
 import stellarService from './services/stellar.service';
+import { rateLimitIfEnabled } from './middleware/rate-limit-stub';
 
 // Load environment variables
 dotenv.config();
@@ -22,6 +23,9 @@ app.use(cors({
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// Rate limiting (opt-in — enabled only when RATE_LIMIT_ENABLED=true)
+app.use(rateLimitIfEnabled());
 
 // Request logging
 app.use((req: Request, res: Response, next: NextFunction) => {
