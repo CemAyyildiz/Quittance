@@ -1,0 +1,72 @@
+# Dependabot is paused during the Stellar Wave contribution period so
+# dependency-bump PRs do not crowd contributor reviews.
+#
+# To re-enable: set open-pull-requests-limit back to 5 (or remove the
+# pause comment) and optionally restore weekly schedule.
+version: 2
+updates:
+  # Frontend (Next.js + React)
+  - package-ecosystem: "npm"
+    directory: "/frontend"
+    schedule:
+      interval: "monthly"
+      day: "monday"
+      time: "09:00"
+      timezone: "Europe/Istanbul"
+    # 0 = do not open new Dependabot PRs
+    open-pull-requests-limit: 0
+    versioning-strategy: increase
+    groups:
+      production-deps:
+        dependency-type: "production"
+        update-types:
+          - "minor"
+          - "patch"
+        patterns:
+          - "*"
+      dev-deps:
+        dependency-type: "development"
+        update-types:
+          - "minor"
+          - "patch"
+        patterns:
+          - "*"
+    labels:
+      - "dependencies"
+      - "frontend"
+    commit-message:
+      prefix: "chore(deps-frontend)"
+      include: "scope"
+
+  # Backend (Express API)
+  - package-ecosystem: "npm"
+    directory: "/backend"
+    schedule:
+      interval: "monthly"
+      day: "monday"
+      time: "09:00"
+      timezone: "Europe/Istanbul"
+    # 0 = do not open new Dependabot PRs
+    open-pull-requests-limit: 0
+    versioning-strategy: increase
+    groups:
+      production-deps:
+        dependency-type: "production"
+        update-types:
+          - "minor"
+          - "patch"
+        patterns:
+          - "*"
+      dev-deps:
+        dependency-type: "development"
+        update-types:
+          - "minor"
+          - "patch"
+        patterns:
+          - "*"
+    labels:
+      - "dependencies"
+      - "backend"
+    commit-message:
+      prefix: "chore(deps-backend)"
+      include: "scope"

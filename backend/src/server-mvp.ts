@@ -1,11 +1,14 @@
 import express, { Application, Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import { requestId } from './middleware/request-id';
 import { createInvoiceSchema } from './utils/validation';
 import invoiceService from './services/invoice-memory.service';
-import { generatePaymentQR, generateStellarPaymentQR } from './utils/qrcode';
+import { generatePaymentQR, generateStellarPaymentQR, buildStellarPaymentUri } from './utils/qrcode';
 import stellarService from './services/stellar.service';
 import { rateLimitIfEnabled } from './middleware/rate-limit-stub';
+import healthDetailRouter from './routes/health-detail';
+import { toInvoiceDTO } from './utils/invoice-dto';
 
 // Load environment variables
 dotenv.config();
@@ -26,6 +29,7 @@ app.use(express.urlencoded({ extended: true }));
 
 // Rate limiting (opt-in — enabled only when RATE_LIMIT_ENABLED=true)
 app.use(rateLimitIfEnabled());
+app.use(requestId);
 
 // Request logging
 app.use((req: Request, res: Response, next: NextFunction) => {
@@ -43,6 +47,9 @@ app.get('/', (req: Request, res: Response) => {
     documentation: '/api/health',
   });
 });
+
+// Health detail router (mounted before the simple health check)
+app.use('/api', healthDetailRouter);
 
 // Health check
 app.get('/api/health', (req: Request, res: Response) => {
@@ -67,16 +74,25 @@ app.post('/api/invoices', async (req: Request, res: Response) => {
       invoice.sellerPublicKey,
       invoice.amount.toString(),
       invoice.assetCode,
-      invoice.memo
+      invoice.memo,
+      invoice.assetIssuer
+    );
+    const stellarPaymentUri = buildStellarPaymentUri(
+      invoice.sellerPublicKey,
+      invoice.amount.toString(),
+      invoice.assetCode,
+      invoice.memo,
+      invoice.assetIssuer
     );
 
     res.status(201).json({
       success: true,
       data: {
-        invoice,
+        invoice: toInvoiceDTO(invoice),
         paymentUrl,
         qrCode: qrCodeDataUrl,
         stellarQrCode,
+        stellarPaymentUri,
       },
     });
   } catch (error: any) {
@@ -103,7 +119,7 @@ app.get('/api/invoices/:id', async (req: Request, res: Response) => {
 
     res.json({
       success: true,
-      data: invoice,
+      data: toInvoiceDTO(invoice),
     });
   } catch (error: any) {
     console.error('Get invoice error:', error);
@@ -135,7 +151,7 @@ app.get('/api/invoices', async (req: Request, res: Response) => {
 
     res.json({
       success: true,
-      data: invoices,
+      data: invoices.map(toInvoiceDTO),
       pagination: {
         limit: parseInt(limit as string),
         offset: parseInt(offset as string),
@@ -173,6 +189,13 @@ app.get('/api/invoices/:id/payment-info', async (req: Request, res: Response) =>
       invoice.memo,
       invoice.assetIssuer
     );
+    const stellarPaymentUri = buildStellarPaymentUri(
+      invoice.sellerPublicKey,
+      invoice.amount.toString(),
+      invoice.assetCode,
+      invoice.memo,
+      invoice.assetIssuer
+    );
 
     res.json({
       success: true,
@@ -180,7 +203,8 @@ app.get('/api/invoices/:id/payment-info', async (req: Request, res: Response) =>
         paymentUrl,
         qrCode: qrCodeDataUrl,
         stellarQrCode,
-        invoice,
+        stellarPaymentUri,
+        invoice: toInvoiceDTO(invoice),
       },
     });
   } catch (error: any) {
@@ -200,7 +224,7 @@ app.post('/api/invoices/:id/cancel', async (req: Request, res: Response) => {
 
     res.json({
       success: true,
-      data: invoice,
+      data: toInvoiceDTO(invoice),
     });
   } catch (error: any) {
     console.error('Cancel invoice error:', error);
@@ -296,7 +320,7 @@ app.post('/api/invoices/:id/verify', async (req: Request, res: Response) => {
 
     res.json({
       success: true,
-      data: updatedInvoice,
+      data: toInvoiceDTO(updatedInvoice),
       message: 'Payment verified on Stellar',
     });
   } catch (error: any) {
@@ -349,7 +373,7 @@ app.post('/api/invoices/:id/simulate-payment', async (req: Request, res: Respons
 
     res.json({
       success: true,
-      data: updatedInvoice,
+      data: toInvoiceDTO(updatedInvoice),
       message: 'Payment simulated successfully',
     });
   } catch (error: any) {

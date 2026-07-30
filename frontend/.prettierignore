@@ -1,0 +1,33 @@
+# Build artefacts and dependency trees
+node_modules/
+.next/
+out/
+dist/
+build/
+.vercel/
+
+# TypeScript incremental cache
+*.tsbuildinfo
+
+# Next.js auto-generated client types
+next-env.d.ts
+
+# Conflict-sensitive files from open Wave-7 PRs.
+# This PR adds the formatter but deliberately does NOT reformat them.
+# Remove the entries below once those PRs land.
+/app/pay/*/page.tsx
+/lib/export.ts
+/components/PaymentReceipt.tsx
+/components/TransactionHistory.tsx
+/components/PaymentButton.tsx
+/components/InvoiceForm.tsx
+/lib/stellar.ts
+
+# Static / public assets are usually never pretty-printed.
+/public/
+
+# Logs and env files
+*.log
+.env
+.env.*
+!.env.example

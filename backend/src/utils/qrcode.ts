@@ -23,7 +23,30 @@ export const generatePaymentQR = async (paymentUrl: string): Promise<string> => 
 };
 
 /**
- * Generate Stellar payment QR (SEP-0007 format)
+ * SEP-0007 payment URI encoded in wallet QR codes (not a base64 image).
+ */
+export const buildStellarPaymentUri = (
+  destination: string,
+  amount: string,
+  assetCode: string = 'XLM',
+  memo?: string,
+  assetIssuer?: string
+): string => {
+  let stellarUri = `web+stellar:pay?destination=${destination}&amount=${amount}`;
+
+  if (assetCode !== 'XLM' && assetIssuer) {
+    stellarUri += `&asset_code=${assetCode}&asset_issuer=${assetIssuer}`;
+  }
+
+  if (memo) {
+    stellarUri += `&memo=${encodeURIComponent(memo)}&memo_type=MEMO_TEXT`;
+  }
+
+  return stellarUri;
+};
+
+/**
+ * Generate Stellar payment QR (SEP-0007 format) as a PNG data URL for legacy clients.
  */
 export const generateStellarPaymentQR = async (
   destination: string,
@@ -32,16 +55,13 @@ export const generateStellarPaymentQR = async (
   memo?: string,
   assetIssuer?: string
 ): Promise<string> => {
-  let stellarUri = `web+stellar:pay?destination=${destination}&amount=${amount}`;
-  
-  // Add asset information
-  if (assetCode !== 'XLM' && assetIssuer) {
-    stellarUri += `&asset_code=${assetCode}&asset_issuer=${assetIssuer}`;
-  }
-  
-  if (memo) {
-    stellarUri += `&memo=${encodeURIComponent(memo)}&memo_type=MEMO_TEXT`;
-  }
+  const stellarUri = buildStellarPaymentUri(
+    destination,
+    amount,
+    assetCode,
+    memo,
+    assetIssuer
+  );
 
   return await QRCode.toDataURL(stellarUri, {
     errorCorrectionLevel: 'H',
@@ -52,6 +72,7 @@ export const generateStellarPaymentQR = async (
 
 export default {
   generatePaymentQR,
+  buildStellarPaymentUri,
   generateStellarPaymentQR,
 };
 
