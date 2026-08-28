@@ -1,5 +1,7 @@
 'use client';
 
+import { networkBadgeModel } from '../lib/networkBadgeModel';
+
 /**
  * NetworkBadge — small shared badge that appears in the app chrome
  * when NEXT_PUBLIC_STELLAR_NETWORK === 'TESTNET' so users never confuse
@@ -8,10 +10,9 @@
  * Hidden entirely when configured for PUBLIC (mainnet).
  */
 export default function NetworkBadge() {
-  const network = process.env.NEXT_PUBLIC_STELLAR_NETWORK ?? 'TESTNET';
-  const isTestnet = network.toUpperCase() === 'TESTNET';
+  const kind = networkBadgeModel(process.env.NEXT_PUBLIC_STELLAR_NETWORK);
 
-  if (!isTestnet) return null;
+  if (kind === 'PUBLIC') return null;
 
   return (
     <span
@@ -22,7 +23,7 @@ export default function NetworkBadge() {
         color: '#92400e',
       }}
     >
-      {network.toUpperCase()}
+      {kind}
     </span>
   );
 }
