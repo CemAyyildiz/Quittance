@@ -31,9 +31,8 @@
  *
  * - Pure data: an enum, a frozen message map, and three small helper
  *   predicates.
- * - No edit to controllers, services, or middleware: this PR is
- *   strictly additive. Wiring `VerifyErrorCode` into the `verify`
- *   response body is a follow-up PR once the code base settles.
+ * - The MVP verify handler uses these values directly in its response
+ *   body so clients can branch on codes without parsing English text.
  */
 
 export enum VerifyErrorCode {
