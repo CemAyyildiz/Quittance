@@ -9,6 +9,7 @@ import stellarService from './services/stellar.service';
 import { rateLimitIfEnabled } from './middleware/rate-limit-stub';
 import healthDetailRouter from './routes/health-detail';
 import { toInvoiceDTO } from './utils/invoice-dto';
+import { isDecimalEqual } from './utils/amount-compare';
 
 // Load environment variables
 dotenv.config();
@@ -296,7 +297,7 @@ app.post('/api/invoices/:id/verify', async (req: Request, res: Response) => {
       });
     }
 
-    if (parseFloat(paymentOp.amount).toFixed(7) !== Number(invoice.amount).toFixed(7)) {
+    if (!isDecimalEqual(paymentOp.amount, String(invoice.amount))) {
       return res.status(400).json({
         success: false,
         error: 'Amount mismatch',
