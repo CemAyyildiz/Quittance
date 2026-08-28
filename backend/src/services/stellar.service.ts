@@ -112,11 +112,11 @@ class StellarService {
                 from: record.from,
                 to: record.to,
                 amount: record.amount,
-                assetCode: record.asset_type === 'native' ? 'XLM' : record.asset_code,
+                assetCode: record.asset_type === 'native' ? 'XLM' : (record.asset_code ?? 'UNKNOWN'),
                 assetIssuer: record.asset_issuer,
                 memo: transaction.memo || undefined,
                 memoType: transaction.memo_type || undefined,
-                ledger: record.ledger,
+                ledger: Number(record.ledger ?? 0),
                 createdAt: record.created_at,
               };
 
@@ -161,11 +161,11 @@ class StellarService {
             from: record.from,
             to: record.to,
             amount: record.amount,
-            assetCode: record.asset_type === 'native' ? 'XLM' : record.asset_code,
+            assetCode: record.asset_type === 'native' ? 'XLM' : (record.asset_code ?? 'UNKNOWN'),
             assetIssuer: record.asset_issuer,
             memo: transaction.memo || undefined,
             memoType: transaction.memo_type || undefined,
-            ledger: record.ledger_attr,
+            ledger: Number((record as any).ledger_attr ?? 0),
             createdAt: record.created_at,
           });
         }

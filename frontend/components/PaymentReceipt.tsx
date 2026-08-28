@@ -87,14 +87,14 @@ Stellar Blockchain Payment System
           <Check className="w-10 h-10 text-green-600" />
         </div>
         <h2 className="text-3xl font-bold text-gray-900 mb-2">Payment Receipt</h2>
-        <p className="text-green-600 font-semibold text-lg">Payment Confirmed        </p>
+        <p className="text-green-600 font-semibold text-lg">Payment Confirmed</p>
       </div>
 
       <div className="space-y-4 mb-6">
         <div className="bg-gradient-to-br from-green-50 to-green-100 border-2 border-green-200 rounded-xl p-6 text-center">
           <p className="text-sm text-gray-600 mb-3">Amount Paid</p>
           <div className="flex items-center justify-center gap-3">
-            <AssetLogo code={invoice.assetCode} size={36} showName={false} />
+            <AssetLogo code={invoice.assetCode} size={36} showName={false} priority={true} />
             <div>
               <p className="text-4xl font-bold text-green-700">
                 {formatAmount(invoice.amount, 7)}
@@ -124,24 +124,6 @@ Stellar Blockchain Payment System
             <p className="text-sm text-gray-900">{formatDate(invoice.paidAt)}</p>
           </div>
         </div>
-
-        {(invoice.sellerName || invoice.sellerEmail) && (
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-2">
-            <p className="text-sm text-blue-600 font-semibold">Seller Information</p>
-            {invoice.sellerName && (
-              <div>
-                <p className="text-xs text-blue-500">Name</p>
-                <p className="text-sm text-blue-800">{invoice.sellerName}</p>
-              </div>
-            )}
-            {invoice.sellerEmail && (
-              <div>
-                <p className="text-xs text-blue-500">Email</p>
-                <p className="text-sm text-blue-800">{invoice.sellerEmail}</p>
-              </div>
-            )}
-          </div>
-        )}
 
         {invoice.sellerName && (
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-center">
