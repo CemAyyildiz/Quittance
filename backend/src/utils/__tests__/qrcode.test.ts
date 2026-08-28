@@ -50,7 +50,6 @@ describe('buildStellarPaymentUri', () => {
   });
 
   it('defaults assetCode to XLM when omitted', () => {
-    // @ts-expect-error – testing default parameter behaviour
     const uri = buildStellarPaymentUri(DEST, '7');
     expect(uri).toBe(
       `web+stellar:pay?destination=${DEST}&amount=7`,

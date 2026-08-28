@@ -146,7 +146,7 @@ export const mockInvoiceApi = {
       invoice.amount.toString(),
       invoice.assetCode,
       invoice.memo,
-      invoice.assetIssuer
+      (invoice as any).assetIssuer
     );
 
     return {

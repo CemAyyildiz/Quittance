@@ -1,32 +1,32 @@
-import test from 'node:test';
-import assert from 'node:assert/strict';
+import { describe, it, expect } from 'vitest';
+import { assetDisplayName } from './assetDisplayName';
 
-import { assetDisplayName } from './assetDisplayName.ts';
+describe('assetDisplayName', () => {
+  it('returns "Stellar Lumens" for XLM', () => {
+    expect(assetDisplayName('XLM')).toBe('Stellar Lumens');
+  });
 
-test('returns "Stellar Lumens" for XLM', () => {
-  assert.equal(assetDisplayName('XLM'), 'Stellar Lumens');
-});
+  it('returns "USD Coin" for USDC', () => {
+    expect(assetDisplayName('USDC')).toBe('USD Coin');
+  });
 
-test('returns "USD Coin" for USDC', () => {
-  assert.equal(assetDisplayName('USDC'), 'USD Coin');
-});
+  it('returns the input code unchanged for unknown codes', () => {
+    expect(assetDisplayName('BTC')).toBe('BTC');
+    expect(assetDisplayName('USDT')).toBe('USDT');
+    expect(assetDisplayName('EURT')).toBe('EURT');
+  });
 
-test('returns the input code unchanged for unknown codes', () => {
-  assert.equal(assetDisplayName('BTC'), 'BTC');
-  assert.equal(assetDisplayName('USDT'), 'USDT');
-  assert.equal(assetDisplayName('EURT'), 'EURT');
-});
+  it('trims surrounding whitespace before lookup', () => {
+    expect(assetDisplayName('  XLM  ')).toBe('Stellar Lumens');
+    expect(assetDisplayName('\tUSDC\n')).toBe('USD Coin');
+  });
 
-test('trims surrounding whitespace before lookup', () => {
-  assert.equal(assetDisplayName('  XLM  '), 'Stellar Lumens');
-  assert.equal(assetDisplayName('\tUSDC\n'), 'USD Coin');
-});
+  it('is case-sensitive (lowercase does not match)', () => {
+    expect(assetDisplayName('xlm')).toBe('xlm');
+    expect(assetDisplayName('usdc')).toBe('usdc');
+  });
 
-test('is case-sensitive (lowercase does not match)', () => {
-  assert.equal(assetDisplayName('xlm'), 'xlm');
-  assert.equal(assetDisplayName('usdc'), 'usdc');
-});
-
-test('returns the trimmed code unchanged when unknown', () => {
-  assert.equal(assetDisplayName('  BTC  '), 'BTC');
+  it('returns the trimmed code unchanged when unknown', () => {
+    expect(assetDisplayName('  BTC  ')).toBe('BTC');
+  });
 });

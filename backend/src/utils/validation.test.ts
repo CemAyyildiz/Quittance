@@ -1,70 +1,66 @@
-import test from 'node:test';
-import assert from 'node:assert/strict';
+import { describe, it, expect } from 'vitest';
 
 import { createInvoiceSchema, stellarPublicKeySchema } from './validation';
 
 const validSellerPublicKey = 'G' + 'A'.repeat(55);
 
-test('valid invoice payload passes validation', () => {
-  const result = createInvoiceSchema.safeParse({
-    amount: 125,
-    description: 'Website redesign',
-    customerName: 'Alice Example',
-    customerEmail: 'alice@example.com',
-    sellerName: 'Quittance Labs',
-    sellerEmail: 'seller@example.com',
-    expiresInDays: 14,
-    sellerPublicKey: validSellerPublicKey,
+describe('createInvoiceSchema', () => {
+  it('valid invoice payload passes validation', () => {
+    const result = createInvoiceSchema.safeParse({
+      amount: 125,
+      description: 'Website redesign',
+      customerName: 'Alice Example',
+      customerEmail: 'alice@example.com',
+      sellerName: 'Quittance Labs',
+      sellerEmail: 'seller@example.com',
+      expiresInDays: 14,
+      sellerPublicKey: validSellerPublicKey,
+    });
+
+    expect(result.success).toBe(true);
   });
 
-  assert.equal(result.success, true);
-});
+  it('invalid invoice amount fails validation', () => {
+    const result = createInvoiceSchema.safeParse({
+      amount: 0,
+      sellerPublicKey: validSellerPublicKey,
+    });
 
-test('invalid invoice amount fails validation', () => {
-  const result = createInvoiceSchema.safeParse({
-    amount: 0,
-    sellerPublicKey: validSellerPublicKey,
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(
+        result.error.issues.some((issue) => issue.path.includes('amount')),
+      ).toBe(true);
+    }
   });
 
-  assert.equal(result.success, false);
-  if (result.success) {
-    assert.fail('Expected invalid amount to fail validation');
-  }
+  it('invalid stellar public key fails validation', () => {
+    const result = stellarPublicKeySchema.safeParse('not-a-valid-public-key');
 
-  assert.ok(
-    result.error.issues.some((issue) => issue.path.includes('amount')),
-    'Expected the amount field to be reported in the validation issues',
-  );
-});
-
-test('invalid stellar public key fails validation', () => {
-  const result = stellarPublicKeySchema.safeParse('not-a-valid-public-key');
-
-  assert.equal(result.success, false);
-  if (result.success) {
-    assert.fail('Expected an invalid public key to fail validation');
-  }
-
-  assert.ok(
-    result.error.issues.some((issue) => issue.message.includes('Invalid Stellar public key format')),
-    'Expected a clear Stellar public key validation message',
-  );
-});
-
-test('invalid customer email fails validation', () => {
-  const result = createInvoiceSchema.safeParse({
-    amount: 10,
-    customerEmail: 'not-an-email',
-    sellerPublicKey: validSellerPublicKey,
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(
+        result.error.issues.some((issue) =>
+          issue.message.includes('Invalid Stellar public key format'),
+        ),
+      ).toBe(true);
+    }
   });
 
-  assert.equal(result.success, false);
-  if (result.success) {
-    assert.fail('Expected an invalid email to fail validation');
-  }
+  it('invalid customer email fails validation', () => {
+    const result = createInvoiceSchema.safeParse({
+      amount: 10,
+      customerEmail: 'not-an-email',
+      sellerPublicKey: validSellerPublicKey,
+    });
 
-  assert.ok(
-    result.error.issues.some((issue) => issue.path.includes('customerEmail')),
-    'Expected the customerEmail field to be reported in the validation issues',
-  );
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(
+        result.error.issues.some((issue) =>
+          issue.path.includes('customerEmail'),
+        ),
+      ).toBe(true);
+    }
+  });
 });
