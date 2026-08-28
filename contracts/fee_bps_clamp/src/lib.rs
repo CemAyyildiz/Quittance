@@ -91,6 +91,31 @@ pub fn is_valid_bps(bps: i32) -> bool {
     (MIN_BPS..=MAX_BPS).contains(&bps)
 }
 
+/// Converts a basis-points value into a whole-number percent.
+///
+/// The input is first clamped into `MIN_BPS..=MAX_BPS` via [`clamp_bps`], so
+/// this never panics or overflows, and the result is always in `0..=100`.
+/// Conversion is integer division (`clamped / 100`), so fractional percents
+/// (e.g. `250` bps == `2.5%`) truncate toward zero — `250` becomes `2`, not
+/// `3`.
+///
+/// # Examples
+///
+/// ```
+/// use quittance_fee_bps_clamp::bps_to_whole_percent;
+///
+/// assert_eq!(bps_to_whole_percent(250), 2);
+/// assert_eq!(bps_to_whole_percent(10_000), 100);
+///
+/// // Out-of-range input is clamped before conversion.
+/// assert_eq!(bps_to_whole_percent(-1), 0);
+/// assert_eq!(bps_to_whole_percent(50_000), 100);
+/// ```
+#[must_use = "bps_to_whole_percent returns the converted value; using it in place has no effect"]
+pub fn bps_to_whole_percent(bps: i32) -> i32 {
+    clamp_bps(bps) / 100
+}
+
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
@@ -175,5 +200,36 @@ mod tests {
         for input in [i32::MIN, -7, 0, 42, 10_000, 12_345, i32::MAX] {
             assert!(is_valid_bps(clamp_bps(input)));
         }
+    }
+
+    // ----- bps_to_whole_percent ------------------------------------------
+
+    #[test]
+    fn bps_to_whole_percent_converts_mid_range_values() {
+        assert_eq!(bps_to_whole_percent(250), 2);
+        assert_eq!(bps_to_whole_percent(10_000), 100);
+    }
+
+    #[test]
+    fn bps_to_whole_percent_truncates_fractional_percent() {
+        // 250 bps is 2.5%, which truncates to 2, not rounds to 3.
+        assert_eq!(bps_to_whole_percent(299), 2);
+        assert_eq!(bps_to_whole_percent(1), 0);
+        assert_eq!(bps_to_whole_percent(99), 0);
+    }
+
+    #[test]
+    fn bps_to_whole_percent_boundaries() {
+        assert_eq!(bps_to_whole_percent(MIN_BPS), 0);
+        assert_eq!(bps_to_whole_percent(MAX_BPS), 100);
+    }
+
+    #[test]
+    fn bps_to_whole_percent_clamps_out_of_range_input() {
+        assert_eq!(bps_to_whole_percent(-1), 0);
+        assert_eq!(bps_to_whole_percent(i32::MIN), 0);
+        assert_eq!(bps_to_whole_percent(10_001), 100);
+        assert_eq!(bps_to_whole_percent(50_000), 100);
+        assert_eq!(bps_to_whole_percent(i32::MAX), 100);
     }
 }
