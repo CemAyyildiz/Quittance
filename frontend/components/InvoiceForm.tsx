@@ -21,6 +21,8 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
   const [customerName, setCustomerName] = useState('');
   const [customerEmail, setCustomerEmail] = useState('');
   const [trustlineWarning, setTrustlineWarning] = useState<string | null>(null);
+  const [amountError, setAmountError] = useState('');
+  const [emailError, setEmailError] = useState('');
 
   const selectedAsset = getAssetByCode(assetCode);
 
@@ -43,6 +45,24 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
     };
   }, [userWallet, assetCode]);
 
+  const handleAmountChange = (value: string) => {
+    setAmount(value);
+    if (value && (isNaN(parseFloat(value)) || parseFloat(value) <= 0)) {
+      setAmountError('Amount must be greater than 0');
+    } else {
+      setAmountError('');
+    }
+  };
+
+  const handleEmailChange = (value: string) => {
+    setCustomerEmail(value);
+    if (value && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
+      setEmailError('Enter a valid email address');
+    } else {
+      setEmailError('');
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -51,21 +71,24 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
       return;
     }
 
-    if (!amount || parseFloat(amount) <= 0) {
-      toast.error('Enter a valid amount');
+    const amountNum = parseFloat(amount);
+    if (!amount || amountNum <= 0 || isNaN(amountNum)) {
+      setAmountError('Enter a valid amount');
       return;
     }
+    setAmountError('');
 
     if (customerEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(customerEmail)) {
-      toast.error('Enter a valid client email');
+      setEmailError('Enter a valid client email');
       return;
     }
+    setEmailError('');
 
     setLoading(true);
     try {
       const selectedAsset = getAssetByCode(assetCode);
       const result = await invoiceApi.create({
-        amount: parseFloat(amount),
+        amount: amountNum,
         assetCode: assetCode,
         assetIssuer: selectedAsset?.issuer,
         expiresInDays: 7,
@@ -82,6 +105,8 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
       setDescription('');
       setCustomerName('');
       setCustomerEmail('');
+      setAmountError('');
+      setEmailError('');
     } catch (error: any) {
       toast.error(error.response?.data?.error || 'Failed to create invoice');
     } finally {
@@ -90,7 +115,7 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
+    <form noValidate onSubmit={handleSubmit} className="space-y-4">
       <div>
         <label className="label">Invoice Amount *</label>
         <div className="flex gap-3 flex-col sm:flex-row">
@@ -99,10 +124,12 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
             step="0.0000001"
             min="0.0000001"
             required
-            className="input flex-1 text-2xl font-semibold"
+            className={`input flex-1 text-2xl font-semibold ${amountError ? 'border-red-500' : ''}`}
             placeholder="10.00"
             value={amount}
-            onChange={(e) => setAmount(e.target.value)}
+            onChange={(e) => handleAmountChange(e.target.value)}
+            aria-invalid={Boolean(amountError)}
+            aria-describedby={amountError ? 'amount-error' : undefined}
           />
           <div className="relative">
             <select
@@ -121,6 +148,11 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
             </div>
           </div>
         </div>
+        {amountError && (
+          <p id="amount-error" className="text-sm text-red-600 mt-1">
+            {amountError}
+          </p>
+        )}
         {selectedAsset?.issuer && (
           <div className="text-xs text-gray-500 mt-2 break-all">
             <p>
@@ -162,15 +194,23 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
         <label className="label">Client email (optional)</label>
         <input
           type="email"
-          className="input text-sm"
+          className={`input text-sm ${emailError ? 'border-red-500' : ''}`}
           placeholder="client@example.com — for sending the invoice"
           value={customerEmail}
-          onChange={(e) => setCustomerEmail(e.target.value)}
+          onChange={(e) => handleEmailChange(e.target.value)}
           maxLength={255}
+          aria-invalid={Boolean(emailError)}
+          aria-describedby={emailError ? 'email-error' : undefined}
         />
-        <p className="text-xs text-gray-500 mt-1">
-          Used only to send the invoice or payment proof. Not required to create an invoice.
-        </p>
+        {emailError ? (
+          <p id="email-error" className="text-sm text-red-600 mt-1">
+            {emailError}
+          </p>
+        ) : (
+          <p className="text-xs text-gray-500 mt-1">
+            Used only to send the invoice or payment proof. Not required to create an invoice.
+          </p>
+        )}
       </div>
 
       <button

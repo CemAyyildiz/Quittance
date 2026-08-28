@@ -1,5 +1,6 @@
 import { ExternalLink } from 'lucide-react';
 import clsx from 'clsx';
+import { explorerTxUrl, type StellarNetwork } from '@/lib/explorerUrl';
 
 // ── Types ────────────────────────────────────────────────────────────────
 
@@ -21,24 +22,12 @@ export interface ExplorerLinkProps {
 /** A valid Stellar transaction hash: exactly 64 lowercase or uppercase hex digits. */
 const TX_HASH_RE = /^[0-9a-fA-F]{64}$/;
 
-const NETWORK_SEGMENT: Record<'testnet' | 'public', string> = {
-  testnet: 'testnet',
-  public: 'public',
-};
-
 // ── Helpers ──────────────────────────────────────────────────────────────
 
-/** Derive the explorer network segment from props + env, defaulting to testnet. */
-function resolveNetwork(network?: 'testnet' | 'public'): 'testnet' | 'public' {
-  if (network) return network;
-  return process.env.NEXT_PUBLIC_STELLAR_NETWORK === 'PUBLIC'
-    ? 'public'
-    : 'testnet';
-}
-
-/** Build the full explorer URL for a transaction hash. */
-function explorerUrl(hash: string, network: 'testnet' | 'public'): string {
-  return `https://stellar.expert/explorer/${NETWORK_SEGMENT[network]}/tx/${hash}`;
+/** Map the component's lowercase network prop to the helper's uppercase convention. */
+function toStellarNetwork(network?: 'testnet' | 'public'): StellarNetwork {
+  if (network === 'public') return 'PUBLIC';
+  return 'TESTNET';
 }
 
 /** Shorten a hash for display: first 8 … last 6 chars. */
@@ -77,11 +66,10 @@ export default function ExplorerLink({
     );
   }
 
-  const resolvedNetwork = resolveNetwork(network);
-  const url = explorerUrl(txHash, resolvedNetwork);
+  const resolvedNetwork = toStellarNetwork(network);
+  const url = explorerTxUrl(txHash, resolvedNetwork);
   const label = children ?? shortenHash(txHash);
-  const networkLabel =
-    resolvedNetwork === 'testnet' ? 'Testnet' : 'Public';
+  const networkLabel = resolvedNetwork === 'TESTNET' ? 'Testnet' : 'Public';
 
   return (
     <a
