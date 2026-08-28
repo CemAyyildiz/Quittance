@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import Image from 'next/image';
 import { getAssetByCode } from '@/lib/assets';
+import { assetDisplayName } from '@/lib/assetDisplayName';
 
 interface AssetLogoProps {
   code: string;
@@ -68,7 +69,7 @@ export default function AssetLogo({
         )}
       </div>
       {showName && (
-        <span className="font-semibold">{asset.code}</span>
+        <span className="font-semibold">{assetDisplayName(asset.code)}</span>
       )}
     </div>
   );
