@@ -6,7 +6,9 @@ import { createInvoiceSchema } from './utils/validation';
 import invoiceService from './services/invoice-memory.service';
 import { generatePaymentQR, generateStellarPaymentQR, buildStellarPaymentUri } from './utils/qrcode';
 import stellarService from './services/stellar.service';
+import { rateLimitIfEnabled } from './middleware/rate-limit-stub';
 import healthDetailRouter from './routes/health-detail';
+import { toInvoiceDTO } from './utils/invoice-dto';
 
 // Load environment variables
 dotenv.config();
@@ -25,6 +27,8 @@ app.use(cors({
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// Rate limiting (opt-in — enabled only when RATE_LIMIT_ENABLED=true)
+app.use(rateLimitIfEnabled());
 app.use(requestId);
 
 // Request logging
@@ -84,7 +88,7 @@ app.post('/api/invoices', async (req: Request, res: Response) => {
     res.status(201).json({
       success: true,
       data: {
-        invoice,
+        invoice: toInvoiceDTO(invoice),
         paymentUrl,
         qrCode: qrCodeDataUrl,
         stellarQrCode,
@@ -115,7 +119,7 @@ app.get('/api/invoices/:id', async (req: Request, res: Response) => {
 
     res.json({
       success: true,
-      data: invoice,
+      data: toInvoiceDTO(invoice),
     });
   } catch (error: any) {
     console.error('Get invoice error:', error);
@@ -147,7 +151,7 @@ app.get('/api/invoices', async (req: Request, res: Response) => {
 
     res.json({
       success: true,
-      data: invoices,
+      data: invoices.map(toInvoiceDTO),
       pagination: {
         limit: parseInt(limit as string),
         offset: parseInt(offset as string),
@@ -200,7 +204,7 @@ app.get('/api/invoices/:id/payment-info', async (req: Request, res: Response) =>
         qrCode: qrCodeDataUrl,
         stellarQrCode,
         stellarPaymentUri,
-        invoice,
+        invoice: toInvoiceDTO(invoice),
       },
     });
   } catch (error: any) {
@@ -220,7 +224,7 @@ app.post('/api/invoices/:id/cancel', async (req: Request, res: Response) => {
 
     res.json({
       success: true,
-      data: invoice,
+      data: toInvoiceDTO(invoice),
     });
   } catch (error: any) {
     console.error('Cancel invoice error:', error);
@@ -316,7 +320,7 @@ app.post('/api/invoices/:id/verify', async (req: Request, res: Response) => {
 
     res.json({
       success: true,
-      data: updatedInvoice,
+      data: toInvoiceDTO(updatedInvoice),
       message: 'Payment verified on Stellar',
     });
   } catch (error: any) {
@@ -369,7 +373,7 @@ app.post('/api/invoices/:id/simulate-payment', async (req: Request, res: Respons
 
     res.json({
       success: true,
-      data: updatedInvoice,
+      data: toInvoiceDTO(updatedInvoice),
       message: 'Payment simulated successfully',
     });
   } catch (error: any) {
