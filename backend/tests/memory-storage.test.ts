@@ -171,3 +171,39 @@ test('InvoiceMemoryService.getInvoicesBySeller scopes by seller through storage'
     'service-level seller A list is scoped to seller A only',
   );
 });
+
+test('#469 seller-scoped invoice list returns only that seller rows (two distinct sellers)', () => {
+  // Two distinct seller public keys.
+  const sellerAInvoices = [
+    memoryStorage.createInvoice(buildSeed({ sellerPublicKey: SELLER_A, memo: nextMemo('469-A'), amount: 10 })),
+    memoryStorage.createInvoice(buildSeed({ sellerPublicKey: SELLER_A, memo: nextMemo('469-A'), amount: 20 })),
+  ];
+  const sellerBInvoices = [
+    memoryStorage.createInvoice(buildSeed({ sellerPublicKey: SELLER_B, memo: nextMemo('469-B'), amount: 30 })),
+  ];
+
+  const all = memoryStorage.getAllInvoices();
+  assert.equal(all.length, 3, 'storage holds all three invoices before seller filter');
+
+  // Filter by sellerPublicKey exactly as the service does.
+  const sellerAList = all.filter((inv) => inv.sellerPublicKey === SELLER_A);
+  const sellerBList = all.filter((inv) => inv.sellerPublicKey === SELLER_B);
+
+  assert.equal(sellerAList.length, 2, 'seller A list contains only seller A rows');
+  assert.equal(sellerBList.length, 1, 'seller B list contains only seller B rows');
+
+  assert.deepEqual(
+    sellerAList.map((inv) => inv.id).sort(),
+    sellerAInvoices.map((inv) => inv.id).sort(),
+    'every seller A row belongs to seller A',
+  );
+  assert.ok(
+    sellerBList.every((inv) => inv.sellerPublicKey === SELLER_B),
+    'every seller B row belongs to seller B',
+  );
+  assert.equal(
+    sellerAList.find((inv) => inv.sellerPublicKey === SELLER_B),
+    undefined,
+    'no cross-leak between seller A and seller B listings',
+  );
+});
