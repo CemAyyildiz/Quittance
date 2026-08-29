@@ -238,6 +238,7 @@ export default function DashboardPage() {
                 <input
                   type="text"
                   placeholder="Search invoices..."
+                  aria-label="Search invoices"
                   className="input w-full"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
