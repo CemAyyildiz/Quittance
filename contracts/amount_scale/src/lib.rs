@@ -155,8 +155,10 @@ mod tests {
 
     #[test]
     fn to_stroops_realistic_invoice_amount() {
-        // 12.3456789 XLM rounded to 7 dp → 123_456_789 stroops.
-        assert_eq!(to_stroops(12_345_678), Some(123_456_789 * STROOPS_PER_UNIT));
+        // A 12,345,678-unit invoice (display units, not fractional XLM —
+        // this crate only scales whole display units) scales to
+        // 123_456_780_000_000 stroops.
+        assert_eq!(to_stroops(12_345_678), Some(12_345_678 * STROOPS_PER_UNIT));
     }
 
     #[test]
@@ -195,8 +197,8 @@ mod tests {
 
     #[test]
     fn from_stroops_truncates_fractions() {
-        // 12.3456789 XLM exactly:
-        assert_eq!(from_stroops(123_456_789 * STROOPS_PER_UNIT), Some(12_345_678));
+        // An exact multiple of STROOPS_PER_UNIT divides back out cleanly:
+        assert_eq!(from_stroops(123_456_789 * STROOPS_PER_UNIT), Some(123_456_789));
         // Anything below 1 display unit floors to 0:
         assert_eq!(from_stroops(1), Some(0));
         assert_eq!(from_stroops(STROOPS_PER_UNIT - 1), Some(0));
@@ -278,5 +280,68 @@ mod tests {
         assert_eq!(from_stroops(stroops), Some(10));
         // The dropped residue is recoverable via remainder_stroops.
         assert_eq!(remainder_stroops(stroops), Some(500_000));
+    }
+
+    /// Acceptance-criteria checklist for the `to_stroops`/`from_stroops`
+    /// round-trip: 0, 1, 1_234_567, and the max safe display value must
+    /// all survive a `to_stroops` → `from_stroops` round trip unchanged.
+    #[test]
+    fn round_trip_acceptance_criteria_values() {
+        let max_safe = i128::MAX / STROOPS_PER_UNIT;
+        for display in [0_i128, 1, 1_234_567, max_safe] {
+            let stroops = to_stroops(display).expect("representative value must not overflow");
+            assert_eq!(from_stroops(stroops), Some(display), "display={display}");
+        }
+    }
+
+    /// Sub-unit stroops (an amount smaller than one full display unit) must
+    /// round-trip to a display amount of `0`, and feeding that `0` back
+    /// through `to_stroops` must not resurrect the lost precision.
+    #[test]
+    fn round_trip_sub_unit_stroops() {
+        for stroops in [1_i128, 500_000, STROOPS_PER_UNIT - 1] {
+            let display = from_stroops(stroops).expect("non-negative stroops must convert");
+            assert_eq!(display, 0, "stroops={stroops}");
+            assert_eq!(to_stroops(display), Some(0));
+        }
+    }
+
+    /// Property-style sweep: for a large, deterministic set of display
+    /// amounts spanning the whole legal range (small values, round-number
+    /// values, and values near the `i128::MAX` boundary), `to_stroops`
+    /// composed with `from_stroops` must be the identity function whenever
+    /// the scale-up does not overflow.
+    ///
+    /// This crate is intentionally dependency-free (see the module docs),
+    /// so instead of pulling in a property-testing crate, the sweep uses a
+    /// small deterministic xorshift64 generator seeded with a fixed value —
+    /// reproducible across runs, but exercising far more of the input space
+    /// than a hand-picked table.
+    #[test]
+    fn round_trip_property_sweep() {
+        let max_safe = i128::MAX / STROOPS_PER_UNIT;
+
+        fn xorshift64(state: &mut u64) -> u64 {
+            *state ^= *state << 13;
+            *state ^= *state >> 7;
+            *state ^= *state << 17;
+            *state
+        }
+
+        let mut state: u64 = 0x9E3779B97F4A7C15; // fixed seed for reproducibility
+        let modulus = (max_safe as u128) + 1;
+        for _ in 0..10_000 {
+            // Combine two 64-bit draws into a 128-bit value so the sweep can
+            // land anywhere in the (128-bit-wide) safe range, not just the
+            // bottom 64 bits of it.
+            let hi = xorshift64(&mut state) as u128;
+            let lo = xorshift64(&mut state) as u128;
+            let raw = (hi << 64) | lo;
+            let display = (raw % modulus) as i128;
+
+            let stroops = to_stroops(display).expect("sample is within the safe range");
+            assert_eq!(from_stroops(stroops), Some(display), "display={display}");
+            assert_eq!(remainder_stroops(stroops), Some(0), "display={display}");
+        }
     }
 }
