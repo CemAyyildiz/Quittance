@@ -177,6 +177,39 @@ fn topics_distinguishes_invoice_id_against_two_distinct_inputs() {
 }
 
 #[test]
+fn data_preserves_paid_at_in_data_tuple() {
+    // Lock that `paid_at` (the ledger timestamp in seconds) survives
+    // the trip through a Soroban `Val` and always occupies the third
+    // slot of the data tuple. Two payloads sharing the same
+    // amount/asset but differing only in `paid_at` must each decode
+    // back to their own timestamp, so indexers can rely on tuple slot
+    // 3 being `paid_at` and on the field order remaining stable.
+    let env = Env::default();
+    let asset = addr_asset(&env);
+    let amount: i128 = 250_000_000_i128;
+
+    let t1: u64 = 1_700_000_000_u64;
+    let t2: u64 = 1_700_060_000_u64;
+
+    let payload1: Val = data(&env, amount, &asset, t1);
+    let payload2: Val = data(&env, amount, &asset, t2);
+
+    let (a1, as1, p1): (i128, Address, u64) = payload1.into_val(&env);
+    let (a2, as2, p2): (i128, Address, u64) = payload2.into_val(&env);
+
+    // Both payloads carry the same amount and asset ...
+    assert_eq!(a1, amount);
+    assert_eq!(as1, asset);
+    assert_eq!(a2, amount);
+    assert_eq!(as2, asset);
+
+    // ... but each keeps its own distinct `paid_at`.
+    assert_eq!(p1, t1);
+    assert_eq!(p2, t2);
+    assert_ne!(p1, p2);
+}
+
+#[test]
 fn data_decodes_back_to_amount_asset_paid_at_tuple() {
     let env = Env::default();
     let asset = addr_asset(&env);
