@@ -45,6 +45,12 @@ describe('log secret sanitization', () => {
     expect(parsed.authHeader).toBe('[REDACTED]');
   });
 
+  it('redacts keys matching authorization', () => {
+    const line = callLog('info', 'msg', { authorization: 'secret' });
+    const parsed = JSON.parse(line);
+    expect(parsed.authorization).toBe('[REDACTED]');
+  });
+
   it('leaves normal keys untouched', () => {
     const context = { message: 'hello', count: 3, nested: { id: 'x' } };
     const line = callLog('info', 'msg', context);
