@@ -588,6 +588,40 @@ mod tests {
     }
 
     #[test]
+    fn is_expired_boundary_when_now_equals_expiry() {
+        // Pin the inclusive boundary: when payment time equals expiry
+        // the invoice is expired (now >= expiry => expired).
+        const NOW: u64 = 1_700_000_000;
+        const EQUAL: u64 = NOW;
+        assert!(is_expired(NOW, EQUAL), "is_expired must return true when now == expiry (inclusive boundary)");
+        assert!(is_expired(0, 0), "is_expired must return true when now == expiry == 0");
+    }
+
+    #[test]
+    fn require_active_boundary_when_now_equals_expiry() {
+        // At the exact deadline, require_active must reject (inclusive boundary).
+        const NOW: u64 = 1_700_000_000;
+        const EQUAL: u64 = NOW;
+        assert_eq!(
+            require_active(EQUAL, EQUAL),
+            Err(ExpiryError::AlreadyExpired),
+            "require_active must reject when now == expiry (inclusive boundary)",
+        );
+    }
+
+    #[test]
+    fn require_future_expiry_boundary_when_expiry_equals_now() {
+        // At creation time, expiry == now must be rejected (not strictly future).
+        const NOW: u64 = 1_700_000_000;
+        const EQUAL: u64 = NOW;
+        assert_eq!(
+            require_future_expiry(NOW, EQUAL),
+            Err(ExpiryError::ExpiryNotFuture),
+            "require_future_expiry must reject when expiry == now",
+        );
+    }
+
+    #[test]
     fn expiry_error_implements_debug() {
         // The crate is `#![no_std]`, so `format!` (which lives in the
         // std prelude) is unavailable inside the test module. We
