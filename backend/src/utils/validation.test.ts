@@ -7,7 +7,7 @@ const validInvoiceId = '123e4567-e89b-12d3-a456-426614174000';
 const validTxHash = 'a'.repeat(64);
 
 describe('createInvoiceSchema', () => {
-  it('valid invoice payload passes validation', () => {
+  it('accepts a valid invoice payload', () => {
     const result = createInvoiceSchema.safeParse({
       amount: 125,
       description: 'Website redesign',
@@ -22,34 +22,22 @@ describe('createInvoiceSchema', () => {
     expect(result.success).toBe(true);
   });
 
-  it('invalid invoice amount fails validation', () => {
+  it('rejects an invalid (zero) amount', () => {
     const result = createInvoiceSchema.safeParse({
       amount: 0,
       sellerPublicKey: validSellerPublicKey,
     });
 
     expect(result.success).toBe(false);
-    if (!result.success) {
-      expect(
-        result.error.issues.some((issue) => issue.path.includes('amount')),
-      ).toBe(true);
+    if (result.success) {
+      throw new Error('Expected invalid amount to fail validation');
     }
+    expect(
+      result.error.issues.some((issue) => issue.path.includes('amount')),
+    ).toBe(true);
   });
 
-  it('invalid stellar public key fails validation', () => {
-    const result = stellarPublicKeySchema.safeParse('not-a-valid-public-key');
-
-    expect(result.success).toBe(false);
-    if (!result.success) {
-      expect(
-        result.error.issues.some((issue) =>
-          issue.message.includes('Invalid Stellar public key format'),
-        ),
-      ).toBe(true);
-    }
-  });
-
-  it('invalid customer email fails validation', () => {
+  it('rejects an invalid customer email', () => {
     const result = createInvoiceSchema.safeParse({
       amount: 10,
       customerEmail: 'not-an-email',
@@ -57,13 +45,28 @@ describe('createInvoiceSchema', () => {
     });
 
     expect(result.success).toBe(false);
-    if (!result.success) {
-      expect(
-        result.error.issues.some((issue) =>
-          issue.path.includes('customerEmail'),
-        ),
-      ).toBe(true);
+    if (result.success) {
+      throw new Error('Expected invalid email to fail validation');
     }
+    expect(
+      result.error.issues.some((issue) => issue.path.includes('customerEmail')),
+    ).toBe(true);
+  });
+});
+
+describe('stellarPublicKeySchema', () => {
+  it('rejects a malformed Stellar public key', () => {
+    const result = stellarPublicKeySchema.safeParse('not-a-valid-public-key');
+
+    expect(result.success).toBe(false);
+    if (result.success) {
+      throw new Error('Expected an invalid public key to fail validation');
+    }
+    expect(
+      result.error.issues.some((issue) =>
+        issue.message.includes('Invalid Stellar public key format'),
+      ),
+    ).toBe(true);
   });
 });
 
