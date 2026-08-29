@@ -2,6 +2,7 @@ import { defineConfig } from 'vitest/config';
 import { resolve } from 'path';
 
 export default defineConfig({
+  // Next.js components rely on the automatic JSX runtime and do not import React.
   esbuild: {
     jsx: 'automatic',
   },
@@ -9,16 +10,9 @@ export default defineConfig({
     globals: true,
     environment: 'node',
   },
-  esbuild: {
-    jsx: 'automatic',
-  },
   resolve: {
     alias: {
       '@': resolve(__dirname, '.'),
     },
-  },
-  // Next.js components rely on the automatic JSX runtime and do not import React.
-  esbuild: {
-    jsx: 'automatic',
   },
 });
