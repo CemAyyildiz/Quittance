@@ -58,7 +58,7 @@ export default function AssetLogo({
         ) : (
           <Image
             src={asset.logo}
-            alt={asset.name}
+            alt={`${assetDisplayName(asset.code)} logo`}
             width={size - 4}
             height={size - 4}
             className="object-contain rounded-full"
