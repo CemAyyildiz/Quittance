@@ -117,6 +117,12 @@ fn floor_of(env: &Env) -> i128 {
 
 #[cfg(test)]
 mod test {
+    // Tests run on the host test harness (which links `std`), even
+    // though the crate itself is `#![no_std]`; this makes types such as
+    // `std::panic::catch_unwind` (used to observe `require` panics)
+    // available inside the test module.
+    extern crate std;
+
     use super::*;
     use soroban_sdk::Env;
 
@@ -124,33 +130,44 @@ mod test {
     // every test that references it.
     const TEN_XLM_STROOPS: i128 = 1_000_000_000;
 
+    /// Deploy `MinAmount` with the given `floor` and hand back a client.
+    ///
+    /// soroban-sdk generates a client that deliberately omits functions
+    /// whose names start with `__` (they are reserved for host callbacks
+    /// and hooks), and the host forbids invoking those reserved functions
+    /// directly. So, to reproduce a native (non-WASM) deployment, this runs
+    /// the real `__constructor` body inside the contract's storage context
+    /// via `Env::as_contract` — the same storage the on-chain constructor
+    /// would write to.
+    fn deploy(env: &Env, floor: i128) -> MinAmountClient<'_> {
+        let contract_id = env.register_contract(None, MinAmount);
+        env.as_contract(&contract_id, || {
+            MinAmount::__constructor(env.clone(), floor);
+        });
+        MinAmountClient::new(env, &contract_id)
+    }
+
     #[test]
     fn test_payment_below_floor_returns_false() {
         let env = Env::default();
-        let contract_id = env.register_contract(None, MinAmount);
-        let client = MinAmountClient::new(&env, &contract_id);
+        let client = deploy(&env, TEN_XLM_STROOPS);
 
-        client.__constructor(&TEN_XLM_STROOPS);
         assert!(!client.check(&(TEN_XLM_STROOPS - 1)));
     }
 
     #[test]
     fn test_payment_equal_to_floor_returns_true() {
         let env = Env::default();
-        let contract_id = env.register_contract(None, MinAmount);
-        let client = MinAmountClient::new(&env, &contract_id);
+        let client = deploy(&env, TEN_XLM_STROOPS);
 
-        client.__constructor(&TEN_XLM_STROOPS);
         assert!(client.check(&TEN_XLM_STROOPS));
     }
 
     #[test]
     fn test_payment_above_floor_returns_true() {
         let env = Env::default();
-        let contract_id = env.register_contract(None, MinAmount);
-        let client = MinAmountClient::new(&env, &contract_id);
+        let client = deploy(&env, TEN_XLM_STROOPS);
 
-        client.__constructor(&TEN_XLM_STROOPS);
         assert!(client.check(&(TEN_XLM_STROOPS + 1)));
         assert!(client.check(&(TEN_XLM_STROOPS * 2)));
     }
@@ -158,10 +175,8 @@ mod test {
     #[test]
     fn test_zero_floor_accepts_any_non_negative() {
         let env = Env::default();
-        let contract_id = env.register_contract(None, MinAmount);
-        let client = MinAmountClient::new(&env, &contract_id);
+        let client = deploy(&env, 0);
 
-        client.__constructor(&0);
         assert!(client.check(&0));
         assert!(client.check(&1));
     }
@@ -169,10 +184,8 @@ mod test {
     #[test]
     fn test_negative_payment_rejected_by_check() {
         let env = Env::default();
-        let contract_id = env.register_contract(None, MinAmount);
-        let client = MinAmountClient::new(&env, &contract_id);
+        let client = deploy(&env, TEN_XLM_STROOPS);
 
-        client.__constructor(&TEN_XLM_STROOPS);
         assert!(!client.check(&-1));
         assert!(!client.check(&i128::MIN));
     }
@@ -181,20 +194,16 @@ mod test {
     #[should_panic(expected = "floor must be non-negative")]
     fn test_negative_floor_panics_on_construction() {
         let env = Env::default();
-        let contract_id = env.register_contract(None, MinAmount);
-        let client = MinAmountClient::new(&env, &contract_id);
-
-        client.__constructor(&-1);
+        // A negative floor must fail at deploy time.
+        deploy(&env, -1);
     }
 
     #[test]
     fn test_floor_returns_stored_value() {
         let env = Env::default();
-        let contract_id = env.register_contract(None, MinAmount);
-        let client = MinAmountClient::new(&env, &contract_id);
-
         let floor: i128 = 500_000_000;
-        client.__constructor(&floor);
+        let client = deploy(&env, floor);
+
         assert_eq!(client.floor(), floor);
     }
 
@@ -203,10 +212,8 @@ mod test {
     #[test]
     fn require_succeeds_at_floor() {
         let env = Env::default();
-        let contract_id = env.register_contract(None, MinAmount);
-        let client = MinAmountClient::new(&env, &contract_id);
+        let client = deploy(&env, TEN_XLM_STROOPS);
 
-        client.__constructor(&TEN_XLM_STROOPS);
         // Does not panic — the floor itself is acceptable.
         client.require(&TEN_XLM_STROOPS);
     }
@@ -214,10 +221,8 @@ mod test {
     #[test]
     fn require_succeeds_above_floor() {
         let env = Env::default();
-        let contract_id = env.register_contract(None, MinAmount);
-        let client = MinAmountClient::new(&env, &contract_id);
+        let client = deploy(&env, TEN_XLM_STROOPS);
 
-        client.__constructor(&TEN_XLM_STROOPS);
         client.require(&(TEN_XLM_STROOPS + 1));
         client.require(&(TEN_XLM_STROOPS * 100));
     }
@@ -226,10 +231,8 @@ mod test {
     #[should_panic(expected = "payment below configured minimum floor")]
     fn require_panics_below_floor() {
         let env = Env::default();
-        let contract_id = env.register_contract(None, MinAmount);
-        let client = MinAmountClient::new(&env, &contract_id);
+        let client = deploy(&env, TEN_XLM_STROOPS);
 
-        client.__constructor(&TEN_XLM_STROOPS);
         client.require(&(TEN_XLM_STROOPS - 1));
     }
 
@@ -237,20 +240,16 @@ mod test {
     #[should_panic(expected = "payment below configured minimum floor")]
     fn require_panics_on_negative_payment() {
         let env = Env::default();
-        let contract_id = env.register_contract(None, MinAmount);
-        let client = MinAmountClient::new(&env, &contract_id);
+        let client = deploy(&env, TEN_XLM_STROOPS);
 
-        client.__constructor(&TEN_XLM_STROOPS);
         client.require(&-1);
     }
 
     #[test]
     fn require_succeeds_with_zero_floor() {
         let env = Env::default();
-        let contract_id = env.register_contract(None, MinAmount);
-        let client = MinAmountClient::new(&env, &contract_id);
+        let client = deploy(&env, 0);
 
-        client.__constructor(&0);
         // Zero floor accepts every non-negative amount, including
         // zero itself, so a lax deployment cannot accidentally reject
         // every payment.
@@ -266,14 +265,37 @@ mod test {
         // unit so an accidental `>` (strict-greater) instead of `>=`
         // refactor would flip at least one of these cases.
         let env = Env::default();
-        let contract_id = env.register_contract(None, MinAmount);
-        let client = MinAmountClient::new(&env, &contract_id);
-
-        let floor: i128 = 7;
-        client.__constructor(&floor);
+        let client = deploy(&env, 7);
 
         assert!(!client.check(&6));
         assert!(client.check(&7));
         assert!(client.check(&8));
+    }
+
+    #[test]
+    fn check_and_require_agree_at_floor_boundary() {
+        // Lock `check`/`require` parity exactly at the floor boundary:
+        // an amount `check` accepts must be one `require` does not
+        // panic on, and an amount `check` rejects must be one `require`
+        // panics on. Iterates several floors (including `0`, the
+        // permissive "accepts every non-negative amount" case) and the
+        // immediately adjacent amounts floor - 1 / floor / floor + 1,
+        // so a divergence between the two helpers cannot creep in.
+        let env = Env::default();
+
+        for floor in [1_i128, 7_i128, 0_i128] {
+            let client = deploy(&env, floor);
+            for amount in [floor - 1, floor, floor + 1] {
+                let accepted_by_check = client.check(&amount);
+                let require_ok = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                    client.require(&amount)
+                }))
+                .is_ok();
+                assert_eq!(
+                    accepted_by_check, require_ok,
+                    "check({amount}) and require({amount}) disagree at floor {floor}"
+                );
+            }
+        }
     }
 }
