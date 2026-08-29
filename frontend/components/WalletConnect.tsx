@@ -126,6 +126,7 @@ export default function WalletConnect({ onConnect, onConnectionFailure }: Wallet
         <button
           onClick={openExplorer}
           className="sm:hidden p-2 bg-gray-100 hover:bg-gray-200 rounded-lg"
+          aria-label="View wallet on Stellar Explorer"
         >
           <Wallet className="w-5 h-5 text-cyan-600" />
         </button>
@@ -139,6 +140,7 @@ export default function WalletConnect({ onConnect, onConnectionFailure }: Wallet
               : 'text-gray-500 bg-gray-100 hover:bg-gray-200'
           }`}
           title={monitoringActive ? 'Monitoring active' : 'Start monitoring'}
+          aria-label={monitoringActive ? 'Monitoring active' : 'Start monitoring'}
         >
           {monitoringActive ? <Bell className="w-5 h-5" /> : <BellOff className="w-5 h-5" />}
         </button>
@@ -148,6 +150,7 @@ export default function WalletConnect({ onConnect, onConnectionFailure }: Wallet
           onClick={handleDisconnect}
           className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
           title="Disconnect wallet"
+          aria-label="Disconnect wallet"
         >
           <LogOut className="w-5 h-5" />
         </button>

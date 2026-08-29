@@ -105,6 +105,14 @@ test('getInvoiceById returns the matching invoice', () => {
   assert.equal(fetched!.status, 'PENDING');
 });
 
+test('getInvoiceByMemo returns the matching invoice and undefined for an unknown memo', () => {
+  const memo = nextMemo('memo-hit');
+  const created = memoryStorage.createInvoice(buildSeed({ memo }));
+
+  assert.equal(memoryStorage.getInvoiceByMemo(memo), created);
+  assert.equal(memoryStorage.getInvoiceByMemo('does-not-exist'), undefined);
+});
+
 test('getInvoiceById returns undefined for a missing id', () => {
   assert.equal(memoryStorage.getInvoiceById('does-not-exist'), undefined);
 });

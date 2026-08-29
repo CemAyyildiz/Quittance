@@ -1,21 +1,21 @@
-import test from 'node:test';
-import assert from 'node:assert/strict';
-
+import { describe, it, expect } from 'vitest';
 import { networkBadgeModel } from './networkBadgeModel';
 
-test('returns TESTNET for testnet values', () => {
-  assert.equal(networkBadgeModel('TESTNET'), 'TESTNET');
-  assert.equal(networkBadgeModel('testnet'), 'TESTNET');
-});
+describe('networkBadgeModel', () => {
+  it('returns TESTNET for testnet values', () => {
+    expect(networkBadgeModel('TESTNET')).toBe('TESTNET');
+    expect(networkBadgeModel('testnet')).toBe('TESTNET');
+  });
 
-test('returns PUBLIC for public values', () => {
-  assert.equal(networkBadgeModel('PUBLIC'), 'PUBLIC');
-  assert.equal(networkBadgeModel(' public '), 'PUBLIC');
-});
+  it('returns PUBLIC for public values', () => {
+    expect(networkBadgeModel('PUBLIC')).toBe('PUBLIC');
+    expect(networkBadgeModel(' public ')).toBe('PUBLIC');
+  });
 
-test('falls back to PUBLIC for invalid or empty input', () => {
-  assert.equal(networkBadgeModel(undefined), 'PUBLIC');
-  assert.equal(networkBadgeModel(''), 'PUBLIC');
-  assert.equal(networkBadgeModel('mainnet'), 'PUBLIC');
-  assert.equal(networkBadgeModel('production'), 'PUBLIC');
+  it('falls back to PUBLIC for invalid or empty input', () => {
+    expect(networkBadgeModel(undefined)).toBe('PUBLIC');
+    expect(networkBadgeModel('')).toBe('PUBLIC');
+    expect(networkBadgeModel('mainnet')).toBe('PUBLIC');
+    expect(networkBadgeModel('production')).toBe('PUBLIC');
+  });
 });

@@ -6,20 +6,27 @@
 //! network calls are performed here; this helper only decides whether a
 //! given asset code is in the allowlist.
 
-/// Returns `true` if `asset_code` is an allowed Stellar asset code for the
-/// Quittance MVP; otherwise `false`.
-///
-/// The match is case-sensitive and requires an exact match against the
-/// canonical asset code:
+/// Single source of truth for the asset codes allowed in the Quittance MVP.
 ///
 /// - `"XLM"` — the native Stellar asset.
 /// - `"USDC"` — the Stellar USDC issuance on the relevant network.
+///
+/// This slice is the canonical allowlist. `is_allowed_asset_code` and any
+/// other consumer must derive their behavior from it rather than hard-coding
+/// codes. Issuer validation and trustline checks are explicitly out of scope.
+pub const ALLOWED_ASSET_CODES: &[&str] = &["XLM", "USDC"];
+
+/// Returns `true` if `asset_code` is an allowed Stellar asset code for the
+/// Quittance MVP; otherwise `false`.
+///
+/// The match is case-sensitive and requires an exact match against one of the
+/// canonical asset codes in [`ALLOWED_ASSET_CODES`].
 ///
 /// Whitespace, alternate casing, empty strings, and any other code return
 /// `false`. Issuer validation and trustline checks are explicitly out of
 /// scope for this helper.
 pub fn is_allowed_asset_code(asset_code: &str) -> bool {
-    asset_code == "XLM" || asset_code == "USDC"
+    ALLOWED_ASSET_CODES.contains(&asset_code)
 }
 
 #[cfg(test)]
@@ -30,6 +37,18 @@ mod tests {
     fn allows_canonical_xlm_and_usdc() {
         assert!(is_allowed_asset_code("XLM"));
         assert!(is_allowed_asset_code("USDC"));
+    }
+
+    #[test]
+    fn allowed_asset_codes_is_xlm_and_usdc_only() {
+        assert_eq!(ALLOWED_ASSET_CODES, &["XLM", "USDC"][..]);
+    }
+
+    #[test]
+    fn is_allowed_asset_code_is_derived_from_allowlist() {
+        for code in ALLOWED_ASSET_CODES {
+            assert!(is_allowed_asset_code(code));
+        }
     }
 
     #[test]
