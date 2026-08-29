@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { downloadInvoiceCSV } from '@/lib/export';
+import { invoiceStatusLabel } from '@/lib/invoiceStatusLabel';
 
 export default function DashboardPage() {
   const { publicKey, connected } = useWalletStore();
@@ -238,6 +239,7 @@ export default function DashboardPage() {
                 <input
                   type="text"
                   placeholder="Search invoices..."
+                  aria-label="Search invoices"
                   className="input w-full"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
@@ -264,7 +266,7 @@ export default function DashboardPage() {
                       : 'text-gray-600 hover:bg-gray-100'
                   }`}
                 >
-                  {status.charAt(0).toUpperCase() + status.slice(1)}
+                  {status === 'all' ? 'All' : invoiceStatusLabel(status)}
                 </button>
               ))}
             </div>

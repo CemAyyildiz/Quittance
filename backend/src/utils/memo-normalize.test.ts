@@ -1,105 +1,104 @@
-import { describe, it } from 'node:test';
-import assert from 'node:assert';
+import { describe, it, expect } from 'vitest';
 import { normalizeMemo, isMemoEmpty, memosMatch } from './memo-normalize';
 
 describe('normalizeMemo', () => {
   it('returns trimmed string', () => {
-    assert.strictEqual(normalizeMemo('  INV-ABC-123  '), 'INV-ABC-123');
+    expect(normalizeMemo('  INV-ABC-123  ')).toBe('INV-ABC-123');
   });
 
   it('returns identity when already clean', () => {
-    assert.strictEqual(normalizeMemo('INV-ABC-123'), 'INV-ABC-123');
+    expect(normalizeMemo('INV-ABC-123')).toBe('INV-ABC-123');
   });
 
   it('trims leading whitespace only', () => {
-    assert.strictEqual(normalizeMemo('  INV-ABC'), 'INV-ABC');
+    expect(normalizeMemo('  INV-ABC')).toBe('INV-ABC');
   });
 
   it('trims trailing whitespace only', () => {
-    assert.strictEqual(normalizeMemo('INV-ABC  '), 'INV-ABC');
+    expect(normalizeMemo('INV-ABC  ')).toBe('INV-ABC');
   });
 
   it('trims tabs and newlines', () => {
-    assert.strictEqual(normalizeMemo('\tINV-ABC\n'), 'INV-ABC');
+    expect(normalizeMemo('\tINV-ABC\n')).toBe('INV-ABC');
   });
 
   it('returns empty string for null', () => {
-    assert.strictEqual(normalizeMemo(null), '');
+    expect(normalizeMemo(null)).toBe('');
   });
 
   it('returns empty string for undefined', () => {
-    assert.strictEqual(normalizeMemo(undefined), '');
+    expect(normalizeMemo(undefined)).toBe('');
   });
 
   it('returns empty string for empty string', () => {
-    assert.strictEqual(normalizeMemo(''), '');
+    expect(normalizeMemo('')).toBe('');
   });
 
   it('returns empty string for whitespace-only', () => {
-    assert.strictEqual(normalizeMemo('   '), '');
+    expect(normalizeMemo('   ')).toBe('');
   });
 });
 
 describe('isMemoEmpty', () => {
   it('returns true for null', () => {
-    assert.strictEqual(isMemoEmpty(null), true);
+    expect(isMemoEmpty(null)).toBe(true);
   });
 
   it('returns true for undefined', () => {
-    assert.strictEqual(isMemoEmpty(undefined), true);
+    expect(isMemoEmpty(undefined)).toBe(true);
   });
 
   it('returns true for empty string', () => {
-    assert.strictEqual(isMemoEmpty(''), true);
+    expect(isMemoEmpty('')).toBe(true);
   });
 
   it('returns true for whitespace-only', () => {
-    assert.strictEqual(isMemoEmpty('   '), true);
+    expect(isMemoEmpty('   ')).toBe(true);
   });
 
   it('returns false for a real memo', () => {
-    assert.strictEqual(isMemoEmpty('INV-ABC-123'), false);
+    expect(isMemoEmpty('INV-ABC-123')).toBe(false);
   });
 
   it('returns false for memo with surrounding whitespace', () => {
-    assert.strictEqual(isMemoEmpty('  INV-ABC  '), false);
+    expect(isMemoEmpty('  INV-ABC  ')).toBe(false);
   });
 });
 
 describe('memosMatch', () => {
   it('matches identical strings', () => {
-    assert.strictEqual(memosMatch('INV-ABC-123', 'INV-ABC-123'), true);
+    expect(memosMatch('INV-ABC-123', 'INV-ABC-123')).toBe(true);
   });
 
   it('matches strings differing only by whitespace', () => {
-    assert.strictEqual(memosMatch('  INV-ABC-123', 'INV-ABC-123  '), true);
+    expect(memosMatch('  INV-ABC-123', 'INV-ABC-123  ')).toBe(true);
   });
 
   it('matches strings with internal whitespace (not trimmed)', () => {
-    assert.strictEqual(memosMatch('INV-ABC-123', 'INV-ABC-123'), true);
+    expect(memosMatch('INV-ABC-123', 'INV-ABC-123')).toBe(true);
   });
 
   it('rejects different strings', () => {
-    assert.strictEqual(memosMatch('INV-ABC-123', 'INV-ABC-999'), false);
+    expect(memosMatch('INV-ABC-123', 'INV-ABC-999')).toBe(false);
   });
 
   it('treats null and undefined as empty match', () => {
-    assert.strictEqual(memosMatch(null, undefined), true);
+    expect(memosMatch(null, undefined)).toBe(true);
   });
 
   it('treats null and empty string as match', () => {
-    assert.strictEqual(memosMatch(null, ''), true);
+    expect(memosMatch(null, '')).toBe(true);
   });
 
   it('treats null and whitespace as match', () => {
-    assert.strictEqual(memosMatch(null, '   '), true);
+    expect(memosMatch(null, '   ')).toBe(true);
   });
 
   it('rejects non-empty vs empty', () => {
-    assert.strictEqual(memosMatch('INV-ABC', null), false);
+    expect(memosMatch('INV-ABC', null)).toBe(false);
   });
 
   it('rejects non-empty vs whitespace', () => {
-    assert.strictEqual(memosMatch('INV-ABC', '   '), false);
+    expect(memosMatch('INV-ABC', '   ')).toBe(false);
   });
 });

@@ -14,3 +14,7 @@ publish     = false
 
 [lib]
 crate-type = ["rlib"]
+
+# Stand alone: don't inherit the `contracts/Cargo.toml` workspace, since this
+# crate isn't listed in its `members`.
+[workspace]

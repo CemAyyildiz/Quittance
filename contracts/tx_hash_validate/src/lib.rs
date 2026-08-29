@@ -280,3 +280,111 @@ mod tests {
         assert_eq!(VALID_DIGITS_ONLY.len(), TX_HASH_HEX_LEN);
     }
 }
+
+// ---------------------------------------------------------------------------
+// Mixed-case hex acceptance (issue #377)
+//
+// `is_ascii_hexdigit` accepts both `a-f` and `A-F`, so a valid 64-char hash
+// may be spelled in any mixture of upper/lower case. These tests pin that
+// contract down explicitly for the three case variants plus a non-hex reject.
+// ---------------------------------------------------------------------------
+
+#[cfg(test)]
+mod mixed_case_hex_acceptance {
+    use super::*;
+
+    /// All-lowercase 64-char hex digest.
+    const ALL_LOWER: &str =
+        "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789";
+
+    /// All-uppercase 64-char hex digest.
+    const ALL_UPPER: &str =
+        "ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789";
+
+    /// Genuinely alternating-case 64-char hex digest (`aA` repeated 32×).
+    const ALTERNATING_CASE: &str =
+        "aAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaA";
+
+    // -----------------------------------------------------------------------
+    // All case variants are accepted (validate_tx_hash)
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn accepts_all_lowercase_digest() {
+        assert_eq!(validate_tx_hash(ALL_LOWER), Ok(()));
+    }
+
+    #[test]
+    fn accepts_all_uppercase_digest() {
+        assert_eq!(validate_tx_hash(ALL_UPPER), Ok(()));
+    }
+
+    #[test]
+    fn accepts_alternating_case_digest() {
+        assert_eq!(validate_tx_hash(ALTERNATING_CASE), Ok(()));
+    }
+
+    // -----------------------------------------------------------------------
+    // All case variants are accepted (is_valid_tx_hash convenience wrapper)
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn is_valid_true_for_all_lowercase() {
+        assert!(is_valid_tx_hash(ALL_LOWER));
+    }
+
+    #[test]
+    fn is_valid_true_for_all_uppercase() {
+        assert!(is_valid_tx_hash(ALL_UPPER));
+    }
+
+    #[test]
+    fn is_valid_true_for_alternating_case() {
+        assert!(is_valid_tx_hash(ALTERNATING_CASE));
+    }
+
+    // -----------------------------------------------------------------------
+    // Non-hex still fails
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn rejects_non_hex_in_lowercase_digest() {
+        // Replace the final char with 'g' (not a hex digit).
+        let mut chars: Vec<char> = ALL_LOWER.chars().collect();
+        chars[63] = 'g';
+        let bad: String = chars.into_iter().collect();
+        assert_eq!(validate_tx_hash(&bad), Err(TxHashError::InvalidCharacter));
+        assert!(!is_valid_tx_hash(&bad));
+    }
+
+    #[test]
+    fn rejects_non_hex_in_uppercase_digest() {
+        // Replace the final char with 'G' (not a hex digit).
+        let mut chars: Vec<char> = ALL_UPPER.chars().collect();
+        chars[63] = 'G';
+        let bad: String = chars.into_iter().collect();
+        assert_eq!(validate_tx_hash(&bad), Err(TxHashError::InvalidCharacter));
+        assert!(!is_valid_tx_hash(&bad));
+    }
+
+    #[test]
+    fn rejects_non_hex_in_alternating_case_digest() {
+        // Replace the final char with 'z' (not a hex digit).
+        let mut chars: Vec<char> = ALTERNATING_CASE.chars().collect();
+        chars[63] = 'z';
+        let bad: String = chars.into_iter().collect();
+        assert_eq!(validate_tx_hash(&bad), Err(TxHashError::InvalidCharacter));
+        assert!(!is_valid_tx_hash(&bad));
+    }
+
+    // -----------------------------------------------------------------------
+    // Sanity: the new case vectors are exactly 64 characters
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn mixed_case_vectors_are_correct_length() {
+        assert_eq!(ALL_LOWER.len(), TX_HASH_HEX_LEN);
+        assert_eq!(ALL_UPPER.len(), TX_HASH_HEX_LEN);
+        assert_eq!(ALTERNATING_CASE.len(), TX_HASH_HEX_LEN);
+    }
+}

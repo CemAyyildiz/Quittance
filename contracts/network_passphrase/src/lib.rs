@@ -77,6 +77,14 @@ pub fn is_public_passphrase(passphrase: &str) -> bool {
     passphrase == PUBLIC_PASSPHRASE
 }
 
+/// Returns `true` when `passphrase` is one of the supported canonical
+/// Stellar network passphrases.
+///
+/// Futurenet and other custom passphrases are intentionally not recognized.
+pub fn is_known_passphrase(passphrase: &str) -> bool {
+    is_testnet_passphrase(passphrase) || is_public_passphrase(passphrase)
+}
+
 /// Soroban contract that exposes the standard Stellar network
 /// passphrases as read-only contract functions.
 ///
@@ -250,6 +258,28 @@ mod tests {
         assert!(is_public_passphrase(PUBLIC_PASSPHRASE));
         assert!(!is_public_passphrase(TESTNET_PASSPHRASE));
         assert!(!is_public_passphrase("not-a-passphrase"));
+    }
+
+    // ----- known passphrase matcher --------------------------------------
+
+    #[test]
+    fn is_known_passphrase_accepts_testnet() {
+        assert!(is_known_passphrase(TESTNET_PASSPHRASE));
+    }
+
+    #[test]
+    fn is_known_passphrase_accepts_public() {
+        assert!(is_known_passphrase(PUBLIC_PASSPHRASE));
+    }
+
+    #[test]
+    fn is_known_passphrase_rejects_empty() {
+        assert!(!is_known_passphrase(""));
+    }
+
+    #[test]
+    fn is_known_passphrase_rejects_typo() {
+        assert!(!is_known_passphrase("Public Global Stellar Network ; September 2016"));
     }
 }
 

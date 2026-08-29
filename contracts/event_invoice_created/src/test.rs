@@ -84,7 +84,7 @@ fn topic_returns_symbol_matching_event_name() {
 }
 
 #[test]
-fn topics_has_four_elements_in_canonical_order() {
+fn topics_has_four_elements() {
     let env = Env::default();
     let seller = addr_seller(&env);
     let payer = addr_payer(&env);

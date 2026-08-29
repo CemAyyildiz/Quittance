@@ -167,6 +167,21 @@ describe('isDecimalEqual', () => {
   it('returns false for different values', () => {
     expect(isDecimalEqual('1.01', '1.02')).toBe(false);
   });
+
+  // Regression coverage for the MVP verify handler: a Stellar payment amount
+  // serialised with 7 decimal places (e.g. "1.5000000") must match an invoice
+  // amount of "1.5" without false mismatches from trailing zeros.
+  it('matches Stellar 7-decimal amount against shorter invoice amount', () => {
+    const paymentAmount = '1.5000000';
+    const invoiceAmount = '1.5';
+    expect(isDecimalEqual(paymentAmount, invoiceAmount)).toBe(true);
+  });
+
+  it('matches shorter payment amount against 7-decimal invoice amount', () => {
+    const paymentAmount = '1.5';
+    const invoiceAmount = '1.5000000';
+    expect(isDecimalEqual(paymentAmount, invoiceAmount)).toBe(true);
+  });
 });
 
 // ---------------------------------------------------------------------------

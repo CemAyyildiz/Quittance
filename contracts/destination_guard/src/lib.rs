@@ -159,6 +159,30 @@ pub fn check_destination(input: &str) -> Result<(), DestinationError> {
     Ok(())
 }
 
+/// Convenience wrapper: returns `true` when [`check_destination`] returns
+/// `Ok(())`.
+///
+/// Mirrors the `is_valid_tx_hash` convenience-wrapper pattern in
+/// `tx-hash-validate`: callers that only need a yes/no answer can skip
+/// handling the [`DestinationError`] enum.
+///
+/// # Examples
+///
+/// ```
+/// use destination_guard::is_valid_destination;
+///
+/// // A well-known testnet stellar address payload of all-zeros.
+/// const ZERO_STRKEY: &str = "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF";
+/// assert!(is_valid_destination(ZERO_STRKEY));
+///
+/// assert!(!is_valid_destination(""));
+/// assert!(!is_valid_destination("G"));
+/// ```
+#[must_use = "the validation result is ignored; consider using `check_destination` if you need to distinguish the error reason"]
+pub fn is_valid_destination(input: &str) -> bool {
+    check_destination(input).is_ok()
+}
+
 /// Returns `true` if `c` is in the Stellar base32 alphabet (`A-Z`,
 /// `2-7`). Lower-case `a-z` is rejected: Stellar StrKeys are always
 /// upper-case.
@@ -359,6 +383,41 @@ mod tests {
         for &c in &[b'-', b'_', b' ', b'\t', b'\n', b'!', b'?', b'.', b','] {
             assert!(!is_stellar_base32(c), "{:?} should be rejected", c as char);
         }
+    }
+
+    // ── is_valid_destination ─────────────────────────────────────────
+
+    #[test]
+    fn is_valid_returns_true_for_valid_g_account_strkey() {
+        assert!(is_valid_destination(ZERO_STRKEY));
+        assert!(is_valid_destination(PAYLOAD_1_STRKEY));
+    }
+
+    #[test]
+    fn is_valid_returns_true_for_valid_c_contract_strkey() {
+        let contract = contract_strkey();
+        assert!(is_valid_destination(&contract));
+    }
+
+    #[test]
+    fn is_valid_returns_false_for_empty_string() {
+        assert!(!is_valid_destination(""));
+    }
+
+    #[test]
+    fn is_valid_returns_false_for_bad_prefix() {
+        // `S` is reserved for secret-seed StrKeys, so it must not be a
+        // valid destination prefix.
+        let bad = format!("S{}", &ZERO_STRKEY[1..]);
+        assert!(!is_valid_destination(&bad));
+    }
+
+    #[test]
+    fn is_valid_returns_false_for_invalid_character() {
+        // Digit `0` is not in the Stellar base32 alphabet (`A-Z`, `2-7`).
+        let mut bad = ZERO_STRKEY.to_string();
+        bad.replace_range(5..6, "0");
+        assert!(!is_valid_destination(&bad));
     }
 
     // ── error metadata ───────────────────────────────────────────────
