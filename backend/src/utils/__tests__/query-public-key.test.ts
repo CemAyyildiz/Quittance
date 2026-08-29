@@ -24,6 +24,29 @@ describe('parseSellerPublicKeyQuery', () => {
     expect(result).toEqual({ ok: false, error: 'sellerPublicKey is required' });
   });
 
+  it('returns an error result for an empty string even with a custom label', () => {
+    const result = parseSellerPublicKeyQuery('', 'payerPublicKey');
+    expect(result).toEqual({ ok: false, error: 'payerPublicKey is required' });
+  });
+
+  // A whitespace-only value is not the empty string, so it is treated as an
+  // invalid key rather than a missing one.
+  it('returns an invalid-format error for a whitespace-only value', () => {
+    const result = parseSellerPublicKeyQuery('   ');
+    expect(result).toEqual({
+      ok: false,
+      error: 'sellerPublicKey must be a valid Stellar public key',
+    });
+  });
+
+  it('returns an invalid-format error for a whitespace-only value with a custom label', () => {
+    const result = parseSellerPublicKeyQuery('   ', 'payerPublicKey');
+    expect(result).toEqual({
+      ok: false,
+      error: 'payerPublicKey must be a valid Stellar public key',
+    });
+  });
+
   // ❌ Invalid
   it('returns an error result when the value is not a valid Stellar public key', () => {
     const result = parseSellerPublicKeyQuery('not-a-valid-key');
@@ -41,6 +64,14 @@ describe('parseSellerPublicKeyQuery', () => {
   // ❌ Wrong shape (e.g. repeated query params produce an array)
   it('returns an error result when the value is an array (repeated query param)', () => {
     const result = parseSellerPublicKeyQuery([VALID_KEY, VALID_KEY]);
+    expect(result).toEqual({
+      ok: false,
+      error: 'sellerPublicKey must be a single string value',
+    });
+  });
+
+  it('returns an error result when the value is an array of empty strings', () => {
+    const result = parseSellerPublicKeyQuery(['', '']);
     expect(result).toEqual({
       ok: false,
       error: 'sellerPublicKey must be a single string value',
