@@ -407,6 +407,34 @@ mod tests {
         assert!(!is_allowed(InvoiceStatus::Cancelled, InvoiceStatus::Expired));
     }
 
+    /// Issue #501 — all terminal-status reversals (Paid→Pending,
+    /// Expired→Pending, Cancelled→Pending, and every terminal→terminal
+    /// pair) must be rejected by `is_allowed`. This single false-case
+    /// test covers the full cross-product so a future status addition
+    /// can't slip through.
+    #[test]
+    fn is_allowed_denies_all_terminal_reversals() {
+        let terminals = [
+            InvoiceStatus::Paid,
+            InvoiceStatus::Expired,
+            InvoiceStatus::Cancelled,
+        ];
+        let all_statuses = [
+            InvoiceStatus::Pending,
+            InvoiceStatus::Paid,
+            InvoiceStatus::Expired,
+            InvoiceStatus::Cancelled,
+        ];
+        for &from in &terminals {
+            for &to in &all_statuses {
+                assert!(
+                    !is_allowed(from, to),
+                    "terminal reversal should be denied: {from:?} → {to:?}"
+                );
+            }
+        }
+    }
+
     // ── allowed_targets ────────────────────────────────────────────────
 
     #[test]
