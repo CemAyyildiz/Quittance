@@ -6,6 +6,14 @@ describe('parseCorsOrigin', () => {
     expect(parseCorsOrigin(undefined)).toEqual(['http://localhost:3000']);
   });
 
+  it('returns custom fallback when raw is undefined', () => {
+    expect(parseCorsOrigin(undefined, 'https://fallback.com')).toEqual(['https://fallback.com']);
+  });
+
+  it('accepts custom fallback wildcard', () => {
+    expect(parseCorsOrigin(undefined, '*')).toEqual(['*']);
+  });
+
   it('returns fallback when raw is empty string', () => {
     expect(parseCorsOrigin('')).toEqual(['http://localhost:3000']);
   });
@@ -14,12 +22,12 @@ describe('parseCorsOrigin', () => {
     expect(parseCorsOrigin('   ')).toEqual(['http://localhost:3000']);
   });
 
-  it('accepts custom fallback', () => {
-    expect(parseCorsOrigin(undefined, '*')).toEqual(['*']);
-  });
-
   it('parses a single URL', () => {
     expect(parseCorsOrigin('http://localhost:3000')).toEqual(['http://localhost:3000']);
+  });
+
+  it('parses a single origin with https scheme', () => {
+    expect(parseCorsOrigin('https://example.com')).toEqual(['https://example.com']);
   });
 
   it('trims surrounding whitespace from a single URL', () => {
@@ -42,11 +50,26 @@ describe('parseCorsOrigin', () => {
     ]);
   });
 
+  it('handles spaces within a comma-separated list', () => {
+    expect(parseCorsOrigin('https://a.com, https://b.com ,  https://c.com')).toEqual([
+      'https://a.com',
+      'https://b.com',
+      'https://c.com',
+    ]);
+  });
+
   it('filters out empty items in a ragged list', () => {
     const raw = 'http://localhost:3000,,https://app.example.com,';
     expect(parseCorsOrigin(raw)).toEqual([
       'http://localhost:3000',
       'https://app.example.com',
+    ]);
+  });
+
+  it('filters out empty segments with trailing whitespace', () => {
+    expect(parseCorsOrigin('https://a.com,,https://b.com, ')).toEqual([
+      'https://a.com',
+      'https://b.com',
     ]);
   });
 
@@ -56,5 +79,9 @@ describe('parseCorsOrigin', () => {
 
   it('handles a list with leading comma', () => {
     expect(parseCorsOrigin(',http://localhost:3000')).toEqual(['http://localhost:3000']);
+  });
+
+  it('returns fallback when input resolves to empty after filtering', () => {
+    expect(parseCorsOrigin(',, , ')).toEqual(['http://localhost:3000']);
   });
 });
