@@ -182,6 +182,15 @@ describe('isDecimalEqual', () => {
     const invoiceAmount = '1.5000000';
     expect(isDecimalEqual(paymentAmount, invoiceAmount)).toBe(true);
   });
+
+  // Trailing-zero normalization: '1.0' and '1.0000000' represent the same value.
+  // compareDecimals pads the shorter fraction with zeros (padEnd) and compares
+  // integer parts after stripping leading zeros, so all-zero fractions are equal.
+  // This is expected (not surprising) but locked here per #466.
+  it('treats 1.0 and 1.0000000 as equal (trailing zeros)', () => {
+    expect(isDecimalEqual('1.0', '1.0000000')).toBe(true);
+    expect(isDecimalEqual('1.0000000', '1.0')).toBe(true);
+  });
 });
 
 // ---------------------------------------------------------------------------
