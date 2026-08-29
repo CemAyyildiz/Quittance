@@ -348,4 +348,14 @@ mod tests {
         assert!(guard.note("XMemo")); // Latin X
         assert!(!guard.note("ХМemo")); // repeat of Cyrillic — collision
     }
+
+    #[test]
+    fn distinct_memos_produce_distinct_hashes() {
+        let mut guard = MemoCollisionGuard::new();
+        assert!(guard.note("memo-a"));
+        assert!(guard.note("memo-b"));
+        assert!(guard.has_seen("memo-a"));
+        assert!(guard.has_seen("memo-b"));
+        assert_ne!(guard.has_seen("memo-a"), guard.has_seen("memo-b"));
+    }
 }
