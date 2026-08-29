@@ -41,7 +41,10 @@ impl AuthOneAddress {
 #[cfg(test)]
 mod test {
     use super::*;
-    use soroban_sdk::Env;
+    use soroban_sdk::{
+        testutils::{Address as _, MockAuth, MockAuthInvoke},
+        Env, IntoVal,
+    };
 
     /// Helper: register the contract and return a typed client handle.
     fn setup(env: &Env) -> AuthOneAddressClient<'static> {
@@ -65,7 +68,7 @@ mod test {
 
     /// Calling noop *without* mock auth should panic with an auth error.
     #[test]
-    #[should_panic(expected = "Error(Contract")]
+    #[should_panic(expected = "Error(Auth")]
     fn noop_without_auth_panics() {
         let env = Env::default();
         let client = setup(&env);
@@ -73,5 +76,32 @@ mod test {
 
         // Do NOT call env.mock_all_auths() — the contract must reject the call.
         client.noop(&user);
+    }
+
+    /// Calling noop with an *unauthorized* caller should panic with an auth
+    /// error: the signed authorization is rooted at `authorized`, which does
+    /// not match the `user` argument, so `user.require_auth()` must reject it.
+    #[test]
+    #[should_panic(expected = "Error(Auth")]
+    fn noop_with_unauthorized_caller_panics() {
+        let env = Env::default();
+        let contract_id = env.register_contract(None, AuthOneAddress);
+        let client = AuthOneAddressClient::new(&env, &contract_id);
+        let authorized = Address::generate(&env);
+        let user = Address::generate(&env);
+
+        // Sign an authorization root for `authorized`, then invoke `noop`
+        // with a different `user`. The caller is unauthorized.
+        client
+            .mock_auths(&[MockAuth {
+                address: &authorized,
+                invoke: &MockAuthInvoke {
+                    contract: &contract_id,
+                    fn_name: "noop",
+                    args: (&user,).into_val(&env),
+                    sub_invokes: &[],
+                },
+            }])
+            .noop(&user);
     }
 }
