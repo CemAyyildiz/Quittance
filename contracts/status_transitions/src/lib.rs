@@ -410,12 +410,23 @@ mod tests {
     // ── allowed_targets ────────────────────────────────────────────────
 
     #[test]
-    fn allowed_targets_pending_has_three_targets() {
+    fn allowed_targets_pending_returns_exactly_the_expected_set() {
         let targets = allowed_targets(InvoiceStatus::Pending);
+
+        // Length: exactly the three terminal statuses.
         assert_eq!(targets.len(), 3);
-        assert!(targets.contains(&InvoiceStatus::Paid));
-        assert!(targets.contains(&InvoiceStatus::Expired));
-        assert!(targets.contains(&InvoiceStatus::Cancelled));
+
+        // Members: the exact expected set — Paid, Expired, Cancelled —
+        // with no extras and no omissions. Comparing the whole slice
+        // means adding or removing any target fails this test.
+        assert_eq!(
+            targets,
+            &[
+                InvoiceStatus::Paid,
+                InvoiceStatus::Expired,
+                InvoiceStatus::Cancelled,
+            ]
+        );
     }
 
     #[test]
