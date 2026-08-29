@@ -80,6 +80,40 @@ impl InvoiceStatus {
     }
 }
 
+/// Stable lowercase display names for [`InvoiceStatus`].
+///
+/// The mapping is fixed so that any layer (smart contract, off-chain
+/// worker, API, dashboard) renders the same strings:
+///
+/// | Variant    | Display output |
+/// |------------|----------------|
+/// | `Pending`  | `pending`      |
+/// | `Paid`     | `paid`         |
+/// | `Expired`  | `expired`      |
+/// | `Cancelled`| `cancelled`    |
+///
+/// # Examples
+///
+/// ```
+/// use quittance_status_transitions::InvoiceStatus;
+///
+/// assert_eq!(InvoiceStatus::Pending.to_string(),   "pending");
+/// assert_eq!(InvoiceStatus::Paid.to_string(),      "paid");
+/// assert_eq!(InvoiceStatus::Expired.to_string(),   "expired");
+/// assert_eq!(InvoiceStatus::Cancelled.to_string(), "cancelled");
+/// ```
+impl core::fmt::Display for InvoiceStatus {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let name = match self {
+            InvoiceStatus::Pending   => "pending",
+            InvoiceStatus::Paid      => "paid",
+            InvoiceStatus::Expired   => "expired",
+            InvoiceStatus::Cancelled => "cancelled",
+        };
+        f.write_str(name)
+    }
+}
+
 /// A single allowed transition: `(from, to)`.
 ///
 /// Stored as a const array so callers and tooling can inspect the full
@@ -476,6 +510,36 @@ mod tests {
         assert!(InvoiceStatus::Paid.is_terminal());
         assert!(InvoiceStatus::Expired.is_terminal());
         assert!(InvoiceStatus::Cancelled.is_terminal());
+    }
+
+    // ── Display ────────────────────────────────────────────────────────
+
+    #[test]
+    fn display_pending_is_lowercase() {
+        assert_eq!(InvoiceStatus::Pending.to_string(), "pending");
+    }
+
+    #[test]
+    fn display_paid_is_lowercase() {
+        assert_eq!(InvoiceStatus::Paid.to_string(), "paid");
+    }
+
+    #[test]
+    fn display_expired_is_lowercase() {
+        assert_eq!(InvoiceStatus::Expired.to_string(), "expired");
+    }
+
+    #[test]
+    fn display_cancelled_is_lowercase() {
+        assert_eq!(InvoiceStatus::Cancelled.to_string(), "cancelled");
+    }
+
+    #[test]
+    fn display_works_via_format_macro() {
+        assert_eq!(format!("{}", InvoiceStatus::Pending),   "pending");
+        assert_eq!(format!("{}", InvoiceStatus::Paid),      "paid");
+        assert_eq!(format!("{}", InvoiceStatus::Expired),   "expired");
+        assert_eq!(format!("{}", InvoiceStatus::Cancelled), "cancelled");
     }
 
     // ── Derive smoke-tests ─────────────────────────────────────────────

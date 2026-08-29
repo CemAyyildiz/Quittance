@@ -35,7 +35,7 @@ describe('shortenAddress', () => {
   it('accepts both custom prefix and suffix lengths', () => {
     const address = 'GA4S7W3X6P2Q5KZDPRQZ4YQZ3NZF2WX4X5Y6Z7Q8R9S0T1U2V3W4X5Y6Z7';
     expect(shortenAddress(address, { prefixLength: 3, suffixLength: 5 })).toBe(
-      'GA4...X5Y6Z7',
+      'GA4...5Y6Z7',
     );
   });
 

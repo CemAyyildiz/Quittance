@@ -8,6 +8,7 @@ import { copyToClipboard } from '@/lib/utils';
 import { toast } from 'sonner';
 import AssetLogo from './AssetLogo';
 import { openInvoicePDF, shareInvoiceByEmail } from '@/lib/export';
+import { invoiceStatusLabel } from '@/lib/invoiceStatusLabel';
 
 interface Invoice {
   id: string;
@@ -70,7 +71,7 @@ export default function InvoiceCard({ invoice }: InvoiceCardProps) {
           )}
         </div>
         <span className={`px-3 py-1 rounded-lg text-xs font-semibold ${statusColor}`}>
-          {invoice.status}
+          {invoiceStatusLabel(invoice.status)}
         </span>
       </div>
 
