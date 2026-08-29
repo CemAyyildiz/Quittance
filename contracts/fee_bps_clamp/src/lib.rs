@@ -143,6 +143,15 @@ mod tests {
         assert_eq!(clamp_bps(i32::MIN), 0);
     }
 
+    /// Issue #497 — pin the i32::MIN edge case: the most negative
+    /// representable i32 must clamp to MIN_BPS without overflow.
+    #[test]
+    fn clamp_i32_min_resolves_to_min_bps() {
+        let result = clamp_bps(i32::MIN);
+        assert_eq!(result, MIN_BPS, "i32::MIN should clamp to MIN_BPS (0)");
+        assert_eq!(result, 0, "i32::MIN must resolve to exactly 0");
+    }
+
     // ----- clamp_bps: mid-range -----------------------------------------
 
     #[test]
