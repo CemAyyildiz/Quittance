@@ -13,6 +13,8 @@ interface InvoiceFormProps {
   userWallet?: string;
 }
 
+const amountErrorId = 'amount-error';
+
 export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps) {
   const [loading, setLoading] = useState(false);
   const [amount, setAmount] = useState('');
@@ -129,7 +131,7 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
             value={amount}
             onChange={(e) => handleAmountChange(e.target.value)}
             aria-invalid={Boolean(amountError)}
-            aria-describedby={amountError ? 'amount-error' : undefined}
+            aria-describedby={amountError ? amountErrorId : undefined}
           />
           <div className="relative">
             <select
@@ -149,7 +151,7 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
           </div>
         </div>
         {amountError && (
-          <p id="amount-error" className="text-sm text-red-600 mt-1">
+          <p id={amountErrorId} className="text-sm text-red-600 mt-1">
             {amountError}
           </p>
         )}
