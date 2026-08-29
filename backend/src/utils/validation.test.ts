@@ -52,6 +52,58 @@ describe('createInvoiceSchema', () => {
       result.error.issues.some((issue) => issue.path.includes('customerEmail')),
     ).toBe(true);
   });
+
+  it('rejects expiresInDays of 0', () => {
+    const result = createInvoiceSchema.safeParse({
+      amount: 10,
+      expiresInDays: 0,
+      sellerPublicKey: validSellerPublicKey,
+    });
+
+    expect(result.success).toBe(false);
+    if (result.success) {
+      throw new Error('Expected expiresInDays of 0 to fail validation');
+    }
+    expect(
+      result.error.issues.some((issue) => issue.path.includes('expiresInDays')),
+    ).toBe(true);
+  });
+
+  it('rejects expiresInDays of 366', () => {
+    const result = createInvoiceSchema.safeParse({
+      amount: 10,
+      expiresInDays: 366,
+      sellerPublicKey: validSellerPublicKey,
+    });
+
+    expect(result.success).toBe(false);
+    if (result.success) {
+      throw new Error('Expected expiresInDays of 366 to fail validation');
+    }
+    expect(
+      result.error.issues.some((issue) => issue.path.includes('expiresInDays')),
+    ).toBe(true);
+  });
+
+  it('accepts expiresInDays of 1', () => {
+    const result = createInvoiceSchema.safeParse({
+      amount: 10,
+      expiresInDays: 1,
+      sellerPublicKey: validSellerPublicKey,
+    });
+
+    expect(result.success).toBe(true);
+  });
+
+  it('accepts expiresInDays of 365', () => {
+    const result = createInvoiceSchema.safeParse({
+      amount: 10,
+      expiresInDays: 365,
+      sellerPublicKey: validSellerPublicKey,
+    });
+
+    expect(result.success).toBe(true);
+  });
 });
 
 describe('stellarPublicKeySchema', () => {
