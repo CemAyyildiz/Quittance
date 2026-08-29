@@ -9,6 +9,7 @@
     "lint": "next lint",
     "format": "prettier --write --cache .",
     "format:check": "prettier --check --cache .",
+    "test": "vitest run",
     "test:e2e": "playwright test -c e2e/playwright.config.ts"
   },
   "dependencies": {

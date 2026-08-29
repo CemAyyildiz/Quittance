@@ -369,6 +369,39 @@ mod tests {
         assert!(is_expired(u64::MAX, 0));
     }
 
+    // ── inclusive boundary: exact acceptance criteria ─────────────────
+    //
+    // Locks the crate's inclusive-boundary contract in the exact shape
+    // the task spec asks for, so a regression in either direction is
+    // caught even if the broader boundary tests above are refactored.
+
+    #[test]
+    fn locks_inclusive_expiry_boundary() {
+        let expiry = NOW;
+
+        // is_expired(expiry, expiry) is true: the instant the ledger
+        // clock reaches the deadline, the invoice is expired.
+        assert!(is_expired(expiry, expiry));
+
+        // is_expired(expiry - 1, expiry) is false: one second before
+        // the deadline the invoice is still active.
+        assert!(!is_expired(expiry - 1, expiry));
+
+        // require_active at the boundary returns the Expired error.
+        assert_eq!(
+            require_active(expiry, expiry),
+            Err(ExpiryError::AlreadyExpired),
+        );
+    }
+
+    #[test]
+    fn require_active_accepts_the_instant_before_the_boundary() {
+        let expiry = NOW;
+
+        // One second before the deadline is still within the window.
+        assert_eq!(require_active(expiry - 1, expiry), Ok(()));
+    }
+
     // ── require_active: happy / rejection ─────────────────────────────
 
     #[test]

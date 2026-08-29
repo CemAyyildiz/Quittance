@@ -16,6 +16,7 @@ import { useCountdown } from '@/lib/useCountdown';
 import { Copy, ExternalLink, Loader2, Check, FileText, Mail, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 import { openInvoicePDF, shareInvoiceByEmail } from '@/lib/export';
+import { extractHorizonCode, mapHorizonError } from '@/lib/horizonErrorMap';
 
 export default function PaymentPage() {
   const params = useParams();
@@ -92,6 +93,14 @@ export default function PaymentPage() {
       await loadInvoice();
       await loadPaymentInfo();
     }, 2000);
+  };
+
+  const handlePaymentError = (error: unknown) => {
+    const code = extractHorizonCode(error);
+    const resolved = mapHorizonError(
+      code ?? (error as { message?: unknown })?.message,
+    );
+    toast.error('Payment failed', { description: resolved.message });
   };
 
   const copyInfo = async (text: string, label: string) => {
@@ -420,6 +429,7 @@ export default function PaymentPage() {
                     assetIssuer={invoice.assetIssuer}
                     invoiceId={invoice.id}
                     onSuccess={handlePaymentSuccess}
+                    onError={handlePaymentError}
                   />
 
                   <div className="mt-6 pt-4 border-t text-center">

@@ -1,6 +1,7 @@
 import { format } from 'date-fns';
 import type { Transaction } from '@/components/TransactionHistory';
 import { csvRow } from '@/lib/csvEscape';
+import { mailtoProof } from '@/lib/mailtoProof';
 
 interface Invoice {
   id: string;
@@ -792,6 +793,6 @@ export function shareInvoiceByEmail(invoice: Invoice) {
   
   body += `\nPowered by Quittance`;
   
-  const mailtoLink = `mailto:${invoice.customerEmail}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  const mailtoLink = mailtoProof(invoice.customerEmail, subject, body);
   window.location.href = mailtoLink;
 }

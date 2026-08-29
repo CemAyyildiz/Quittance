@@ -1,6 +1,7 @@
 'use client';
 
 import { formatAmount, formatDate } from '@/lib/utils';
+import { explorerTxUrl } from '@/lib/explorerUrl';
 import { Check, Download, ExternalLink, FileText, Mail } from 'lucide-react';
 import AssetLogo from './AssetLogo';
 import { openInvoicePDF, shareInvoiceByEmail } from '@/lib/export';
@@ -11,11 +12,6 @@ interface PaymentReceiptProps {
 }
 
 export default function PaymentReceipt({ invoice }: PaymentReceiptProps) {
-  const horizonUrl =
-    process.env.NEXT_PUBLIC_STELLAR_NETWORK === 'TESTNET'
-      ? 'https://stellar.expert/explorer/testnet'
-      : 'https://stellar.expert/explorer/public';
-
   const handleDownloadPDF = () => {
     openInvoicePDF(invoice as any);
     toast.success('Opening payment proof');
@@ -196,7 +192,7 @@ Stellar Blockchain Payment System
         )}
 
         <a
-          href={`${horizonUrl}/tx/${invoice.paymentTxHash}`}
+          href={explorerTxUrl(invoice.paymentTxHash)}
           target="_blank"
           rel="noopener noreferrer"
           className="btn btn-outline w-full flex items-center justify-center gap-2"

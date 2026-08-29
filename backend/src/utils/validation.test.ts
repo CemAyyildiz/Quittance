@@ -1,70 +1,247 @@
-import test from 'node:test';
-import assert from 'node:assert/strict';
+import { describe, it, expect } from 'vitest';
 
-import { createInvoiceSchema, stellarPublicKeySchema } from './validation';
+import { createInvoiceSchema, paymentSchema, stellarPublicKeySchema } from './validation';
 
 const validSellerPublicKey = 'G' + 'A'.repeat(55);
+const validInvoiceId = '123e4567-e89b-12d3-a456-426614174000';
+const validTxHash = 'a'.repeat(64);
 
-test('valid invoice payload passes validation', () => {
-  const result = createInvoiceSchema.safeParse({
-    amount: 125,
-    description: 'Website redesign',
-    customerName: 'Alice Example',
-    customerEmail: 'alice@example.com',
-    sellerName: 'Quittance Labs',
-    sellerEmail: 'seller@example.com',
-    expiresInDays: 14,
-    sellerPublicKey: validSellerPublicKey,
+describe('createInvoiceSchema', () => {
+  it('valid invoice payload passes validation', () => {
+    const result = createInvoiceSchema.safeParse({
+      amount: 125,
+      description: 'Website redesign',
+      customerName: 'Alice Example',
+      customerEmail: 'alice@example.com',
+      sellerName: 'Quittance Labs',
+      sellerEmail: 'seller@example.com',
+      expiresInDays: 14,
+      sellerPublicKey: validSellerPublicKey,
+    });
+
+    expect(result.success).toBe(true);
   });
 
-  assert.equal(result.success, true);
-});
+  it('invalid invoice amount fails validation', () => {
+    const result = createInvoiceSchema.safeParse({
+      amount: 0,
+      sellerPublicKey: validSellerPublicKey,
+    });
 
-test('invalid invoice amount fails validation', () => {
-  const result = createInvoiceSchema.safeParse({
-    amount: 0,
-    sellerPublicKey: validSellerPublicKey,
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(
+        result.error.issues.some((issue) => issue.path.includes('amount')),
+      ).toBe(true);
+    }
   });
 
-  assert.equal(result.success, false);
-  if (result.success) {
-    assert.fail('Expected invalid amount to fail validation');
-  }
+  it('invalid stellar public key fails validation', () => {
+    const result = stellarPublicKeySchema.safeParse('not-a-valid-public-key');
 
-  assert.ok(
-    result.error.issues.some((issue) => issue.path.includes('amount')),
-    'Expected the amount field to be reported in the validation issues',
-  );
-});
-
-test('invalid stellar public key fails validation', () => {
-  const result = stellarPublicKeySchema.safeParse('not-a-valid-public-key');
-
-  assert.equal(result.success, false);
-  if (result.success) {
-    assert.fail('Expected an invalid public key to fail validation');
-  }
-
-  assert.ok(
-    result.error.issues.some((issue) => issue.message.includes('Invalid Stellar public key format')),
-    'Expected a clear Stellar public key validation message',
-  );
-});
-
-test('invalid customer email fails validation', () => {
-  const result = createInvoiceSchema.safeParse({
-    amount: 10,
-    customerEmail: 'not-an-email',
-    sellerPublicKey: validSellerPublicKey,
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(
+        result.error.issues.some((issue) =>
+          issue.message.includes('Invalid Stellar public key format'),
+        ),
+      ).toBe(true);
+    }
   });
 
-  assert.equal(result.success, false);
-  if (result.success) {
-    assert.fail('Expected an invalid email to fail validation');
-  }
+  it('invalid customer email fails validation', () => {
+    const result = createInvoiceSchema.safeParse({
+      amount: 10,
+      customerEmail: 'not-an-email',
+      sellerPublicKey: validSellerPublicKey,
+    });
 
-  assert.ok(
-    result.error.issues.some((issue) => issue.path.includes('customerEmail')),
-    'Expected the customerEmail field to be reported in the validation issues',
-  );
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(
+        result.error.issues.some((issue) =>
+          issue.path.includes('customerEmail'),
+        ),
+      ).toBe(true);
+    }
+  });
+});
+
+describe('paymentSchema', () => {
+  const validPaymentPayload = {
+    invoiceId: validInvoiceId,
+    txHash: validTxHash,
+    payerPublicKey: validSellerPublicKey,
+    amount: 100,
+  };
+
+  it('valid payment payload passes validation', () => {
+    const result = paymentSchema.safeParse(validPaymentPayload);
+    expect(result.success).toBe(true);
+  });
+
+  it('fails when txHash is too short (63 chars)', () => {
+    const result = paymentSchema.safeParse({
+      ...validPaymentPayload,
+      txHash: 'a'.repeat(63),
+    });
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues.some((issue) => issue.path.includes('txHash'))).toBe(true);
+    }
+  });
+
+  it('fails when txHash is too long (65 chars)', () => {
+    const result = paymentSchema.safeParse({
+      ...validPaymentPayload,
+      txHash: 'a'.repeat(65),
+    });
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues.some((issue) => issue.path.includes('txHash'))).toBe(true);
+    }
+  });
+
+  it('fails when txHash is empty', () => {
+    const result = paymentSchema.safeParse({
+      ...validPaymentPayload,
+      txHash: '',
+    });
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues.some((issue) => issue.path.includes('txHash'))).toBe(true);
+    }
+  });
+
+  it('fails when invoiceId is not a valid UUID', () => {
+    const result = paymentSchema.safeParse({
+      ...validPaymentPayload,
+      invoiceId: 'not-a-uuid',
+    });
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues.some((issue) => issue.path.includes('invoiceId'))).toBe(true);
+    }
+  });
+
+  it('fails when payerPublicKey is invalid', () => {
+    const result = paymentSchema.safeParse({
+      ...validPaymentPayload,
+      payerPublicKey: 'not-a-valid-public-key',
+    });
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues.some((issue) => issue.path.includes('payerPublicKey'))).toBe(true);
+    }
+  });
+
+  it('fails when amount is zero', () => {
+    const result = paymentSchema.safeParse({
+      ...validPaymentPayload,
+      amount: 0,
+    });
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues.some((issue) => issue.path.includes('amount'))).toBe(true);
+    }
+  });
+
+  it('fails when amount is negative', () => {
+    const result = paymentSchema.safeParse({
+      ...validPaymentPayload,
+      amount: -50,
+    });
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues.some((issue) => issue.path.includes('amount'))).toBe(true);
+    }
+  });
+
+  it('fails when amount is not a number', () => {
+    const result = paymentSchema.safeParse({
+      ...validPaymentPayload,
+      amount: '100' as unknown as number,
+    });
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues.some((issue) => issue.path.includes('amount'))).toBe(true);
+    }
+  });
+
+  it('fails when invoiceId is empty', () => {
+    const result = paymentSchema.safeParse({
+      ...validPaymentPayload,
+      invoiceId: '',
+    });
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues.some((issue) => issue.path.includes('invoiceId'))).toBe(true);
+    }
+  });
+
+  it('fails when payerPublicKey is too short', () => {
+    const result = paymentSchema.safeParse({
+      ...validPaymentPayload,
+      payerPublicKey: 'G' + 'A'.repeat(54), // 55 chars
+    });
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues.some((issue) => issue.path.includes('payerPublicKey'))).toBe(true);
+    }
+  });
+
+  it('fails when payerPublicKey is too long', () => {
+    const result = paymentSchema.safeParse({
+      ...validPaymentPayload,
+      payerPublicKey: 'G' + 'A'.repeat(56), // 57 chars
+    });
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues.some((issue) => issue.path.includes('payerPublicKey'))).toBe(true);
+    }
+  });
+
+  it('fails when payerPublicKey has invalid prefix', () => {
+    const result = paymentSchema.safeParse({
+      ...validPaymentPayload,
+      payerPublicKey: 'X' + 'A'.repeat(55),
+    });
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues.some((issue) => issue.path.includes('payerPublicKey'))).toBe(true);
+    }
+  });
+
+  it('fails when required fields are missing', () => {
+    const result = paymentSchema.safeParse({
+      invoiceId: validInvoiceId,
+    } as unknown as Record<string, unknown>);
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues.some((issue) => issue.path.includes('txHash'))).toBe(true);
+      expect(result.error.issues.some((issue) => issue.path.includes('payerPublicKey'))).toBe(true);
+      expect(result.error.issues.some((issue) => issue.path.includes('amount'))).toBe(true);
+    }
+  });
+
+  it('accepts valid payload with minimal positive amount', () => {
+    const result = paymentSchema.safeParse({
+      ...validPaymentPayload,
+      amount: 0.0000001,
+    });
+    expect(result.success).toBe(true);
+  });
 });
