@@ -6,6 +6,16 @@ describe('formatUptime', () => {
     it('formats 0 as "0s"', () => {
       expect(formatUptime(0)).toBe('0s');
     });
+
+    it('returns stable, human-readable output for 0 across repeated calls', () => {
+      const first = formatUptime(0);
+      const second = formatUptime(0);
+
+      expect(first).toBe('0s');
+      expect(second).toBe(first);
+      expect(typeof first).toBe('string');
+      expect(first.length).toBeGreaterThan(0);
+    });
   });
 
   describe('sub-minute durations', () => {
