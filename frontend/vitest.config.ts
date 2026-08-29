@@ -6,6 +6,9 @@ export default defineConfig({
     globals: true,
     environment: 'node',
   },
+  esbuild: {
+    jsx: 'automatic',
+  },
   resolve: {
     alias: {
       '@': resolve(__dirname, '.'),
