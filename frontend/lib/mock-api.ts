@@ -1,4 +1,4 @@
-// Mock API - Backend olmadan UI test için
+// Mock API - for testing the UI without a backend
 
 import { buildStellarPaymentUri } from '@/lib/stellar-payment-uri';
 
@@ -29,8 +29,8 @@ const mockInvoices: MockInvoice[] = [
     amount: 100.50,
     assetCode: 'XLM',
     assetIssuer: undefined,
-    description: 'Web geliştirme hizmeti',
-    customerName: 'Ahmet Yılmaz',
+    description: 'Web development service',
+    customerName: 'John Doe',
     customerEmail: 'ahmet@example.com',
     status: 'PAID',
     memo: 'INV-DEMO-001',
@@ -46,8 +46,8 @@ const mockInvoices: MockInvoice[] = [
     amount: 250.00,
     assetCode: 'XLM',
     assetIssuer: undefined,
-    description: 'Logo tasarımı',
-    customerName: 'Ayşe Kaya',
+    description: 'Logo design',
+    customerName: 'Jane Smith',
     status: 'PENDING',
     memo: 'INV-DEMO-002',
     sellerPublicKey: 'GABC123EXAMPLE456',
@@ -59,8 +59,8 @@ const mockInvoices: MockInvoice[] = [
     amount: 75.25,
     assetCode: 'XLM',
     assetIssuer: undefined,
-    description: 'Danışmanlık ücreti',
-    customerName: 'Mehmet Demir',
+    description: 'Consulting fee',
+    customerName: 'David Miller',
     status: 'PENDING',
     memo: 'INV-DEMO-003',
     sellerPublicKey: 'GABC123EXAMPLE456',
@@ -72,8 +72,8 @@ const mockInvoices: MockInvoice[] = [
     amount: 500.00,
     assetCode: 'USDC',
     assetIssuer: 'GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5',
-    description: 'Mobil uygulama geliştirme',
-    customerName: 'Fatma Şahin',
+    description: 'Mobile app development',
+    customerName: 'Sarah Johnson',
     status: 'EXPIRED',
     memo: 'INV-DEMO-004',
     sellerPublicKey: 'GABC123EXAMPLE456',
