@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import { Loader2 } from 'lucide-react';
 import { STELLAR_ASSETS, getAssetByCode } from '@/lib/assets';
 import { checkAssetReadiness } from '@/lib/stellar';
+import { isValidEmail } from '@/lib/utils';
 import AssetLogo from './AssetLogo';
 
 interface InvoiceFormProps {
@@ -56,7 +57,7 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
 
   const handleEmailChange = (value: string) => {
     setCustomerEmail(value);
-    if (value && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
+    if (value && !isValidEmail(value)) {
       setEmailError('Enter a valid email address');
     } else {
       setEmailError('');
@@ -78,7 +79,7 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
     }
     setAmountError('');
 
-    if (customerEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(customerEmail)) {
+    if (customerEmail && !isValidEmail(customerEmail)) {
       setEmailError('Enter a valid client email');
       return;
     }
