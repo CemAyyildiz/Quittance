@@ -225,3 +225,43 @@ test('#469 seller-scoped invoice list returns only that seller rows (two distinc
     'no cross-leak between seller A and seller B listings',
   );
 });
+test('markExpiredInvoices transitions past-dated PENDING invoices to EXPIRED', () => {
+  const pastDate = new Date(Date.now() - 24 * 60 * 60 * 1000); // yesterday
+  const futureDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days from now
+
+  // PENDING invoice with expiresAt in the past — should be marked EXPIRED
+  const expiredCandidate = memoryStorage.createInvoice(
+    buildSeed({ memo: nextMemo('expire'), expiresAt: pastDate }),
+  );
+  assert.equal(expiredCandidate.status, 'PENDING', 'starts as PENDING');
+
+  // PENDING invoice with expiresAt in the future — should remain PENDING
+  const futureInvoice = memoryStorage.createInvoice(
+    buildSeed({ memo: nextMemo('future'), expiresAt: futureDate }),
+  );
+  assert.equal(futureInvoice.status, 'PENDING', 'future invoice starts as PENDING');
+
+  // PAID invoice — should be untouched
+  const paidInvoice = memoryStorage.createInvoice(
+    buildSeed({ memo: nextMemo('paid') }),
+  );
+  memoryStorage.markAsPaid(paidInvoice.id, 'tx-hash-001', 'G' + 'P'.repeat(55));
+  const paidFetched = memoryStorage.getInvoiceById(paidInvoice.id);
+  assert.equal(paidFetched?.status, 'PAID', 'starts as PAID');
+
+  const count = memoryStorage.markExpiredInvoices();
+  assert.equal(count, 1, 'exactly one invoice should be expired');
+
+  // Past-dated PENDING → EXPIRED
+  const refreshedExpired = memoryStorage.getInvoiceById(expiredCandidate.id);
+  assert.equal(refreshedExpired?.status, 'EXPIRED', 'past-dated PENDING invoice becomes EXPIRED');
+
+  // Future PENDING → unchanged
+  const refreshedFuture = memoryStorage.getInvoiceById(futureInvoice.id);
+  assert.equal(refreshedFuture?.status, 'PENDING', 'future PENDING invoice stays PENDING');
+
+  // PAID → untouched
+  const refreshedPaid = memoryStorage.getInvoiceById(paidInvoice.id);
+  assert.equal(refreshedPaid?.status, 'PAID', 'PAID invoice is untouched');
+});
+
