@@ -94,6 +94,18 @@ test('treats a short trailing group after a sole separator as a decimal point', 
   assert.equal(parseAmount('1,23'), '1.23');
 });
 
+// --- Delta: comma decimal rejection locked (issue #489) ---
+//
+// A lone comma with a short trailing group ("1,50") is treated as a
+// decimal point, not rejected: the comma is interpreted as the European
+// decimal separator and the input parses to "1.50". This is consistent
+// with the other sole-separator cases above ("1,5" -> "1.5",
+// "1,23" -> "1.23"). Locale-aware parsing is intentionally out of scope.
+
+test('parses a lone comma with a short trailing group as a decimal point', () => {
+  assert.equal(parseAmount('1,50'), '1.50');
+});
+
 test('treats a long trailing group after a sole separator as a decimal point', () => {
   assert.equal(parseAmount('1,2345'), '1.2345');
 });
