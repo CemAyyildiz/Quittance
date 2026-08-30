@@ -264,6 +264,17 @@ mod tests {
     }
 
     // -----------------------------------------------------------------------
+    // Empty string edge case
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn empty_string_yields_invalid_length() {
+        let result = validate_tx_hash("");
+        assert_eq!(result, Err(TxHashError::InvalidLength));
+        assert!(!is_valid_tx_hash(""));
+    }
+
+    // -----------------------------------------------------------------------
     // Constant sanity
     // -----------------------------------------------------------------------
 
