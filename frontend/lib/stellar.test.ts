@@ -11,7 +11,7 @@ vi.mock('@stellar/freighter-api', () => ({
   setAllowed: vi.fn().mockResolvedValue(undefined),
 }));
 
-import { isValidPublicKey } from './stellar';
+import { formatStellarAmount, isValidPublicKey } from './stellar';
 
 // A well-known, valid Stellar Ed25519 public key (56 chars, starts with G,
 // base32-encoded payload).  This is the same key used in publicKeyValidate.test.ts
@@ -64,5 +64,36 @@ describe('isValidPublicKey (Stellar SDK wrapper)', () => {
 
   it('returns false for whitespace-only input', () => {
     expect(isValidPublicKey(' '.repeat(56))).toBe(false);
+  });
+});
+
+
+describe('formatStellarAmount', () => {
+  it('strips trailing zeros from a whole-number amount', () => {
+    expect(formatStellarAmount('100.0000000')).toBe('100');
+  });
+
+  it('strips trailing zeros while keeping significant decimals', () => {
+    expect(formatStellarAmount('100.5000000')).toBe('100.5');
+  });
+
+  it('strips trailing zeros from a small fractional amount', () => {
+    expect(formatStellarAmount('10.1000000')).toBe('10.1');
+  });
+
+  it('formats a zero amount without trailing zeros', () => {
+    expect(formatStellarAmount('0.0000000')).toBe('0');
+  });
+
+  it('passes through an amount with no trailing zeros unchanged', () => {
+    expect(formatStellarAmount('42.1234567')).toBe('42.1234567');
+  });
+
+  it('accepts a numeric input, not just a string', () => {
+    expect(formatStellarAmount(7)).toBe('7');
+  });
+
+  it('formats an integer XLM amount', () => {
+    expect(formatStellarAmount('1000')).toBe('1000');
   });
 });
