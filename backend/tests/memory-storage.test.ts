@@ -117,6 +117,16 @@ test('getInvoiceById returns undefined for a missing id', () => {
   assert.equal(memoryStorage.getInvoiceById('does-not-exist'), undefined);
 });
 
+test('createInvoice then getInvoiceByMemo returns same id', () => {
+  const memo = nextMemo('memo-lookup');
+  const created = memoryStorage.createInvoice(buildSeed({ memo }));
+
+  const fetched = memoryStorage.getInvoiceByMemo(memo);
+
+  assert.ok(fetched, 'invoice should be found by memo');
+  assert.equal(fetched!.id, created.id, 'id from memo lookup must match the created invoice id');
+});
+
 test('storage is reset between tests (clear() isolation sanity)', () => {
   // This test deliberately does not create anything; if beforeEach stops
   // clearing the singleton, this will fail loudly instead of polluting other tests.
