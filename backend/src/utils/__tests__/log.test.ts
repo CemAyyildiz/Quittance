@@ -38,6 +38,12 @@ describe('log secret sanitization', () => {
     expect(parsed.accessToken).toBe('[REDACTED]');
   });
 
+  it('redacts keys matching auth such as authorization', () => {
+    const line = callLog('info', 'msg', { authorization: 'secret' });
+    const parsed = JSON.parse(line);
+    expect(parsed.authorization).toBe('[REDACTED]');
+  });
+
   it('redacts keys matching key and auth', () => {
     const line = callLog('warn', 'msg', { apiKey: 'k', authHeader: 'Bearer x' });
     const parsed = JSON.parse(line);
