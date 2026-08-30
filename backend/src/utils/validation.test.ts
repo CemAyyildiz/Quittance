@@ -102,6 +102,30 @@ describe('createInvoiceSchema', () => {
       sellerPublicKey: validSellerPublicKey,
     });
 
+
+  it('rejects amount above max ceiling (1000000001)', () => {
+    const result = createInvoiceSchema.safeParse({
+      amount: 1000000001,
+      sellerPublicKey: validSellerPublicKey,
+    });
+
+    expect(result.success).toBe(false);
+    if (result.success) {
+      throw new Error('Expected amount above max to fail validation');
+    }
+    expect(
+      result.error.issues.some((issue) => issue.path.includes('amount')),
+    ).toBe(true);
+  });
+
+  it('accepts amount at max ceiling (1000000000)', () => {
+    const result = createInvoiceSchema.safeParse({
+      amount: 1000000000,
+      sellerPublicKey: validSellerPublicKey,
+    });
+
+    expect(result.success).toBe(true);
+  });
     expect(result.success).toBe(true);
   });
 });
