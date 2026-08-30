@@ -7,6 +7,7 @@ import { Clock, ExternalLink, Copy, Mail, Download } from 'lucide-react';
 import { copyToClipboard } from '@/lib/utils';
 import { toast } from 'sonner';
 import AssetLogo from './AssetLogo';
+import MemoChip from './MemoChip';
 import { openInvoicePDF, shareInvoiceByEmail } from '@/lib/export';
 import { invoiceStatusLabel } from '@/lib/invoiceStatusLabel';
 
@@ -80,6 +81,10 @@ export default function InvoiceCard({ invoice }: InvoiceCardProps) {
           {invoice.description}
         </p>
       )}
+
+      <div className="mb-4">
+        <MemoChip memo={invoice.memo} />
+      </div>
 
       <div className="space-y-2 mb-4">
         <div className="flex items-center gap-2 text-xs text-gray-500">
