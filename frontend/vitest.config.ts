@@ -1,4 +1,4 @@
-import { defineConfig } from 'vitest/config';
+import { defineConfig, defaultExclude } from 'vitest/config';
 import { resolve } from 'path';
 
 export default defineConfig({
@@ -8,7 +8,11 @@ export default defineConfig({
   },
   test: {
     globals: true,
-    environment: 'node',
+    // jsdom supplies the DOM needed by React component tests
+    // (@testing-library/react, hooks like useCountdown).
+    environment: 'jsdom',
+    // e2e specs are Playwright suites, not Vitest unit tests.
+    exclude: [...defaultExclude, 'e2e/**'],
   },
   resolve: {
     alias: {

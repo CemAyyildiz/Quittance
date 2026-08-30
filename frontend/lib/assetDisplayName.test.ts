@@ -6,13 +6,9 @@ describe('assetDisplayName', () => {
     expect(assetDisplayName('XLM')).toBe('Stellar Lumens');
   });
 
-test('returns the canonical display name for XLM', () => {
-  assert.equal(assetDisplayName('XLM'), 'Stellar Lumens');
-});
-
-test('returns the canonical display name for USDC', () => {
-  assert.equal(assetDisplayName('USDC'), 'USD Coin');
-});
+  it('returns "USD Coin" for USDC', () => {
+    expect(assetDisplayName('USDC')).toBe('USD Coin');
+  });
 
   it('returns the input code unchanged for unknown codes', () => {
     expect(assetDisplayName('BTC')).toBe('BTC');
@@ -20,30 +16,31 @@ test('returns the canonical display name for USDC', () => {
     expect(assetDisplayName('EURT')).toBe('EURT');
   });
 
-test('trims surrounding whitespace before the lookup', () => {
-  assert.equal(assetDisplayName('  XLM  '), 'Stellar Lumens');
-  assert.equal(assetDisplayName('\tUSDC\n'), 'USD Coin');
-});
+  it('trims surrounding whitespace before the lookup', () => {
+    expect(assetDisplayName('  XLM  ')).toBe('Stellar Lumens');
+    expect(assetDisplayName('\tUSDC\n')).toBe('USD Coin');
+  });
 
-test('returns the trimmed code unchanged when unknown and padded', () => {
-  assert.equal(assetDisplayName('  BTC  '), 'BTC');
-});
+  it('returns the trimmed code unchanged when unknown and padded', () => {
+    expect(assetDisplayName('  BTC  ')).toBe('BTC');
+  });
 
-test('is case-sensitive (lowercase variants do not match)', () => {
-  assert.equal(assetDisplayName('xlm'), 'xlm');
-  assert.equal(assetDisplayName('usdc'), 'usdc');
-});
+  it('is case-sensitive (lowercase variants do not match)', () => {
+    expect(assetDisplayName('xlm')).toBe('xlm');
+    expect(assetDisplayName('usdc')).toBe('usdc');
+  });
 
-test('treats the empty string as invalid input', () => {
-  assert.equal(assetDisplayName(''), '');
-});
+  it('treats the empty string as invalid input', () => {
+    expect(assetDisplayName('')).toBe('');
+  });
 
-test('treats whitespace-only input as invalid input', () => {
-  assert.equal(assetDisplayName('   '), '');
-  assert.equal(assetDisplayName('\t\n'), '');
-});
+  it('treats whitespace-only input as invalid input', () => {
+    expect(assetDisplayName('   ')).toBe('');
+    expect(assetDisplayName('\t\n')).toBe('');
+  });
 
-test('treats null and undefined as invalid input', () => {
-  assert.equal(assetDisplayName(null), '');
-  assert.equal(assetDisplayName(undefined), '');
+  it('treats null and undefined as invalid input', () => {
+    expect(assetDisplayName(null)).toBe('');
+    expect(assetDisplayName(undefined)).toBe('');
+  });
 });

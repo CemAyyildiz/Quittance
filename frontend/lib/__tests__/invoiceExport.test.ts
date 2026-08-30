@@ -14,12 +14,15 @@ const paidInvoice = {
   paymentTxHash: 'abc123',
 };
 
+const HEADERS =
+  'Invoice ID,Created At,Seller Name,Seller Email,Customer Name,Customer Email,Description,Amount,Asset,Status,Paid At,Payer Name,Payer Email,Expires At,Memo,Transaction Hash';
+
 describe('generateInvoiceCSV', () => {
   it('exports the stable invoice columns in order', () => {
     expect(generateInvoiceCSV([paidInvoice])).toBe(
       [
-        'Invoice ID,Amount,Asset,Status,Memo,Created At,Expires At,Paid At,Transaction Hash',
-        'inv-123,125.5,USDC,PAID,"Consulting, July",2026-07-01 10:15:30,2026-07-31 10:15:30,2026-07-02 09:05:04,abc123',
+        HEADERS,
+        'inv-123,2026-07-01 10:15:30,,,,,,125.5,USDC,PAID,2026-07-02 09:05:04,,,2026-07-31 10:15:30,"Consulting, July",abc123',
       ].join('\n'),
     );
   });
@@ -34,14 +37,12 @@ describe('generateInvoiceCSV', () => {
     ]);
 
     expect(csv.split('\n')[1]).toBe(
-      'inv-123,125.5,USDC,PENDING,"Consulting, July",2026-07-01 10:15:30,2026-07-31 10:15:30,,',
+      'inv-123,2026-07-01 10:15:30,,,,,,125.5,USDC,PENDING,,,,2026-07-31 10:15:30,"Consulting, July",',
     );
   });
 
   it('returns the stable headers for an empty invoice list', () => {
-    expect(generateInvoiceCSV([])).toBe(
-      'Invoice ID,Amount,Asset,Status,Memo,Created At,Expires At,Paid At,Transaction Hash',
-    );
+    expect(generateInvoiceCSV([])).toBe(HEADERS);
   });
 });
 
@@ -73,7 +74,11 @@ describe('downloadInvoiceCSV', () => {
 
     downloadInvoiceCSV([paidInvoice]);
 
-    expect(link.setAttribute).toHaveBeenCalledWith('download', 'quittance-invoices-2026-07-27.csv');
+    expect(link.setAttribute).toHaveBeenCalledWith('href', 'blob:invoice-csv');
+    expect(link.setAttribute).toHaveBeenCalledWith(
+      'download',
+      'quittance-invoices-2026-07-27-123456.csv',
+    );
     expect(link.click).toHaveBeenCalledOnce();
     expect(revokeObjectURL).toHaveBeenCalledWith('blob:invoice-csv');
   });
