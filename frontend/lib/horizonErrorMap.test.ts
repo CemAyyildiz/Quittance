@@ -108,6 +108,22 @@ describe('extractHorizonCode', () => {
     expect(extractHorizonCode(error)).toBe('tx_bad_seq');
   });
 
+  it('extracts operation code from nested axios response.data.extras.result_codes', () => {
+    const error = {
+      response: {
+        data: {
+          extras: {
+            result_codes: {
+              operations: ['op_no_trust'],
+              transaction: 'tx_failed',
+            },
+          },
+        },
+      },
+    };
+    expect(extractHorizonCode(error)).toBe('op_no_trust');
+  });
+
   it('returns null when no code can be found', () => {
     expect(extractHorizonCode({})).toBeNull();
     expect(extractHorizonCode({ extras: {} })).toBeNull();
