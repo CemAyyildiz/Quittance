@@ -15,3 +15,6 @@ export function isPaid(status: InvoiceStatus): boolean {
 export function isExpired(status: InvoiceStatus): boolean {
   return status === 'EXPIRED';
 }
+export function isCancelled(status: InvoiceStatus): boolean {
+  return status === 'CANCELLED';
+}
