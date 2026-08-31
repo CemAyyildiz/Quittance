@@ -22,6 +22,17 @@ describe('createInvoiceSchema', () => {
     expect(result.success).toBe(true);
   });
 
+  it('accepts a valid USDC invoice with a Stellar issuer', () => {
+    const result = createInvoiceSchema.safeParse({
+      amount: 25.5,
+      assetCode: 'USDC',
+      assetIssuer: 'GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5',
+      sellerPublicKey: validSellerPublicKey,
+    });
+
+    expect(result.success).toBe(true);
+  });
+
   it('rejects an invalid (zero) amount', () => {
     const result = createInvoiceSchema.safeParse({
       amount: 0,
@@ -102,6 +113,8 @@ describe('createInvoiceSchema', () => {
       sellerPublicKey: validSellerPublicKey,
     });
 
+    expect(result.success).toBe(true);
+  });
 
   it('rejects amount above max ceiling (1000000001)', () => {
     const result = createInvoiceSchema.safeParse({
@@ -124,8 +137,6 @@ describe('createInvoiceSchema', () => {
       sellerPublicKey: validSellerPublicKey,
     });
 
-    expect(result.success).toBe(true);
-  });
     expect(result.success).toBe(true);
   });
 });
