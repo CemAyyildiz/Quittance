@@ -105,4 +105,39 @@ describe('isVerifyErrorCode', () => {
     expect(isVerifyErrorCode({})).toBe(false);
     expect(isVerifyErrorCode([])).toBe(false);
   });
+
+  it('rejects booleans', () => {
+    expect(isVerifyErrorCode(true)).toBe(false);
+    expect(isVerifyErrorCode(false)).toBe(false);
+  });
+
+  it('rejects numeric edge cases', () => {
+    expect(isVerifyErrorCode(NaN)).toBe(false);
+    expect(isVerifyErrorCode(Infinity)).toBe(false);
+    expect(isVerifyErrorCode(-Infinity)).toBe(false);
+    expect(isVerifyErrorCode(0)).toBe(false);
+  });
+
+  it('rejects arrays containing a valid code', () => {
+    expect(isVerifyErrorCode(['TX_HASH_REQUIRED'])).toBe(false);
+    expect(isVerifyErrorCode(['MEMO_MISMATCH', 'AMOUNT_MISMATCH'])).toBe(false);
+  });
+
+  it('rejects strings that contain a valid code as a substring', () => {
+    expect(isVerifyErrorCode('TX_HASH_REQUIREDX')).toBe(false);
+    expect(isVerifyErrorCode('XTX_HASH_REQUIRED')).toBe(false);
+    expect(isVerifyErrorCode('MEMO_MISMATCH_SOMETHING')).toBe(false);
+    expect(isVerifyErrorCode('not_MEMO_MISMATCH')).toBe(false);
+  });
+
+  it('rejects strings that differ by trailing/leading whitespace', () => {
+    expect(isVerifyErrorCode('TX_HASH_REQUIRED ')).toBe(false);
+    expect(isVerifyErrorCode(' TX_HASH_REQUIRED')).toBe(false);
+    expect(isVerifyErrorCode(' INVOICE_EXPIRED ')).toBe(false);
+  });
+
+  it('rejects objects with toString returning a valid code', () => {
+    expect(isVerifyErrorCode({ toString: () => 'TX_HASH_REQUIRED' })).toBe(false);
+    expect(isVerifyErrorCode({ valueOf: () => 'INVOICE_EXPIRED' })).toBe(false);
+  });
 });

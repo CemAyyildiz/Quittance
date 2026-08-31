@@ -6,7 +6,10 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { verifyInvoicePayment } from './verify-invoice-payment';
+import {
+  paymentAssetMatchesInvoice,
+  verifyInvoicePayment,
+} from './verify-invoice-payment';
 import { VerifyErrorCode } from './verify-errors';
 
 /** A fully-matching baseline so individual fields can be mutated per case. */
@@ -142,5 +145,133 @@ describe('verifyInvoicePayment', () => {
       });
       expect(result).toEqual({ ok: false, code: VerifyErrorCode.AMOUNT_MISMATCH });
     });
+  });
+});
+
+describe('asset identity: code plus issuer', () => {
+  const USDC_ISSUER = 'GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5';
+  const OTHER_ISSUER = 'GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN';
+
+  /** A matching baseline for a credit-asset invoice. */
+  function usdcInput(overrides: Record<string, unknown> = {}) {
+    return {
+      txMemo: 'INV-001',
+      invoiceMemo: 'INV-001',
+      paymentTo: 'GSELLER',
+      invoiceSellerPublicKey: 'GSELLER',
+      paymentAmount: '1.5000000',
+      invoiceAmount: 1.5,
+      paymentAsset: 'USDC',
+      invoiceAssetCode: 'USDC',
+      paymentAssetIssuer: USDC_ISSUER,
+      invoiceAssetIssuer: USDC_ISSUER,
+      paymentIsNative: false,
+      ...overrides,
+    };
+  }
+
+  it('accepts a native payment against an XLM invoice', () => {
+    expect(verifyInvoicePayment(validInput())).toEqual({ ok: true });
+  });
+
+  it('accepts USDC when both code and issuer match', () => {
+    expect(verifyInvoicePayment(usdcInput())).toEqual({ ok: true });
+  });
+
+  it('rejects USDC from a different issuer', () => {
+    // The attack this closes: on testnet anyone can issue a token called USDC.
+    expect(verifyInvoicePayment(usdcInput({ paymentAssetIssuer: OTHER_ISSUER }))).toEqual({
+      ok: false,
+      code: VerifyErrorCode.ASSET_MISMATCH,
+    });
+  });
+
+  it('rejects a credit payment when the invoice pinned no issuer', () => {
+    // Fails closed: an asset nobody pinned is not one anyone agreed to accept.
+    expect(verifyInvoicePayment(usdcInput({ invoiceAssetIssuer: undefined }))).toEqual({
+      ok: false,
+      code: VerifyErrorCode.ASSET_MISMATCH,
+    });
+  });
+
+  it('rejects a credit payment that carries no issuer', () => {
+    expect(verifyInvoicePayment(usdcInput({ paymentAssetIssuer: null }))).toEqual({
+      ok: false,
+      code: VerifyErrorCode.ASSET_MISMATCH,
+    });
+  });
+
+  it('rejects a payment whose code differs regardless of issuer', () => {
+    expect(verifyInvoicePayment(usdcInput({ paymentAsset: 'EURC' }))).toEqual({
+      ok: false,
+      code: VerifyErrorCode.ASSET_MISMATCH,
+    });
+  });
+
+  it('rejects a credit asset that merely calls itself XLM', () => {
+    // Horizon reports asset_type credit_alphanum4 with asset_code "XLM"; the
+    // code alone would have matched a native invoice.
+    expect(
+      verifyInvoicePayment({
+        ...validInput(),
+        paymentAsset: 'XLM',
+        paymentAssetIssuer: OTHER_ISSUER,
+        paymentIsNative: false,
+      }),
+    ).toEqual({ ok: false, code: VerifyErrorCode.ASSET_MISMATCH });
+  });
+
+  it('rejects a native payment against a credit invoice', () => {
+    expect(verifyInvoicePayment(usdcInput({ paymentAsset: 'XLM', paymentIsNative: true }))).toEqual(
+      { ok: false, code: VerifyErrorCode.ASSET_MISMATCH },
+    );
+  });
+
+  it('leaves callers that do not report nativeness unchanged', () => {
+    // Backwards compatibility: without `paymentIsNative`, an XLM invoice is
+    // matched on code exactly as before.
+    const { paymentIsNative: _ignored, ...withoutNativeFlag } = {
+      ...validInput(),
+      paymentIsNative: undefined,
+    };
+    expect(verifyInvoicePayment(withoutNativeFlag)).toEqual({ ok: true });
+  });
+});
+
+describe('paymentAssetMatchesInvoice', () => {
+  const ISSUER = 'GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5';
+
+  it('treats surrounding whitespace on an issuer as the same issuer', () => {
+    expect(
+      paymentAssetMatchesInvoice({
+        paymentAsset: 'USDC',
+        invoiceAssetCode: 'USDC',
+        paymentAssetIssuer: ` ${ISSUER} `,
+        invoiceAssetIssuer: ISSUER,
+        paymentIsNative: false,
+      }),
+    ).toBe(true);
+  });
+
+  it('treats an empty issuer string as no issuer at all', () => {
+    expect(
+      paymentAssetMatchesInvoice({
+        paymentAsset: 'USDC',
+        invoiceAssetCode: 'USDC',
+        paymentAssetIssuer: '   ',
+        invoiceAssetIssuer: ISSUER,
+        paymentIsNative: false,
+      }),
+    ).toBe(false);
+  });
+
+  it('ignores the issuer entirely for a native pair', () => {
+    expect(
+      paymentAssetMatchesInvoice({
+        paymentAsset: 'XLM',
+        invoiceAssetCode: 'XLM',
+        paymentIsNative: true,
+      }),
+    ).toBe(true);
   });
 });

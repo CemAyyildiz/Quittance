@@ -16,6 +16,7 @@ import {
   runExpirySweep,
   startExpirySweep,
 } from './utils/invoice-expiry';
+import { paymentAssetMatchesInvoice } from './utils/verify-invoice-payment';
 
 // Load environment variables
 dotenv.config();
@@ -362,9 +363,22 @@ app.post('/api/invoices/:id/verify', async (req: Request, res: Response) => {
       });
     }
 
-    const opAsset =
-      paymentOp.asset_type === 'native' ? 'XLM' : paymentOp.asset_code;
-    if (opAsset !== invoice.assetCode) {
+    // A Stellar asset is the pair (code, issuer). Comparing codes alone would
+    // let any testnet token called USDC settle a USDC invoice, so the issuer is
+    // compared too; the rules live in `paymentAssetMatchesInvoice` so this
+    // handler and the pure matcher cannot drift apart.
+    const opIsNative = paymentOp.asset_type === 'native';
+    const opAsset = opIsNative ? 'XLM' : paymentOp.asset_code;
+
+    if (
+      !paymentAssetMatchesInvoice({
+        paymentAsset: opAsset,
+        invoiceAssetCode: invoice.assetCode,
+        paymentAssetIssuer: paymentOp.asset_issuer,
+        invoiceAssetIssuer: invoice.assetIssuer,
+        paymentIsNative: opIsNative,
+      })
+    ) {
       return res.status(400).json({
         success: false,
         code: VerifyErrorCode.ASSET_MISMATCH,
