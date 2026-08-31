@@ -11,6 +11,11 @@ import healthDetailRouter from './routes/health-detail';
 import { toInvoiceDTO } from './utils/invoice-dto';
 import { isDecimalEqual } from './utils/amount-compare';
 import { VerifyErrorCode, VerifyErrorMessages } from './utils/verify-errors';
+import {
+  assertInvoiceSettleable,
+  runExpirySweep,
+  startExpirySweep,
+} from './utils/invoice-expiry';
 import { paymentAssetMatchesInvoice } from './utils/verify-invoice-payment';
 
 // Load environment variables
@@ -107,9 +112,45 @@ app.post('/api/invoices', async (req: Request, res: Response) => {
   }
 });
 
+// Registered before `/api/invoices/:id`: Express matches in registration
+// order, so with `:id` first this route was shadowed and every request for
+// it returned "Invoice not found".
+// Get stats (scoped to seller)
+app.get('/api/invoices/stats', async (req: Request, res: Response) => {
+  try {
+    await runExpirySweep(invoiceService);
+
+    const { sellerPublicKey } = req.query;
+
+    if (!sellerPublicKey) {
+      return res.status(400).json({
+        success: false,
+        error: 'sellerPublicKey query parameter is required',
+      });
+    }
+
+    const stats = await invoiceService.getInvoiceStats(sellerPublicKey as string);
+
+    res.json({
+      success: true,
+      data: stats,
+    });
+  } catch (error: any) {
+    console.error('Get stats error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to get statistics',
+    });
+  }
+});
+
 // Get invoice by ID
 app.get('/api/invoices/:id', async (req: Request, res: Response) => {
   try {
+    // Swept on read as well as on the timer, so a lookup one second after
+    // expiry cannot report a stale PENDING while waiting for the next sweep.
+    await runExpirySweep(invoiceService);
+
     const { id } = req.params;
     const invoice = await invoiceService.getInvoiceById(id);
 
@@ -136,6 +177,8 @@ app.get('/api/invoices/:id', async (req: Request, res: Response) => {
 // Get all invoices (scoped by sellerPublicKey when provided)
 app.get('/api/invoices', async (req: Request, res: Response) => {
   try {
+    await runExpirySweep(invoiceService);
+
     const { status, limit = 50, offset = 0, sellerPublicKey } = req.query;
 
     if (!sellerPublicKey) {
@@ -241,6 +284,8 @@ app.post('/api/invoices/:id/cancel', async (req: Request, res: Response) => {
 // Verify payment against Horizon (memo + amount + destination)
 app.post('/api/invoices/:id/verify', async (req: Request, res: Response) => {
   try {
+    await runExpirySweep(invoiceService);
+
     const { id } = req.params;
     const { txHash } = req.body;
 
@@ -270,11 +315,15 @@ app.post('/api/invoices/:id/verify', async (req: Request, res: Response) => {
       });
     }
 
-    if (invoice.status !== 'PENDING') {
+    // Expiry is decided before Horizon is contacted: a stale invoice is not
+    // settleable no matter what the chain says, and there is no reason to
+    // spend a Horizon round trip finding that out.
+    const settleable = assertInvoiceSettleable(invoice);
+    if (!settleable.ok) {
       return res.status(400).json({
         success: false,
-        code: VerifyErrorCode.INVOICE_NOT_PENDING,
-        error: VerifyErrorMessages[VerifyErrorCode.INVOICE_NOT_PENDING],
+        code: settleable.code,
+        error: VerifyErrorMessages[settleable.code],
       });
     }
 
@@ -411,32 +460,6 @@ app.post('/api/invoices/:id/simulate-payment', async (req: Request, res: Respons
   }
 });
 
-// Get stats (scoped to seller)
-app.get('/api/invoices/stats', async (req: Request, res: Response) => {
-  try {
-    const { sellerPublicKey } = req.query;
-
-    if (!sellerPublicKey) {
-      return res.status(400).json({
-        success: false,
-        error: 'sellerPublicKey query parameter is required',
-      });
-    }
-
-    const stats = await invoiceService.getInvoiceStats(sellerPublicKey as string);
-
-    res.json({
-      success: true,
-      data: stats,
-    });
-  } catch (error: any) {
-    console.error('Get stats error:', error);
-    res.status(500).json({
-      success: false,
-      error: error.message || 'Failed to get statistics',
-    });
-  }
-});
 
 // Mock Stellar endpoints (MVP için)
 app.get('/api/stellar/account', (req: Request, res: Response) => {
@@ -472,9 +495,15 @@ app.use((req: Request, res: Response) => {
 });
 
 // Start server
-app.listen(PORT, () => {
-  console.log('\n🚀 Quittance Backend (MVP Mode)');
-  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+//
+// Listening (and the sweep timer) are skipped under test so the module can be
+// imported by supertest without binding a port or leaving a timer running.
+if (process.env.NODE_ENV !== 'test') {
+  startExpirySweep(invoiceService);
+
+  app.listen(PORT, () => {
+    console.log('\n🚀 Quittance Backend (MVP Mode)');
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     console.log(`✅ Server running on port ${PORT}`);
     console.log(`📍 API: http://localhost:${PORT}/api`);
     console.log(`🏥 Health: http://localhost:${PORT}/api/health`);
@@ -482,7 +511,8 @@ app.listen(PORT, () => {
     console.log(`💰 Dynamic Seller: Each user uses their own wallet!`);
     console.log(`🌐 Frontend: ${FRONTEND_URL}`);
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
-});
+  });
+}
 
 export default app;
 
