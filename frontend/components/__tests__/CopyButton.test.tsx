@@ -51,4 +51,15 @@ describe('CopyButton', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Copy' }));
     expect(copyMock).not.toHaveBeenCalled();
   });
+
+  it('reports a failed clipboard attempt without showing copied state', async () => {
+    copyMock.mockResolvedValue(false);
+    const onCopy = vi.fn();
+    render(<CopyButton text="secret" onCopy={onCopy} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Copy' }));
+
+    await waitFor(() => expect(onCopy).toHaveBeenCalledWith(false));
+    expect(screen.getByRole('button', { name: 'Copy' })).toBeInTheDocument();
+  });
 });

@@ -210,6 +210,15 @@ mod test {
     }
 
     #[test]
+    fn twenty_eight_byte_memo_with_spaces_is_valid() {
+        let env = Env::default();
+        let contract_id = env.register_contract(None, MemoValidator);
+        let memo = " ".repeat(MAX_MEMO_BYTES as usize);
+        assert_eq!(memo.len(), MAX_MEMO_BYTES as usize);
+        assert!(validate(&env, &contract_id, memo));
+    }
+
+    #[test]
     fn stellar_text_memo_boundary_is_28_bytes() {
         // Stellar MEMO_TEXT permits at most 28 bytes; the next byte must fail.
         let env = Env::default();
