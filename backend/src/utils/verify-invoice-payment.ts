@@ -15,6 +15,7 @@
 
 import { isDecimalEqual } from './amount-compare';
 import { memosMatch } from './memo-normalize';
+import { NATIVE_ASSET_CODE } from './asset-helpers';
 import { VerifyErrorCode } from './verify-errors';
 
 /**
@@ -42,6 +43,26 @@ export interface VerifyInvoicePaymentInput {
   paymentAsset: string;
   /** Invoice asset code (`invoice.assetCode`). */
   invoiceAssetCode: string;
+  /**
+   * Payment asset issuer (`paymentOp.asset_issuer`). Absent for native
+   * lumens, which have no issuer.
+   */
+  paymentAssetIssuer?: string | null;
+  /**
+   * Invoice asset issuer (`invoice.assetIssuer`). Absent for `XLM`.
+   */
+  invoiceAssetIssuer?: string | null;
+  /**
+   * Whether Horizon reported the payment as native
+   * (`paymentOp.asset_type === 'native'`).
+   *
+   * Optional so existing callers keep their behaviour; when supplied, an `XLM`
+   * invoice additionally requires the payment to really be native. Nothing
+   * stops anyone issuing a *credit* asset whose code is the three characters
+   * `XLM`, and such a payment carries `asset_code: 'XLM'` just like the real
+   * thing.
+   */
+  paymentIsNative?: boolean;
 }
 
 /**
@@ -63,6 +84,69 @@ export interface VerifyInvoicePaymentFail {
 export type VerifyInvoicePaymentResult =
   | VerifyInvoicePaymentOk
   | VerifyInvoicePaymentFail;
+
+/** Trimmed issuer, or `undefined` when none was recorded. */
+function normalizeIssuer(issuer: string | null | undefined): string | undefined {
+  const trimmed = (issuer ?? '').trim();
+  return trimmed === '' ? undefined : trimmed;
+}
+
+/**
+ * Whether a payment's asset settles an invoice's asset.
+ *
+ * A Stellar asset is identified by the pair `(code, issuer)`, never by the code
+ * alone: `docs/ASSETS.md` requires USDC invoices to name both. Comparing codes
+ * alone lets any token that happens to be called `USDC` settle a USDC invoice,
+ * which on testnet is anyone at all.
+ *
+ * The rules, in order:
+ *
+ * 1. An `XLM` invoice is settled only by a genuinely native payment. When the
+ *    caller reports `paymentIsNative`, that is what decides — not the code.
+ * 2. Codes must match.
+ * 3. For a credit asset, issuers must match. This **fails closed**: an invoice
+ *    that records no issuer cannot be settled at all, rather than being
+ *    settleable by any token sharing its code. An asset nobody pinned is not
+ *    an asset anyone agreed to accept.
+ *
+ * Exported so the MVP verify handler applies exactly these rules rather than
+ * a second copy of them.
+ */
+export function paymentAssetMatchesInvoice(input: {
+  paymentAsset: string;
+  invoiceAssetCode: string;
+  paymentAssetIssuer?: string | null;
+  invoiceAssetIssuer?: string | null;
+  paymentIsNative?: boolean;
+}): boolean {
+  const invoiceIsNative = input.invoiceAssetCode === NATIVE_ASSET_CODE;
+
+  if (invoiceIsNative) {
+    // `paymentIsNative` is only consulted when the caller supplied it, so
+    // callers that predate this check keep their previous behaviour.
+    if (input.paymentIsNative === false) {
+      return false;
+    }
+    return input.paymentAsset === NATIVE_ASSET_CODE;
+  }
+
+  if (input.paymentIsNative === true) {
+    return false;
+  }
+
+  if (input.paymentAsset !== input.invoiceAssetCode) {
+    return false;
+  }
+
+  const invoiceIssuer = normalizeIssuer(input.invoiceAssetIssuer);
+  const paymentIssuer = normalizeIssuer(input.paymentAssetIssuer);
+
+  if (invoiceIssuer === undefined || paymentIssuer === undefined) {
+    return false;
+  }
+
+  return invoiceIssuer === paymentIssuer;
+}
 
 /**
  * Verify that a Stellar payment operation matches the invoice it claims to
@@ -100,7 +184,7 @@ export function verifyInvoicePayment(
     return { ok: false, code: VerifyErrorCode.AMOUNT_MISMATCH };
   }
 
-  if (input.paymentAsset !== input.invoiceAssetCode) {
+  if (!paymentAssetMatchesInvoice(input)) {
     return { ok: false, code: VerifyErrorCode.ASSET_MISMATCH };
   }
 

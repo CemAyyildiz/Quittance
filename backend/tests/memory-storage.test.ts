@@ -248,4 +248,4 @@ beforeEach(() => {
   const refreshedPaid = memoryStorage.getInvoiceById(paidInvoice.id);
   expect(refreshedPaid?.status).toBe('PAID', 'PAID invoice is untouched');
 });
-
+});

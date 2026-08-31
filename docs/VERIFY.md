@@ -22,11 +22,21 @@ The payment operation **to** field must match the invoice creator's Stellar publ
 
 > **Note on current implementation:** The MVP backend (`server-mvp.ts`) actively verifies the `to` field matches the invoice's `sellerPublicKey`. However, the full-server implementation (`invoice.controller.ts`) currently omits this destination check.
 
-### Asset (implied)
+### Asset
 
-The payment operation's asset (native XLM or a issued asset with code and issuer) must match the asset specified in the invoice. This check is performed alongside the amount check to ensure the correct asset was sent.
+A Stellar asset is identified by the pair **(code, issuer)**, never by the code alone. Anyone can issue a token whose `asset_code` is `USDC`, so comparing codes alone would let a worthless look-alike settle a real USDC invoice. See [`ASSETS.md`](./ASSETS.md).
 
-> **Note on current implementation:** Similar to destination verification, the MVP backend correctly enforces asset type matching (`asset_code` and `asset_type`). This validation is fully implemented in the MVP mode but is currently missing in the full-server controller implementation.
+Verification applies these rules, in order:
+
+1. **Native invoices.** An `XLM` invoice is settled only by a payment Horizon reports as `asset_type: "native"`. A *credit* asset whose code happens to be `XLM` does not settle it.
+2. **Code.** `paymentOp.asset_code` must equal `invoice.assetCode`.
+3. **Issuer.** For a credit asset, `paymentOp.asset_issuer` must equal `invoice.assetIssuer`.
+
+Rule 3 **fails closed**: an invoice that records no `assetIssuer` for a credit asset cannot be settled at all, rather than being settleable by any token sharing its code. An asset nobody pinned is not an asset anyone agreed to accept. Issuers are compared after trimming surrounding whitespace; an empty issuer counts as none.
+
+The rules live in `paymentAssetMatchesInvoice` (`backend/src/utils/verify-invoice-payment.ts`) and are used by both the pure matcher and the MVP verify handler, so the two cannot drift apart.
+
+> **Note on current implementation:** these checks are enforced on the MVP path (`server-mvp.ts`). The full-server controller implementation does not yet apply them.
 
 ## Verification flow
 
@@ -37,6 +47,15 @@ The payment operation's asset (native XLM or a issued asset with code and issuer
 5. If all fields match, the invoice is marked as paid and a proof record is generated.
 6. If any field does not match, verification fails and an error is returned.
 
+## Invoice expiry
+
+Every invoice carries an `expiresAt`. On the MVP path (`server-mvp.ts`) expiry is enforced in two places:
+
+- **A periodic sweep.** `markExpiredInvoices()` runs every 60 seconds — the same cadence the Postgres path uses in `payment-monitor.service.ts` — transitioning past-due `PENDING` invoices to `EXPIRED`. Reads (`GET /api/invoices/:id`, the list, and stats) sweep as well, so a lookup made a second after expiry cannot report a stale `PENDING` while waiting for the next tick.
+- **A settlement guard.** `POST /api/invoices/:id/verify` decides expiry *before* contacting Horizon: a stale invoice is not settleable whatever the chain says, so there is no reason to spend the round trip.
+
+An invoice is expired once `expiresAt` is strictly in the past, matching the storage sweep; an invoice verified at exactly `expiresAt` is still settleable. A past-due invoice returns `INVOICE_EXPIRED` whether or not the sweep has reached it yet, so the answer does not depend on sweep timing.
+
 ## Error cases
 
 | Condition | Result |
@@ -46,7 +65,12 @@ The payment operation's asset (native XLM or a issued asset with code and issuer
 | Memo does not match invoice memo | Verification fails — mismatch |
 | Amount does not match invoice amount | Verification fails — mismatch (or partial payment) |
 | Destination does not match invoice creator | Verification fails — wrong recipient |
-| Asset does not match invoice asset | Verification fails — wrong asset |
+| Invoice is past its `expiresAt` | Verification fails — `INVOICE_EXPIRED` (checked before Horizon) |
+| Invoice already swept to `EXPIRED` | Verification fails — `INVOICE_EXPIRED` |
+| Asset code does not match invoice asset | Verification fails — `ASSET_MISMATCH` |
+| Credit asset issuer differs from `invoice.assetIssuer` | Verification fails — `ASSET_MISMATCH` |
+| Credit asset payment or invoice records no issuer | Verification fails — `ASSET_MISMATCH` (fails closed) |
+| Non-native payment against an `XLM` invoice | Verification fails — `ASSET_MISMATCH` |
 
 ## Horizon reference
 
