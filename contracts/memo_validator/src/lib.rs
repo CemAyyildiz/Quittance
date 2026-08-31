@@ -209,6 +209,18 @@ mod test {
         assert!(validate(&env, &contract_id, memo));
     }
 
+    #[test]
+    fn stellar_text_memo_boundary_is_28_bytes() {
+        // Stellar MEMO_TEXT permits at most 28 bytes; the next byte must fail.
+        let env = Env::default();
+        let contract_id = env.register(MemoValidator, ());
+        let at_limit = "m".repeat(MAX_MEMO_BYTES as usize);
+        let over_limit = "m".repeat(MAX_MEMO_BYTES as usize + 1);
+
+        assert!(validate(&env, &contract_id, &at_limit));
+        assert!(!validate(&env, &contract_id, &over_limit));
+    }
+
     // ----- length: rejection ----------------------------------------------
 
     #[test]
