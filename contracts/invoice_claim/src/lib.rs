@@ -113,9 +113,9 @@ pub fn compute_with_domain(
     // every existing claim hash, so consumers that produce the same
     // hash on-chain (via `env.crypto().sha256`) must follow this
     // exact byte layout.
-    hasher.update(&(domain.len() as u32).to_be_bytes());
+    hasher.update((domain.len() as u32).to_be_bytes());
     hasher.update(domain);
-    hasher.update(&VERSION.to_be_bytes());
+    hasher.update(VERSION.to_be_bytes());
     write_field(&mut hasher, b"seller", seller.as_bytes());
     write_amount(&mut hasher, amount);
     write_field(&mut hasher, b"memo", memo.as_bytes());
@@ -128,13 +128,13 @@ pub fn compute_with_domain(
 }
 
 fn write_amount(hasher: &mut Sha256, value: u64) {
-    hasher.update(&value.to_be_bytes());
+    hasher.update(value.to_be_bytes());
 }
 
 fn write_field(hasher: &mut Sha256, tag: &[u8], value: &[u8]) {
-    hasher.update(&(tag.len() as u32).to_be_bytes());
+    hasher.update((tag.len() as u32).to_be_bytes());
     hasher.update(tag);
-    hasher.update(&(value.len() as u32).to_be_bytes());
+    hasher.update((value.len() as u32).to_be_bytes());
     hasher.update(value);
 }
 
@@ -185,10 +185,25 @@ mod tests {
     }
 
     #[test]
+    fn sample_fixture_matches_pinned_hex_digest() {
+        // Frozen SHA-256 regression vector for the existing sample
+        // fixture (seller / amount / memo / expiry as in [`sample`]).
+        // The hex digest is part of the public contract of this crate:
+        // any change to the domain label, `VERSION`, field order, or
+        // field encoding changes it, so this test pins the exact byte
+        // layout for external verifiers. The same value is documented
+        // in the crate README.
+        let (seller, amount, memo, expiry) = sample();
+        let expected = "5b682a8e9e3b524aad6046bf0782a7230c634412b0aa6cf1671e9de625f19cc5";
+        assert_eq!(compute(seller, amount, memo, expiry).to_hex(), expected);
+    }
+
+    #[test]
     fn deterministic_across_calls() {
         let (seller, amount, memo, expiry) = sample();
-        let hashes: Vec<ClaimHash> =
-            (0..10).map(|_| compute(seller, amount, memo, expiry)).collect();
+        let hashes: Vec<ClaimHash> = (0..10)
+            .map(|_| compute(seller, amount, memo, expiry))
+            .collect();
         for h in &hashes[1..] {
             assert_eq!(hashes[0], *h);
         }

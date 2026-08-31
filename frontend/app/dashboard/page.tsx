@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { downloadInvoiceCSV } from '@/lib/export';
+import { invoiceStatusLabel } from '@/lib/invoiceStatusLabel';
 
 export default function DashboardPage() {
   const { publicKey, connected } = useWalletStore();
@@ -92,13 +93,8 @@ export default function DashboardPage() {
       toast.error('No invoices to export');
       return;
     }
-    const paidInvoices = filteredInvoices.filter(inv => inv.status === 'PAID');
-    if (paidInvoices.length === 0) {
-      toast.error('No paid invoices to export');
-      return;
-    }
-    downloadInvoiceCSV(paidInvoices as any);
-    toast.success(`Exported ${paidInvoices.length} paid invoices to CSV`);
+    downloadInvoiceCSV(filteredInvoices as any);
+    toast.success(`Exported ${filteredInvoices.length} invoices to CSV`);
   };
 
   return (
@@ -243,6 +239,7 @@ export default function DashboardPage() {
                 <input
                   type="text"
                   placeholder="Search invoices..."
+                  aria-label="Search invoices"
                   className="input w-full"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
@@ -251,8 +248,7 @@ export default function DashboardPage() {
               <button
                 onClick={handleExportCSV}
                 className="btn btn-primary flex items-center gap-2 whitespace-nowrap"
-                disabled={filteredInvoices.filter(inv => inv.status === 'PAID').length === 0}
-                title="Export paid invoices only"
+                title="Export displayed invoices"
               >
                 <Download className="w-5 h-5" />
                 <span className="hidden sm:inline">Export CSV</span>
@@ -270,7 +266,7 @@ export default function DashboardPage() {
                       : 'text-gray-600 hover:bg-gray-100'
                   }`}
                 >
-                  {status.charAt(0).toUpperCase() + status.slice(1)}
+                  {status === 'all' ? 'All' : invoiceStatusLabel(status)}
                 </button>
               ))}
             </div>

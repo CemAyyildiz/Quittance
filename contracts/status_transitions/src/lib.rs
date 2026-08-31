@@ -80,6 +80,40 @@ impl InvoiceStatus {
     }
 }
 
+/// Stable lowercase display names for [`InvoiceStatus`].
+///
+/// The mapping is fixed so that any layer (smart contract, off-chain
+/// worker, API, dashboard) renders the same strings:
+///
+/// | Variant    | Display output |
+/// |------------|----------------|
+/// | `Pending`  | `pending`      |
+/// | `Paid`     | `paid`         |
+/// | `Expired`  | `expired`      |
+/// | `Cancelled`| `cancelled`    |
+///
+/// # Examples
+///
+/// ```
+/// use quittance_status_transitions::InvoiceStatus;
+///
+/// assert_eq!(InvoiceStatus::Pending.to_string(),   "pending");
+/// assert_eq!(InvoiceStatus::Paid.to_string(),      "paid");
+/// assert_eq!(InvoiceStatus::Expired.to_string(),   "expired");
+/// assert_eq!(InvoiceStatus::Cancelled.to_string(), "cancelled");
+/// ```
+impl core::fmt::Display for InvoiceStatus {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let name = match self {
+            InvoiceStatus::Pending   => "pending",
+            InvoiceStatus::Paid      => "paid",
+            InvoiceStatus::Expired   => "expired",
+            InvoiceStatus::Cancelled => "cancelled",
+        };
+        f.write_str(name)
+    }
+}
+
 /// A single allowed transition: `(from, to)`.
 ///
 /// Stored as a const array so callers and tooling can inspect the full
@@ -373,15 +407,54 @@ mod tests {
         assert!(!is_allowed(InvoiceStatus::Cancelled, InvoiceStatus::Expired));
     }
 
+    /// Issue #501 — all terminal-status reversals (Paid→Pending,
+    /// Expired→Pending, Cancelled→Pending, and every terminal→terminal
+    /// pair) must be rejected by `is_allowed`. This single false-case
+    /// test covers the full cross-product so a future status addition
+    /// can't slip through.
+    #[test]
+    fn is_allowed_denies_all_terminal_reversals() {
+        let terminals = [
+            InvoiceStatus::Paid,
+            InvoiceStatus::Expired,
+            InvoiceStatus::Cancelled,
+        ];
+        let all_statuses = [
+            InvoiceStatus::Pending,
+            InvoiceStatus::Paid,
+            InvoiceStatus::Expired,
+            InvoiceStatus::Cancelled,
+        ];
+        for &from in &terminals {
+            for &to in &all_statuses {
+                assert!(
+                    !is_allowed(from, to),
+                    "terminal reversal should be denied: {from:?} → {to:?}"
+                );
+            }
+        }
+    }
+
     // ── allowed_targets ────────────────────────────────────────────────
 
     #[test]
-    fn allowed_targets_pending_has_three_targets() {
+    fn allowed_targets_pending_returns_exactly_the_expected_set() {
         let targets = allowed_targets(InvoiceStatus::Pending);
+
+        // Length: exactly the three terminal statuses.
         assert_eq!(targets.len(), 3);
-        assert!(targets.contains(&InvoiceStatus::Paid));
-        assert!(targets.contains(&InvoiceStatus::Expired));
-        assert!(targets.contains(&InvoiceStatus::Cancelled));
+
+        // Members: the exact expected set — Paid, Expired, Cancelled —
+        // with no extras and no omissions. Comparing the whole slice
+        // means adding or removing any target fails this test.
+        assert_eq!(
+            targets,
+            &[
+                InvoiceStatus::Paid,
+                InvoiceStatus::Expired,
+                InvoiceStatus::Cancelled,
+            ]
+        );
     }
 
     #[test]
@@ -476,6 +549,36 @@ mod tests {
         assert!(InvoiceStatus::Paid.is_terminal());
         assert!(InvoiceStatus::Expired.is_terminal());
         assert!(InvoiceStatus::Cancelled.is_terminal());
+    }
+
+    // ── Display ────────────────────────────────────────────────────────
+
+    #[test]
+    fn display_pending_is_lowercase() {
+        assert_eq!(InvoiceStatus::Pending.to_string(), "pending");
+    }
+
+    #[test]
+    fn display_paid_is_lowercase() {
+        assert_eq!(InvoiceStatus::Paid.to_string(), "paid");
+    }
+
+    #[test]
+    fn display_expired_is_lowercase() {
+        assert_eq!(InvoiceStatus::Expired.to_string(), "expired");
+    }
+
+    #[test]
+    fn display_cancelled_is_lowercase() {
+        assert_eq!(InvoiceStatus::Cancelled.to_string(), "cancelled");
+    }
+
+    #[test]
+    fn display_works_via_format_macro() {
+        assert_eq!(format!("{}", InvoiceStatus::Pending),   "pending");
+        assert_eq!(format!("{}", InvoiceStatus::Paid),      "paid");
+        assert_eq!(format!("{}", InvoiceStatus::Expired),   "expired");
+        assert_eq!(format!("{}", InvoiceStatus::Cancelled), "cancelled");
     }
 
     // ── Derive smoke-tests ─────────────────────────────────────────────

@@ -1,3 +1,10 @@
+/**
+ * Database pool (Postgres).
+ *
+ * This pool is reserved for the post-MVP Postgres integration and is NOT used
+ * by the current in-memory MVP server. The MVP runs entirely in memory, so this
+ * module has no runtime effect until Postgres is wired in.
+ */
 import { Pool } from 'pg';
 import dotenv from 'dotenv';
 

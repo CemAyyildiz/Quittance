@@ -6,7 +6,11 @@ import { createInvoiceSchema } from './utils/validation';
 import invoiceService from './services/invoice-memory.service';
 import { generatePaymentQR, generateStellarPaymentQR, buildStellarPaymentUri } from './utils/qrcode';
 import stellarService from './services/stellar.service';
+import { rateLimitIfEnabled } from './middleware/rate-limit-stub';
 import healthDetailRouter from './routes/health-detail';
+import { toInvoiceDTO } from './utils/invoice-dto';
+import { isDecimalEqual } from './utils/amount-compare';
+import { VerifyErrorCode, VerifyErrorMessages } from './utils/verify-errors';
 
 // Load environment variables
 dotenv.config();
@@ -25,6 +29,8 @@ app.use(cors({
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// Rate limiting (opt-in — enabled only when RATE_LIMIT_ENABLED=true)
+app.use(rateLimitIfEnabled());
 app.use(requestId);
 
 // Request logging
@@ -84,7 +90,7 @@ app.post('/api/invoices', async (req: Request, res: Response) => {
     res.status(201).json({
       success: true,
       data: {
-        invoice,
+        invoice: toInvoiceDTO(invoice),
         paymentUrl,
         qrCode: qrCodeDataUrl,
         stellarQrCode,
@@ -115,7 +121,7 @@ app.get('/api/invoices/:id', async (req: Request, res: Response) => {
 
     res.json({
       success: true,
-      data: invoice,
+      data: toInvoiceDTO(invoice),
     });
   } catch (error: any) {
     console.error('Get invoice error:', error);
@@ -147,7 +153,7 @@ app.get('/api/invoices', async (req: Request, res: Response) => {
 
     res.json({
       success: true,
-      data: invoices,
+      data: invoices.map(toInvoiceDTO),
       pagination: {
         limit: parseInt(limit as string),
         offset: parseInt(offset as string),
@@ -200,7 +206,7 @@ app.get('/api/invoices/:id/payment-info', async (req: Request, res: Response) =>
         qrCode: qrCodeDataUrl,
         stellarQrCode,
         stellarPaymentUri,
-        invoice,
+        invoice: toInvoiceDTO(invoice),
       },
     });
   } catch (error: any) {
@@ -220,7 +226,7 @@ app.post('/api/invoices/:id/cancel', async (req: Request, res: Response) => {
 
     res.json({
       success: true,
-      data: invoice,
+      data: toInvoiceDTO(invoice),
     });
   } catch (error: any) {
     console.error('Cancel invoice error:', error);
@@ -240,7 +246,8 @@ app.post('/api/invoices/:id/verify', async (req: Request, res: Response) => {
     if (!txHash) {
       return res.status(400).json({
         success: false,
-        error: 'Transaction hash is required',
+        code: VerifyErrorCode.TX_HASH_REQUIRED,
+        error: VerifyErrorMessages[VerifyErrorCode.TX_HASH_REQUIRED],
       });
     }
 
@@ -249,21 +256,24 @@ app.post('/api/invoices/:id/verify', async (req: Request, res: Response) => {
     if (!invoice) {
       return res.status(404).json({
         success: false,
-        error: 'Invoice not found',
+        code: VerifyErrorCode.INVOICE_NOT_FOUND,
+        error: VerifyErrorMessages[VerifyErrorCode.INVOICE_NOT_FOUND],
       });
     }
 
     if (invoice.status === 'PAID') {
       return res.status(400).json({
         success: false,
-        error: 'Invoice has already been paid',
+        code: VerifyErrorCode.INVOICE_ALREADY_PAID,
+        error: VerifyErrorMessages[VerifyErrorCode.INVOICE_ALREADY_PAID],
       });
     }
 
     if (invoice.status !== 'PENDING') {
       return res.status(400).json({
         success: false,
-        error: 'Invoice is not pending',
+        code: VerifyErrorCode.INVOICE_NOT_PENDING,
+        error: VerifyErrorMessages[VerifyErrorCode.INVOICE_NOT_PENDING],
       });
     }
 
@@ -274,28 +284,32 @@ app.post('/api/invoices/:id/verify', async (req: Request, res: Response) => {
     if (!paymentOp) {
       return res.status(400).json({
         success: false,
-        error: 'No payment operation found in transaction',
+        code: VerifyErrorCode.NO_PAYMENT_OPERATION,
+        error: VerifyErrorMessages[VerifyErrorCode.NO_PAYMENT_OPERATION],
       });
     }
 
     if (transaction.memo !== invoice.memo) {
       return res.status(400).json({
         success: false,
-        error: 'Memo mismatch',
+        code: VerifyErrorCode.MEMO_MISMATCH,
+        error: VerifyErrorMessages[VerifyErrorCode.MEMO_MISMATCH],
       });
     }
 
     if (paymentOp.to !== invoice.sellerPublicKey) {
       return res.status(400).json({
         success: false,
-        error: 'Payment destination mismatch',
+        code: VerifyErrorCode.DESTINATION_MISMATCH,
+        error: VerifyErrorMessages[VerifyErrorCode.DESTINATION_MISMATCH],
       });
     }
 
-    if (parseFloat(paymentOp.amount).toFixed(7) !== Number(invoice.amount).toFixed(7)) {
+    if (!isDecimalEqual(paymentOp.amount, String(invoice.amount))) {
       return res.status(400).json({
         success: false,
-        error: 'Amount mismatch',
+        code: VerifyErrorCode.AMOUNT_MISMATCH,
+        error: VerifyErrorMessages[VerifyErrorCode.AMOUNT_MISMATCH],
       });
     }
 
@@ -304,7 +318,8 @@ app.post('/api/invoices/:id/verify', async (req: Request, res: Response) => {
     if (opAsset !== invoice.assetCode) {
       return res.status(400).json({
         success: false,
-        error: 'Asset mismatch',
+        code: VerifyErrorCode.ASSET_MISMATCH,
+        error: VerifyErrorMessages[VerifyErrorCode.ASSET_MISMATCH],
       });
     }
 
@@ -316,14 +331,15 @@ app.post('/api/invoices/:id/verify', async (req: Request, res: Response) => {
 
     res.json({
       success: true,
-      data: updatedInvoice,
+      data: toInvoiceDTO(updatedInvoice),
       message: 'Payment verified on Stellar',
     });
   } catch (error: any) {
     console.error('Verify payment error:', error);
     res.status(500).json({
       success: false,
-      error: error.message || 'Failed to verify payment',
+      code: VerifyErrorCode.VERIFY_FAILED,
+      error: VerifyErrorMessages[VerifyErrorCode.VERIFY_FAILED],
     });
   }
 });
@@ -369,7 +385,7 @@ app.post('/api/invoices/:id/simulate-payment', async (req: Request, res: Respons
 
     res.json({
       success: true,
-      data: updatedInvoice,
+      data: toInvoiceDTO(updatedInvoice),
       message: 'Payment simulated successfully',
     });
   } catch (error: any) {

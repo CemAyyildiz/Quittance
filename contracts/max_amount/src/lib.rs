@@ -149,13 +149,25 @@ mod test {
     // every test that references it.
     const TEN_XLM_STROOPS: i128 = 1_000_000_000;
 
+    /// Deploy the contract with `ceiling`, returning a client bound to
+    /// the new instance.
+    ///
+    /// `__constructor` is a *reserved* function name in the Soroban
+    /// host: it may only run as part of a deploy, never as a direct
+    /// invocation. `Env::register` is the only way to pass constructor
+    /// arguments, so every test goes through the real deploy path.
+    /// Centralising that here keeps each test focused on the behaviour
+    /// it actually asserts.
+    fn deploy(env: &Env, ceiling: i128) -> MaxAmountClient<'_> {
+        let contract_id = env.register(MaxAmount, (ceiling,));
+        MaxAmountClient::new(env, &contract_id)
+    }
+
     #[test]
     fn test_payment_below_ceiling_returns_true() {
         let env = Env::default();
-        let contract_id = env.register_contract(None, MaxAmount);
-        let client = MaxAmountClient::new(&env, &contract_id);
+        let client = deploy(&env, TEN_XLM_STROOPS);
 
-        client.__constructor(&TEN_XLM_STROOPS);
         assert!(client.check(&(TEN_XLM_STROOPS - 1)));
         assert!(client.check(&0));
     }
@@ -163,38 +175,18 @@ mod test {
     #[test]
     fn test_payment_equal_to_ceiling_returns_true() {
         let env = Env::default();
-        let contract_id = env.register_contract(None, MaxAmount);
-        let client = MaxAmountClient::new(&env, &contract_id);
+        let client = deploy(&env, TEN_XLM_STROOPS);
 
-        client.__constructor(&TEN_XLM_STROOPS);
         assert!(client.check(&TEN_XLM_STROOPS));
     }
 
     #[test]
     fn test_payment_above_ceiling_returns_false() {
         let env = Env::default();
-        let contract_id = env.register_contract(None, MaxAmount);
-        let client = MaxAmountClient::new(&env, &contract_id);
+        let client = deploy(&env, TEN_XLM_STROOPS);
 
-        client.__constructor(&TEN_XLM_STROOPS);
         assert!(!client.check(&(TEN_XLM_STROOPS + 1)));
         assert!(!client.check(&(TEN_XLM_STROOPS * 2)));
-    }
-
-    #[test]
-    fn test_zero_ceiling_rejects_any_positive() {
-        // Inverse of the floor crate's "zero floor accepts every
-        // non-negative" edge: a zero ceiling rejects every positive
-        // payment and accepts only zero. This is useful as a "kill
-        // switch" deployment.
-        let env = Env::default();
-        let contract_id = env.register_contract(None, MaxAmount);
-        let client = MaxAmountClient::new(&env, &contract_id);
-
-        client.__constructor(&0);
-        assert!(client.check(&0));
-        assert!(!client.check(&1));
-        assert!(!client.check(&TEN_XLM_STROOPS));
     }
 
     #[test]
@@ -204,10 +196,8 @@ mod test {
         // we reject negatives so callers do not need a separate sign
         // guard and behaviour matches the companion crate.
         let env = Env::default();
-        let contract_id = env.register_contract(None, MaxAmount);
-        let client = MaxAmountClient::new(&env, &contract_id);
+        let client = deploy(&env, TEN_XLM_STROOPS);
 
-        client.__constructor(&TEN_XLM_STROOPS);
         assert!(!client.check(&-1));
         assert!(!client.check(&i128::MIN));
     }
@@ -216,20 +206,16 @@ mod test {
     #[should_panic(expected = "ceiling must be non-negative")]
     fn test_negative_ceiling_panics_on_construction() {
         let env = Env::default();
-        let contract_id = env.register_contract(None, MaxAmount);
-        let client = MaxAmountClient::new(&env, &contract_id);
 
-        client.__constructor(&-1);
+        deploy(&env, -1);
     }
 
     #[test]
     fn test_ceiling_returns_stored_value() {
         let env = Env::default();
-        let contract_id = env.register_contract(None, MaxAmount);
-        let client = MaxAmountClient::new(&env, &contract_id);
-
         let ceiling: i128 = 500_000_000;
-        client.__constructor(&ceiling);
+        let client = deploy(&env, ceiling);
+
         assert_eq!(client.ceiling(), ceiling);
     }
 
@@ -238,10 +224,8 @@ mod test {
     #[test]
     fn require_succeeds_at_ceiling() {
         let env = Env::default();
-        let contract_id = env.register_contract(None, MaxAmount);
-        let client = MaxAmountClient::new(&env, &contract_id);
+        let client = deploy(&env, TEN_XLM_STROOPS);
 
-        client.__constructor(&TEN_XLM_STROOPS);
         // Does not panic — the ceiling itself is acceptable.
         client.require(&TEN_XLM_STROOPS);
     }
@@ -249,10 +233,8 @@ mod test {
     #[test]
     fn require_succeeds_below_ceiling() {
         let env = Env::default();
-        let contract_id = env.register_contract(None, MaxAmount);
-        let client = MaxAmountClient::new(&env, &contract_id);
+        let client = deploy(&env, TEN_XLM_STROOPS);
 
-        client.__constructor(&TEN_XLM_STROOPS);
         client.require(&(TEN_XLM_STROOPS - 1));
         client.require(&0);
     }
@@ -261,10 +243,8 @@ mod test {
     #[should_panic(expected = "payment above configured maximum ceiling")]
     fn require_panics_above_ceiling() {
         let env = Env::default();
-        let contract_id = env.register_contract(None, MaxAmount);
-        let client = MaxAmountClient::new(&env, &contract_id);
+        let client = deploy(&env, TEN_XLM_STROOPS);
 
-        client.__constructor(&TEN_XLM_STROOPS);
         client.require(&(TEN_XLM_STROOPS + 1));
     }
 
@@ -272,25 +252,87 @@ mod test {
     #[should_panic(expected = "payment above configured maximum ceiling")]
     fn require_panics_on_negative_payment() {
         let env = Env::default();
-        let contract_id = env.register_contract(None, MaxAmount);
-        let client = MaxAmountClient::new(&env, &contract_id);
+        let client = deploy(&env, TEN_XLM_STROOPS);
 
-        client.__constructor(&TEN_XLM_STROOPS);
         client.require(&-1);
+    }
+
+    // ----- ceiling `0` kill-switch tests ------------------------------
+    //
+    // A ceiling of `0` is the documented kill-switch deployment: it
+    // accepts a zero-stroop payment and rejects every positive one, so
+    // no value can move through a contract that gates on this instance.
+    // The tests below pin that contract-level behaviour so a future
+    // change to the comparison (or to the storage default) cannot
+    // silently turn a kill switch back into an open gate.
+
+    #[test]
+    fn kill_switch_ceiling_is_stored_as_zero() {
+        // The `0` must survive the round trip through instance
+        // storage: a reader that saw anything else would conclude the
+        // kill switch is not armed.
+        let env = Env::default();
+        let client = deploy(&env, 0);
+
+        assert_eq!(client.ceiling(), 0);
+    }
+
+    #[test]
+    fn kill_switch_check_accepts_zero_and_rejects_every_positive_amount() {
+        // Inverse of the floor crate's "zero floor accepts every
+        // non-negative" edge: a zero ceiling rejects every positive
+        // payment and accepts only zero.
+        let env = Env::default();
+        let client = deploy(&env, 0);
+
+        assert!(client.check(&0));
+        assert!(!client.check(&1));
+        assert!(!client.check(&TEN_XLM_STROOPS));
+        assert!(!client.check(&i128::MAX));
+    }
+
+    #[test]
+    fn kill_switch_check_still_rejects_negative_amounts() {
+        // The sign guard runs before the ceiling comparison, so a
+        // kill-switch deploy rejects negatives for the same reason
+        // every other deploy does.
+        let env = Env::default();
+        let client = deploy(&env, 0);
+
+        assert!(!client.check(&-1));
+        assert!(!client.check(&i128::MIN));
+    }
+
+    #[test]
+    fn kill_switch_require_succeeds_for_zero_payment() {
+        let env = Env::default();
+        let client = deploy(&env, 0);
+
+        // Zero is at the ceiling, so it is still acceptable — the kill
+        // switch blocks value transfer, it does not panic on every
+        // call.
+        client.require(&0);
     }
 
     #[test]
     #[should_panic(expected = "payment above configured maximum ceiling")]
-    fn require_panics_with_zero_ceiling_and_positive_payment() {
-        // Inverse of the floor crate's "zero floor accepts any
-        // non-negative" smoke test: a zero ceiling is a kill switch
-        // and must panic on any positive payment.
+    fn kill_switch_require_panics_on_smallest_positive_payment() {
+        // One stroop is the smallest amount that can move on Stellar,
+        // so panicking here means nothing larger can get through
+        // either.
         let env = Env::default();
-        let contract_id = env.register_contract(None, MaxAmount);
-        let client = MaxAmountClient::new(&env, &contract_id);
+        let client = deploy(&env, 0);
 
-        client.__constructor(&0);
         client.require(&1);
+    }
+
+    #[test]
+    #[should_panic(expected = "payment above configured maximum ceiling")]
+    fn kill_switch_require_panics_on_realistic_invoice_amount() {
+        let env = Env::default();
+        let client = deploy(&env, 0);
+
+        client.require(&TEN_XLM_STROOPS);
     }
 
     // ----- boundary regression tests ---------------------------------
@@ -301,11 +343,7 @@ mod test {
         // unit so an accidental `<` (strict-less) instead of `<=`
         // refactor would flip at least one of these cases.
         let env = Env::default();
-        let contract_id = env.register_contract(None, MaxAmount);
-        let client = MaxAmountClient::new(&env, &contract_id);
-
-        let ceiling: i128 = 7;
-        client.__constructor(&ceiling);
+        let client = deploy(&env, 7);
 
         assert!(client.check(&6));
         assert!(client.check(&7));
@@ -319,10 +357,8 @@ mod test {
         // because `payment <= i128::MAX` always holds at the
         // comparison.
         let env = Env::default();
-        let contract_id = env.register_contract(None, MaxAmount);
-        let client = MaxAmountClient::new(&env, &contract_id);
+        let client = deploy(&env, i128::MAX);
 
-        client.__constructor(&i128::MAX);
         assert!(client.check(&0));
         assert!(client.check(&TEN_XLM_STROOPS));
         assert!(client.check(&i128::MAX));

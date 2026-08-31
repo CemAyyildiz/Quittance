@@ -1,6 +1,6 @@
 # Quittance — Ship Roadmap
 
-Canonical plan: **[PLAN.md](./PLAN.md)** (ürün, mimari, DoD, fazlar, commitler).
+Canonical plan: **[PLAN.md](./PLAN.md)** (product, architecture, DoD, phases, commits).
 
 This file is the short execution checklist. Do not diverge from PLAN.md decisions.
 
@@ -32,3 +32,11 @@ D4–D5 deploy + testnet pack
 ```
 
 Ask before each git commit. One commit = one PLAN.md row.
+
+## Level 4 follow-ups (after D5)
+
+1. Public API URL in `EVIDENCE.md`
+2. Soroban contract deploy address on testnet (or written waiver)
+3. 10+ Freighter wallet interaction hashes
+4. Demo video + screenshots (UI / mobile / analytics)
+5. Feedback summary from `/feedback`

@@ -1,170 +1,251 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+// Smoke tests for the in-memory invoice storage used by the MVP backend.
+// Runs via Vitest (`npm test` in the backend).
+import { beforeEach, describe, it, expect } from 'vitest';
+
 import memoryStorage from '../src/storage/memory-storage';
+import invoiceMemoryService from '../src/services/invoice-memory.service';
 
-const VALID_SELLER = 'G' + 'A'.repeat(55);
-const OTHER_SELLER = 'G' + 'B'.repeat(55);
+// Two well-formed Stellar public keys (length 56, starts with G, base32 alphabet).
+// Shape only; values are not used for any cryptographic operation.
+const SELLER_A = 'G' + 'A'.repeat(55);
+const SELLER_B = 'G' + 'B'.repeat(55);
+const SELLER_C = 'G' + 'C'.repeat(55);
 
-describe('MemoryStorage smoke tests', () => {
-  beforeEach(() => {
-    memoryStorage.clear();
-  });
+// Memo generator + counter reset every test so memos stay globally unique
+// without crossing test boundaries.
+let memoCounter = 0;
+function nextMemo(prefix: string): string {
+  memoCounter += 1;
+  return `${prefix}-${memoCounter}-${Date.now().toString(36)}`;
+}
 
-  afterEach(() => {
-    memoryStorage.clear();
-  });
+function buildSeed(overrides: Record<string, unknown> = {}) {
+  return {
+    sellerPublicKey: SELLER_A,
+    amount: 100,
+    assetCode: 'XLM',
+    memo: nextMemo('seed'),
+    ...overrides,
+  };
+}
 
-  describe('create', () => {
-    it('creates an invoice and returns it with an id', () => {
-      const invoice = memoryStorage.createInvoice({
-        sellerPublicKey: VALID_SELLER,
-        amount: 100,
-        assetCode: 'XLM',
-        memo: 'INV-001',
-      });
-
-      expect(invoice).toBeDefined();
-      expect(invoice.id).toBeTruthy();
-      expect(invoice.sellerPublicKey).toBe(VALID_SELLER);
-      expect(invoice.amount).toBe(100);
-      expect(invoice.assetCode).toBe('XLM');
-      expect(invoice.memo).toBe('INV-001');
-      expect(invoice.status).toBe('PENDING');
-      expect(invoice.createdAt).toBeInstanceOf(Date);
-    });
-
-    it('assigns a custom id when provided', () => {
-      const customId = 'custom-invoice-id';
-      const invoice = memoryStorage.createInvoice({
-        id: customId,
-        sellerPublicKey: VALID_SELLER,
-        amount: 200,
-        assetCode: 'XLM',
-        memo: 'INV-002',
-      });
-
-      expect(invoice.id).toBe(customId);
-      expect(memoryStorage.getInvoiceById(customId)).toBe(invoice);
-    });
-
-    it('supports partial fields like description and customerName', () => {
-      const invoice = memoryStorage.createInvoice({
-        sellerPublicKey: VALID_SELLER,
-        amount: 50,
-        assetCode: 'XLM',
-        memo: 'INV-003',
-        description: 'Website redesign',
-        customerName: 'Alice',
-        customerEmail: 'alice@example.com',
-      });
-
-      expect(invoice.description).toBe('Website redesign');
-      expect(invoice.customerName).toBe('Alice');
-      expect(invoice.customerEmail).toBe('alice@example.com');
-    });
-  });
-
-  describe('fetch by id', () => {
-    it('returns an invoice when found by id', () => {
-      const created = memoryStorage.createInvoice({
-        sellerPublicKey: VALID_SELLER,
-        amount: 100,
-        assetCode: 'XLM',
-        memo: 'INV-004',
-      });
-
-      const fetched = memoryStorage.getInvoiceById(created.id);
-
-      expect(fetched).toBeDefined();
-      expect(fetched!.id).toBe(created.id);
-      expect(fetched!.amount).toBe(100);
-    });
-
-    it('returns undefined when no invoice matches the id', () => {
-      const fetched = memoryStorage.getInvoiceById('nonexistent-id');
-
-      expect(fetched).toBeUndefined();
-    });
-
-    it('can retrieve an invoice by the id returned from create', () => {
-      const created = memoryStorage.createInvoice({
-        sellerPublicKey: VALID_SELLER,
-        amount: 250,
-        assetCode: 'XLM',
-        memo: 'INV-005',
-      });
-
-      const fetched = memoryStorage.getInvoiceById(created.id);
-
-      expect(fetched).toEqual(created);
-    });
-  });
-
-  describe('seller-scoped list', () => {
-    it('returns only invoices for the requested seller', () => {
-      memoryStorage.createInvoice({
-        sellerPublicKey: VALID_SELLER,
-        amount: 100,
-        assetCode: 'XLM',
-        memo: 'INV-006',
-      });
-      memoryStorage.createInvoice({
-        sellerPublicKey: VALID_SELLER,
-        amount: 200,
-        assetCode: 'XLM',
-        memo: 'INV-007',
-      });
-      memoryStorage.createInvoice({
-        sellerPublicKey: OTHER_SELLER,
-        amount: 300,
-        assetCode: 'XLM',
-        memo: 'INV-008',
-      });
-
-      const allInvoices = memoryStorage.getAllInvoices();
-      const sellerInvoices = allInvoices.filter(
-        (inv) => inv.sellerPublicKey === VALID_SELLER,
-      );
-
-      expect(allInvoices.length).toBe(3);
-      expect(sellerInvoices.length).toBe(2);
-      expect(sellerInvoices.every((inv) => inv.sellerPublicKey === VALID_SELLER)).toBe(true);
-    });
-
-    it('returns an empty array when no invoices exist for the seller', () => {
-      memoryStorage.createInvoice({
-        sellerPublicKey: OTHER_SELLER,
-        amount: 100,
-        assetCode: 'XLM',
-        memo: 'INV-009',
-      });
-
-      const sellerInvoices = memoryStorage.getAllInvoices().filter(
-        (inv) => inv.sellerPublicKey === VALID_SELLER,
-      );
-
-      expect(sellerInvoices).toEqual([]);
-    });
-
-    it('returns seller-scoped list sorted newest first', () => {
-      const earlier = memoryStorage.createInvoice({
-        sellerPublicKey: VALID_SELLER,
-        amount: 100,
-        assetCode: 'XLM',
-        memo: 'INV-010',
-      });
-      const later = memoryStorage.createInvoice({
-        sellerPublicKey: VALID_SELLER,
-        amount: 200,
-        assetCode: 'XLM',
-        memo: 'INV-011',
-      });
-
-      const sellerInvoices = memoryStorage.getAllInvoices().filter(
-        (inv) => inv.sellerPublicKey === VALID_SELLER,
-      );
-
-      expect(sellerInvoices.map((inv) => inv.id)).toContain(earlier.id);
-      expect(sellerInvoices.map((inv) => inv.id)).toContain(later.id);
-    });
-  });
+describe('memory storage', () => {
+beforeEach(() => {
+  // MemoryStorage is a process-wide singleton; reset both the data and the
+  // memo counter so each test starts from a clean, deterministic state.
+  memoryStorage.clear();
+  memoCounter = 0;
 });
+
+  it('createInvoice assigns defaults (status PENDING, assetCode XLM, expiresAt ~7 days)', () => {
+  const seed = buildSeed();
+  const invoice = memoryStorage.createInvoice(seed);
+
+  expect(invoice.status).toBe('PENDING');
+  expect(invoice.assetCode).toBe('XLM');
+  expect(invoice.amount).toBe(100);
+  expect(invoice.sellerPublicKey).toBe(SELLER_A);
+  expect(invoice.id).toBeTruthy();
+  expect(invoice.createdAt instanceof Date).toBeTruthy();
+  expect(invoice.expiresAt instanceof Date).toBeTruthy();
+  expect(invoice.paymentTxHash).toBe(undefined);
+  expect(invoice.payerPublicKey).toBe(undefined);
+  expect(invoice.paidAt).toBe(undefined);
+
+  const sevenDaysMs = 7 * 24 * 60 * 60 * 1000;
+  const diff = invoice.expiresAt.getTime() - invoice.createdAt.getTime();
+  // 250ms tolerance: tsx cold-start in CI can introduce ms-scale jitter between
+  // the two `new Date()` calls inside `createInvoice`. Tight enough to catch a
+  // real regression (e.g. accidental `1000 * 60 * 60 * 1000`), loose enough to
+  // be stable across CI hosts.
+  assert.ok(
+    Math.abs(diff - sevenDaysMs) < 250,
+    `expiresAt should be 7 days after createdAt (got ${diff}ms)`,
+  );
+
+  expect(memoryStorage.size()).toBe(1, 'storage should hold exactly one invoice');
+});
+
+  it('createInvoice honors provided id, assetCode, and assetIssuer', () => {
+  const customId = 'custom-invoice-id-001';
+  const usdcIssuer = 'GBBDNYA45PVTXJUFQOZT2YVQ5WWMZE3DGCHHMDD6V7V2XPGGTS3AHFGW';
+  const memo = nextMemo('usdc');
+
+  const invoice = memoryStorage.createInvoice(
+    buildSeed({
+      id: customId,
+      amount: 12.5,
+      assetCode: 'USDC',
+      assetIssuer: usdcIssuer,
+      memo,
+    }),
+  );
+
+  expect(invoice.id).toBe(customId, 'provided id is preserved verbatim');
+  expect(invoice.assetCode).toBe('USDC');
+  expect(invoice.assetIssuer).toBe(usdcIssuer);
+  expect(invoice.memo).toBe(memo);
+
+  const refetched = memoryStorage.getInvoiceById(customId);
+  expect(refetched).toBeTruthy();
+  expect(refetched?.memo).toBe(memo);
+});
+
+  it('getInvoiceById returns the matching invoice', () => {
+  const created = memoryStorage.createInvoice(
+    buildSeed({ amount: 42, memo: nextMemo('fetch-hit') }),
+  );
+
+  const fetched = memoryStorage.getInvoiceById(created.id);
+
+  expect(fetched).toBeTruthy();
+  expect(fetched!.id).toBe(created.id);
+  expect(fetched!.sellerPublicKey).toBe(created.sellerPublicKey);
+  expect(fetched!.amount).toBe(42);
+  expect(fetched!.status).toBe('PENDING');
+});
+
+  it('getInvoiceByMemo returns the matching invoice and undefined for an unknown memo', () => {
+  const memo = nextMemo('memo-hit');
+  const created = memoryStorage.createInvoice(buildSeed({ memo }));
+
+  expect(memoryStorage.getInvoiceByMemo(memo)).toBe(created);
+  expect(memoryStorage.getInvoiceByMemo('does-not-exist')).toBe(undefined);
+});
+
+  it('getInvoiceById returns undefined for a missing id', () => {
+  expect(memoryStorage.getInvoiceById('does-not-exist')).toBe(undefined);
+});
+
+  it('createInvoice then getInvoiceByMemo returns same id', () => {
+  const memo = nextMemo('memo-lookup');
+  const created = memoryStorage.createInvoice(buildSeed({ memo }));
+
+  const fetched = memoryStorage.getInvoiceByMemo(memo);
+
+  expect(fetched).toBeTruthy();
+  expect(fetched!.id).toBe(created.id, 'id from memo lookup must match the created invoice id');
+});
+
+  it('storage is reset between tests (clear() isolation sanity)', () => {
+  // This test deliberately does not create anything; if beforeEach stops
+  // clearing the singleton, this will fail loudly instead of polluting other tests.
+  expect(memoryStorage.size()).toBe(0, 'storage should be empty at test start');
+  expect(memoryStorage.getAllInvoices().length).toBe(0);
+  expect(memoryStorage.getInvoiceById('any-id')).toBe(undefined);
+});
+
+  it('seller-scoped list returns only invoices for the requested seller', () => {
+  // Seller A: 2 invoices
+  memoryStorage.createInvoice(buildSeed({ sellerPublicKey: SELLER_A, memo: nextMemo('A') }));
+  memoryStorage.createInvoice(buildSeed({ sellerPublicKey: SELLER_A, memo: nextMemo('A'), amount: 200 }));
+  // Seller B: 1 invoice
+  memoryStorage.createInvoice(buildSeed({ sellerPublicKey: SELLER_B, memo: nextMemo('B'), amount: 300 }));
+  // Seller C (sanity): 1 invoice that should never leak into A or B listings
+  memoryStorage.createInvoice(buildSeed({ sellerPublicKey: SELLER_C, memo: nextMemo('C'), amount: 400 }));
+
+  const all = memoryStorage.getAllInvoices();
+  expect(all.length).toBe(4, 'storage holds all four invoices before seller filter');
+
+  // Mirrors InvoiceMemoryService.getInvoicesBySeller: take everything from storage
+  // and filter in-memory by sellerPublicKey.
+  const sellerA = all.filter((inv) => inv.sellerPublicKey === SELLER_A);
+  const sellerB = all.filter((inv) => inv.sellerPublicKey === SELLER_B);
+  const sellerC = all.filter((inv) => inv.sellerPublicKey === SELLER_C);
+
+  expect(sellerA.length).toBe(2, 'seller A has exactly two invoices');
+  expect(sellerB.length).toBe(1, 'seller B has exactly one invoice');
+  expect(sellerC.length).toBe(1, 'seller C has exactly one invoice');
+
+  expect(sellerA.every((inv) => inv.sellerPublicKey === SELLER_A)).toBeTruthy();
+  expect(sellerB.every((inv) => inv.sellerPublicKey === SELLER_B)).toBeTruthy();
+  assert.equal(
+    sellerA.find((inv) => inv.sellerPublicKey === SELLER_B),
+    undefined,
+    'no cross-leak between seller A and seller B',
+  );
+});
+
+  it('InvoiceMemoryService.getInvoicesBySeller scopes by seller through storage', async () => {
+  // Integration-style check: exercise the same path the application uses, not
+  // a hand-rolled filter mirror.
+  memoryStorage.createInvoice(buildSeed({ sellerPublicKey: SELLER_A, memo: nextMemo('svc-A'), amount: 11 }));
+  memoryStorage.createInvoice(buildSeed({ sellerPublicKey: SELLER_A, memo: nextMemo('svc-A'), amount: 22 }));
+  memoryStorage.createInvoice(buildSeed({ sellerPublicKey: SELLER_B, memo: nextMemo('svc-B'), amount: 33 }));
+
+  const sellerAList = await invoiceMemoryService.getInvoicesBySeller(SELLER_A);
+  const sellerBList = await invoiceMemoryService.getInvoicesBySeller(SELLER_B);
+
+  expect(sellerAList.length).toBe(2, 'service returns two invoices for seller A');
+  expect(sellerBList.length).toBe(1, 'service returns exactly one invoice for seller B');
+  expect(sellerAList.every((inv) => inv.sellerPublicKey === SELLER_A)).toBeTruthy();
+});
+
+  it('#469 seller-scoped invoice list returns only that seller rows (two distinct sellers)', () => {
+  // Two distinct seller public keys.
+  const sellerAInvoices = [
+    memoryStorage.createInvoice(buildSeed({ sellerPublicKey: SELLER_A, memo: nextMemo('469-A'), amount: 10 })),
+    memoryStorage.createInvoice(buildSeed({ sellerPublicKey: SELLER_A, memo: nextMemo('469-A'), amount: 20 })),
+  ];
+  const sellerBInvoices = [
+    memoryStorage.createInvoice(buildSeed({ sellerPublicKey: SELLER_B, memo: nextMemo('469-B'), amount: 30 })),
+  ];
+
+  const all = memoryStorage.getAllInvoices();
+  expect(all.length).toBe(3, 'storage holds all three invoices before seller filter');
+
+  // Filter by sellerPublicKey exactly as the service does.
+  const sellerAList = all.filter((inv) => inv.sellerPublicKey === SELLER_A);
+  const sellerBList = all.filter((inv) => inv.sellerPublicKey === SELLER_B);
+
+  expect(sellerAList.length).toBe(2, 'seller A list contains only seller A rows');
+  expect(sellerBList.length).toBe(1, 'seller B list contains only seller B rows');
+
+  expect(sellerAList.map((inv) => inv.id).sort()).toEqual(sellerAInvoices.map((inv) => inv.id).sort());
+  expect(sellerBList.every((inv) => inv.sellerPublicKey === SELLER_B)).toBeTruthy();
+  assert.equal(
+    sellerAList.find((inv) => inv.sellerPublicKey === SELLER_B),
+    undefined,
+    'no cross-leak between seller A and seller B listings',
+  );
+});
+  it('markExpiredInvoices transitions past-dated PENDING invoices to EXPIRED', () => {
+  const pastDate = new Date(Date.now() - 24 * 60 * 60 * 1000); // yesterday
+  const futureDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days from now
+
+  // PENDING invoice with expiresAt in the past — should be marked EXPIRED
+  const expiredCandidate = memoryStorage.createInvoice(
+    buildSeed({ memo: nextMemo('expire'), expiresAt: pastDate }),
+  );
+  expect(expiredCandidate.status).toBe('PENDING', 'starts as PENDING');
+
+  // PENDING invoice with expiresAt in the future — should remain PENDING
+  const futureInvoice = memoryStorage.createInvoice(
+    buildSeed({ memo: nextMemo('future'), expiresAt: futureDate }),
+  );
+  expect(futureInvoice.status).toBe('PENDING', 'future invoice starts as PENDING');
+
+  // PAID invoice — should be untouched
+  const paidInvoice = memoryStorage.createInvoice(
+    buildSeed({ memo: nextMemo('paid') }),
+  );
+  memoryStorage.markAsPaid(paidInvoice.id, 'tx-hash-001', 'G' + 'P'.repeat(55));
+  const paidFetched = memoryStorage.getInvoiceById(paidInvoice.id);
+  expect(paidFetched?.status).toBe('PAID', 'starts as PAID');
+
+  const count = memoryStorage.markExpiredInvoices();
+  expect(count).toBe(1, 'exactly one invoice should be expired');
+
+  // Past-dated PENDING → EXPIRED
+  const refreshedExpired = memoryStorage.getInvoiceById(expiredCandidate.id);
+  expect(refreshedExpired?.status).toBe('EXPIRED', 'past-dated PENDING invoice becomes EXPIRED');
+
+  // Future PENDING → unchanged
+  const refreshedFuture = memoryStorage.getInvoiceById(futureInvoice.id);
+  expect(refreshedFuture?.status).toBe('PENDING', 'future PENDING invoice stays PENDING');
+
+  // PAID → untouched
+  const refreshedPaid = memoryStorage.getInvoiceById(paidInvoice.id);
+  expect(refreshedPaid?.status).toBe('PAID', 'PAID invoice is untouched');
+});
+

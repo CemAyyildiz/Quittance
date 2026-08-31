@@ -1,17 +1,36 @@
-// Mock API - Backend olmadan UI test için
+// Mock API - for testing the UI without a backend
 
 import { buildStellarPaymentUri } from '@/lib/stellar-payment-uri';
 
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
+type MockInvoice = {
+  id: string;
+  amount: number;
+  assetCode: string;
+  assetIssuer?: string;
+  description: string;
+  customerName: string;
+  customerEmail?: string;
+  status: string;
+  memo: string;
+  sellerPublicKey: string;
+  createdAt: string;
+  paidAt?: string;
+  expiresAt: string;
+  paymentTxHash?: string;
+  payerPublicKey?: string;
+};
+
 // Mock invoice data
-const mockInvoices = [
+const mockInvoices: MockInvoice[] = [
   {
     id: '1',
     amount: 100.50,
     assetCode: 'XLM',
-    description: 'Web geliştirme hizmeti',
-    customerName: 'Ahmet Yılmaz',
+    assetIssuer: undefined,
+    description: 'Web development service',
+    customerName: 'John Doe',
     customerEmail: 'ahmet@example.com',
     status: 'PAID',
     memo: 'INV-DEMO-001',
@@ -26,8 +45,9 @@ const mockInvoices = [
     id: '2',
     amount: 250.00,
     assetCode: 'XLM',
-    description: 'Logo tasarımı',
-    customerName: 'Ayşe Kaya',
+    assetIssuer: undefined,
+    description: 'Logo design',
+    customerName: 'Jane Smith',
     status: 'PENDING',
     memo: 'INV-DEMO-002',
     sellerPublicKey: 'GABC123EXAMPLE456',
@@ -38,8 +58,9 @@ const mockInvoices = [
     id: '3',
     amount: 75.25,
     assetCode: 'XLM',
-    description: 'Danışmanlık ücreti',
-    customerName: 'Mehmet Demir',
+    assetIssuer: undefined,
+    description: 'Consulting fee',
+    customerName: 'David Miller',
     status: 'PENDING',
     memo: 'INV-DEMO-003',
     sellerPublicKey: 'GABC123EXAMPLE456',
@@ -50,8 +71,9 @@ const mockInvoices = [
     id: '4',
     amount: 500.00,
     assetCode: 'USDC',
-    description: 'Mobil uygulama geliştirme',
-    customerName: 'Fatma Şahin',
+    assetIssuer: 'GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5',
+    description: 'Mobile app development',
+    customerName: 'Sarah Johnson',
     status: 'EXPIRED',
     memo: 'INV-DEMO-004',
     sellerPublicKey: 'GABC123EXAMPLE456',
@@ -70,6 +92,7 @@ export const mockInvoiceApi = {
       status: 'PENDING',
       memo: `INV-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).substr(2, 4).toUpperCase()}`,
       sellerPublicKey: 'GABC123EXAMPLE456789',
+      assetIssuer: data.assetIssuer,
       createdAt: new Date().toISOString(),
       expiresAt: new Date(Date.now() + (data.expiresInDays || 7) * 24 * 60 * 60 * 1000).toISOString(),
     };
@@ -146,7 +169,7 @@ export const mockInvoiceApi = {
       invoice.amount.toString(),
       invoice.assetCode,
       invoice.memo,
-      invoice.assetIssuer
+      (invoice as any).assetIssuer
     );
 
     return {
@@ -274,4 +297,3 @@ export const mockHealthCheck = async () => {
     service: 'Quittance API (Mock)',
   };
 };
-

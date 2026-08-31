@@ -214,4 +214,10 @@ describe('assertValidPublicKey', () => {
       'payerPublicKey must start with',
     );
   });
+
+  it('includes the custom "Seller key" label in the thrown error', () => {
+    expect(() => assertValidPublicKey('', 'Seller key')).toThrow(
+      'Seller key must not be empty',
+    );
+  });
 });

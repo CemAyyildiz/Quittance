@@ -14,6 +14,7 @@ import {
   Inbox,
 } from 'lucide-react';
 import { format } from 'date-fns';
+import { relativeTime } from '@/lib/relativeTime';
 import { formatAddress } from '@/lib/utils';
 import { downloadCSV, downloadPDF, downloadJSON } from '@/lib/export';
 import { toast } from 'sonner';
@@ -362,8 +363,12 @@ export default function TransactionHistory({
                     </span>
                   </div>
                   <div className="flex items-center gap-3 text-sm text-gray-500">
-                    <span>
-                      {format(new Date(tx.createdAt), 'MMM dd, yyyy HH:mm')}
+                    {/* Relative time is primary; the absolute date is
+                        available on hover via the title tooltip. */}
+                    <span
+                      title={format(new Date(tx.createdAt), 'MMM dd, yyyy HH:mm')}
+                    >
+                      {relativeTime(tx.createdAt)}
                     </span>
                     {tx.memo && (
                       <>

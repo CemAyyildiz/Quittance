@@ -1,3 +1,12 @@
+/**
+ * Redis client configuration.
+ *
+ * IMPORTANT: Redis is reserved for post-MVP work (e.g. Bull queues / job
+ * persistence on the full Postgres server) and is NOT wired into
+ * `server-mvp.ts`. The MVP backend runs fully in memory and never creates a
+ * real Redis connection, so this module is currently an unused stub that
+ * only fires if something imports it directly.
+ */
 import Redis from 'ioredis';
 import dotenv from 'dotenv';
 
