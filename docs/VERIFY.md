@@ -37,6 +37,15 @@ The payment operation's asset (native XLM or a issued asset with code and issuer
 5. If all fields match, the invoice is marked as paid and a proof record is generated.
 6. If any field does not match, verification fails and an error is returned.
 
+## Invoice expiry
+
+Every invoice carries an `expiresAt`. On the MVP path (`server-mvp.ts`) expiry is enforced in two places:
+
+- **A periodic sweep.** `markExpiredInvoices()` runs every 60 seconds — the same cadence the Postgres path uses in `payment-monitor.service.ts` — transitioning past-due `PENDING` invoices to `EXPIRED`. Reads (`GET /api/invoices/:id`, the list, and stats) sweep as well, so a lookup made a second after expiry cannot report a stale `PENDING` while waiting for the next tick.
+- **A settlement guard.** `POST /api/invoices/:id/verify` decides expiry *before* contacting Horizon: a stale invoice is not settleable whatever the chain says, so there is no reason to spend the round trip.
+
+An invoice is expired once `expiresAt` is strictly in the past, matching the storage sweep; an invoice verified at exactly `expiresAt` is still settleable. A past-due invoice returns `INVOICE_EXPIRED` whether or not the sweep has reached it yet, so the answer does not depend on sweep timing.
+
 ## Error cases
 
 | Condition | Result |
@@ -46,6 +55,8 @@ The payment operation's asset (native XLM or a issued asset with code and issuer
 | Memo does not match invoice memo | Verification fails — mismatch |
 | Amount does not match invoice amount | Verification fails — mismatch (or partial payment) |
 | Destination does not match invoice creator | Verification fails — wrong recipient |
+| Invoice is past its `expiresAt` | Verification fails — `INVOICE_EXPIRED` (checked before Horizon) |
+| Invoice already swept to `EXPIRED` | Verification fails — `INVOICE_EXPIRED` |
 | Asset does not match invoice asset | Verification fails — wrong asset |
 
 ## Horizon reference
