@@ -33,6 +33,21 @@ describe('createInvoiceSchema', () => {
     expect(result.success).toBe(true);
   });
 
+  it('rejects a USDC invoice with a malformed issuer', () => {
+    const result = createInvoiceSchema.safeParse({
+      amount: 25.5,
+      assetCode: 'USDC',
+      assetIssuer: 'not-a-stellar-issuer',
+      sellerPublicKey: validSellerPublicKey,
+    });
+
+    expect(result.success).toBe(false);
+    if (result.success) {
+      throw new Error('Expected malformed USDC issuer to fail validation');
+    }
+    expect(result.error.issues.some((issue) => issue.path.includes('assetIssuer'))).toBe(true);
+  });
+
   it('rejects an invalid (zero) amount', () => {
     const result = createInvoiceSchema.safeParse({
       amount: 0,

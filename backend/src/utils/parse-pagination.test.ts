@@ -35,4 +35,11 @@ describe('parsePaginationQuery', () => {
       offset: 0,
     });
   });
+
+  it('accepts surrounding whitespace and preserves a non-negative offset', () => {
+    expect(parsePaginationQuery({ limit: ' 7 ', offset: ' +12 ' })).toEqual({
+      limit: 7,
+      offset: 12,
+    });
+  });
 });
