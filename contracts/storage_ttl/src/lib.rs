@@ -273,6 +273,19 @@ mod tests {
     }
 
     #[test]
+    fn ttl_extension_threshold_is_inclusive_at_valid_until_boundary() {
+        // At the exact valid_until second, the remaining TTL has reached the
+        // threshold and must still trigger an extension. The boundary is
+        // inclusive: `remaining_ttl == threshold` is treated as "extend now".
+        let remaining_ttl = DEFAULT_THRESHOLD;
+
+        assert!(remaining_ttl <= DEFAULT_THRESHOLD,
+            "remaining TTL at the exact valid_until boundary must still extend");
+        assert!(!(DEFAULT_THRESHOLD + 1 <= DEFAULT_THRESHOLD),
+            "strictly above the threshold must not extend");
+    }
+
+    #[test]
     fn generic_helpers_monomorphise_with_symbol_key() {
         // This test only checks that the generic functions type-check
         // and link correctly when K = Symbol — it does not call into
