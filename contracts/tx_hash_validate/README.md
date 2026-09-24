@@ -6,11 +6,13 @@ transaction hashes.
 ## Purpose
 
 Soroban (and Stellar) transaction hashes are SHA-256 digests (32 bytes)
-conventionally rendered as 64 lowercase hex characters. This crate
-provides a simple, dependency-light validator that checks:
+conventionally rendered as 64 hex characters. This crate provides a
+simple, dependency-light validator that checks:
 
 - **Length**: exactly 64 characters.
-- **Character set**: every character is a valid hex digit (`0-9`, `a-f`, `A-F`).
+- **Character set**: every character is a valid hex digit (`0-9`, `a-f`,
+  `A-F`). Uppercase hex is valid: a hash may be spelled in any mixture of
+  upper- and lowercase letters, and validation is case-insensitive.
 
 ## API
 
@@ -24,9 +26,13 @@ provides a simple, dependency-light validator that checks:
 ```rust
 use tx_hash_validate::{is_valid_tx_hash, validate_tx_hash, TxHashError};
 
-// Valid 64-char hex hash
+// Valid 64-char lowercase hex hash
 let hash = "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789";
 assert!(is_valid_tx_hash(hash));
+
+// Valid: uppercase / mixed-case hex is accepted too
+let mixed = "aAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaA";
+assert!(is_valid_tx_hash(mixed));
 
 // Rejected: too short
 assert_eq!(validate_tx_hash("abc"), Err(TxHashError::InvalidLength));
