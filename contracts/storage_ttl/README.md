@@ -42,6 +42,14 @@ quittance_storage_ttl::bump_temporary(&env, &key, 100, 500);
 - **ledgers_to_add**: number of additional ledgers to append to the
   current TTL.
 
+## Test
+
+```sh
+cargo test -p quittance-storage-ttl
+```
+
+The tests cover the default threshold/ledger constants, compile-time wiring of the default and generic bump helpers, and the TTL extension boundary at `valid_until` (inclusive threshold, with `ledgers_to_add` exceeding the threshold).
+
 ## License
 
 MIT
