@@ -12,13 +12,13 @@ export default function PaymentStatus({ status, txHash }: PaymentStatusProps) {
   const getStatusIcon = () => {
     switch (status) {
       case 'PAID':
-        return <CheckCircle className="w-16 h-16 text-green-500" />;
+        return <CheckCircle aria-hidden="true" className="w-16 h-16 text-green-500" />;
       case 'EXPIRED':
-        return <XCircle className="w-16 h-16 text-red-500" />;
+        return <XCircle aria-hidden="true" className="w-16 h-16 text-red-500" />;
       case 'CANCELLED':
-        return <XCircle className="w-16 h-16 text-gray-500" />;
+        return <XCircle aria-hidden="true" className="w-16 h-16 text-gray-500" />;
       default:
-        return <Clock className="w-16 h-16 text-yellow-500" />;
+        return <Clock aria-hidden="true" className="w-16 h-16 text-yellow-500" />;
     }
   };
 
@@ -66,6 +66,7 @@ export default function PaymentStatus({ status, txHash }: PaymentStatusProps) {
         {txHash && (
           <a
             href={explorerTxUrl(txHash)}
+            aria-label={`View transaction ${txHash} on Stellar Explorer`}
             target="_blank"
             rel="noopener noreferrer"
             className="btn btn-outline mt-4"
