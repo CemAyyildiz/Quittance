@@ -64,11 +64,9 @@ export default function PaymentStatus({ status, txHash }: PaymentStatusProps) {
         </div>
 
         {txHash && (
-          <a href={`${horizonUrl}/tx/${txHash}`}
-            aria-label={`View transaction ${txHash} on Stellar Explorer`}
-
+          <a
             href={explorerTxUrl(txHash)}
-
+            aria-label={`View transaction ${txHash} on Stellar Explorer`}
             target="_blank"
             rel="noopener noreferrer"
             className="btn btn-outline mt-4"
