@@ -49,12 +49,12 @@ export default function InvoiceCard({ invoice }: InvoiceCardProps) {
   };
 
   const handleDownloadPDF = () => {
-    openInvoicePDF(invoice as any);
+    openInvoicePDF({ ...invoice, sellerPublicKey: invoice.sellerPublicKey ?? '' });
     toast.success('Opening payment proof');
   };
 
   const handleEmailShare = () => {
-    shareInvoiceByEmail(invoice as any);
+    shareInvoiceByEmail({ ...invoice, sellerPublicKey: invoice.sellerPublicKey ?? '' });
   };
 
   return (
@@ -88,12 +88,12 @@ export default function InvoiceCard({ invoice }: InvoiceCardProps) {
 
       <div className="space-y-2 mb-4">
         <div className="flex items-center gap-2 text-xs text-gray-500">
-          <Clock className="w-4 h-4" />
+          <Clock className="w-4 h-4" aria-hidden="true" />
           <span>Created: {formatDate(invoice.createdAt)}</span>
         </div>
         {invoice.status === 'PENDING' && (
           <div className="flex items-center gap-2 text-xs text-gray-500">
-            <Clock className="w-4 h-4" />
+            <Clock className="w-4 h-4" aria-hidden="true" />
             <span>Expires: {timeRemaining}</span>
           </div>
         )}
@@ -111,8 +111,9 @@ export default function InvoiceCard({ invoice }: InvoiceCardProps) {
           <button
             onClick={handleCopyLink}
             className="btn btn-secondary flex items-center justify-center gap-2 px-3"
+            aria-label="Copy invoice link"
           >
-            <Copy className="w-4 h-4" />
+            <Copy className="w-4 h-4" aria-hidden="true" />
           </button>
         )}
         {invoice.status === 'PAID' && (
@@ -129,8 +130,9 @@ export default function InvoiceCard({ invoice }: InvoiceCardProps) {
             onClick={handleEmailShare}
             className="btn btn-outline flex items-center justify-center gap-2 px-3"
             title="Email Proof"
+            aria-label="Email payment proof"
           >
-            <Mail className="w-4 h-4" />
+            <Mail className="w-4 h-4" aria-hidden="true" />
           </button>
         )}
       </div>
