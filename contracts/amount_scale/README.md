@@ -52,7 +52,9 @@ In scope:
 - The pure math: `display * 10^7` and `stroops / 10^7`.
 - Constant exposure of `DECIMALS` and `STROOPS_PER_UNIT`.
 - Strong unit-test coverage of edge cases (zero, `i128::MAX`, sub-unit
-  inputs, negative-input rejection, overflow rejection, round-trip identity).
+  inputs, negative-input rejection, overflow rejection, round-trip identity),
+  plus a deterministic 10,000-sample property-style sweep proving
+  `from_stroops(to_stroops(display)) == display` across the full safe range.
 
 Out of scope (matches `contracts/amount_scale/` task spec):
 

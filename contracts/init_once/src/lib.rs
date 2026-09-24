@@ -1,3 +1,12 @@
+//! `init_once` is a minimal Soroban contract that records an administrator
+//! during deployment and prevents the initializer from being called again.
+//!
+//! The `__constructor(admin)` function stores the supplied admin address and
+//! an initialization marker in instance storage. The read-only `admin()` and
+//! `is_initialized()` functions expose those values. A second constructor
+//! call panics with `already initialized`; there is no public method to change
+//! the administrator after deployment.
+
 #![no_std]
 use soroban_sdk::{contract, contractimpl, symbol_short, Address, Env, Symbol};
 

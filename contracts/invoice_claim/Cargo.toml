@@ -1,0 +1,19 @@
+[workspace]
+
+[package]
+name        = "invoice-claim"
+version     = "0.1.0"
+edition     = "2021"
+description = "Domain-separated SHA-256 invoice claim hash helper for Quittance (seller + amount + memo + expiry)."
+license     = "MIT"
+publish     = false
+keywords    = ["stellar", "soroban", "sha256", "claim", "quittance"]
+categories  = ["cryptography"]
+
+[lib]
+name = "invoice_claim"
+path = "src/lib.rs"
+
+[dependencies]
+sha2 = "0.10"
+hex = "0.4"

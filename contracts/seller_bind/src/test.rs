@@ -5,7 +5,8 @@
 //! Covers the acceptance criteria:
 //! - match returns `Ok(())`
 //! - mismatch returns a clear `Error::SellerMismatch`
-//! - calling before initialization returns `Error::NotInitialized`
+//! - calling `check_seller`, `set_seller`, or `get_seller` before
+//!   initialization returns `Error::NotInitialized`
 //! - `get_seller` / `set_seller` roundtrip the binding correctly.
 //!
 //! All fallible calls go through the generated `try_*` client methods
@@ -63,6 +64,35 @@ fn check_seller_returns_not_initialized_before_init() {
     // intentionally do not call `init` here.
     let outer = client
         .try_check_seller(&other)
+        .expect_err("pre-init call should surface as an invocation-level error");
+    let inner = outer.expect("expected our custom error variant, not a VM error");
+    assert_eq!(inner, Error::NotInitialized);
+}
+
+#[test]
+fn set_seller_returns_not_initialized_before_init() {
+    let env = Env::default();
+    let seller = Address::generate(&env);
+    let contract_id = env.register(SellerBind, ());
+    let client = SellerBindClient::new(&env, &contract_id);
+
+    // intentionally do not call `init` here.
+    let outer = client
+        .try_set_seller(&seller)
+        .expect_err("pre-init call should surface as an invocation-level error");
+    let inner = outer.expect("expected our custom error variant, not a VM error");
+    assert_eq!(inner, Error::NotInitialized);
+}
+
+#[test]
+fn get_seller_returns_not_initialized_before_init() {
+    let env = Env::default();
+    let contract_id = env.register(SellerBind, ());
+    let client = SellerBindClient::new(&env, &contract_id);
+
+    // intentionally do not call `init` here.
+    let outer = client
+        .try_get_seller()
         .expect_err("pre-init call should surface as an invocation-level error");
     let inner = outer.expect("expected our custom error variant, not a VM error");
     assert_eq!(inner, Error::NotInitialized);

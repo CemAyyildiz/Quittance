@@ -1,0 +1,41 @@
+# Dependencies
+node_modules/
+frontend/node_modules/
+backend/node_modules/
+
+# Env / secrets
+.env
+.env.*
+!.env.example
+!.env.production
+!env.mvp.example
+!frontend/env.mvp.local
+!frontend/env.example.txt
+!frontend/.env.production
+backend/.env
+frontend/.env.local
+
+# Build / cache
+.next/
+frontend/.next/
+dist/
+build/
+coverage/
+*.tsbuildinfo
+.turbo/
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Logs / local
+*.log
+npm-debug.log*
+.vercel
+
+# Local Wave / GrantFox tooling (do not commit)
+scripts/wave-*
+scripts/wave-*/

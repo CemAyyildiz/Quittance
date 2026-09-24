@@ -1,0 +1,15 @@
+[workspace]
+
+[package]
+name        = "paid-status"
+version     = "0.1.0"
+edition     = "2021"
+description = "Compact encode/decode enum for Quittance invoice paid status (Pending, Paid, Expired, Cancelled)."
+license     = "MIT"
+publish     = false
+
+[lib]
+crate-type = ["rlib"]
+path = "src/lib.rs"
+
+[dependencies]

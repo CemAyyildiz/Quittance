@@ -1,6 +1,7 @@
 'use client';
 
 import { CheckCircle, XCircle, Clock, Loader2 } from 'lucide-react';
+import { explorerTxUrl } from '@/lib/explorerUrl';
 
 interface PaymentStatusProps {
   status: 'PENDING' | 'PAID' | 'EXPIRED' | 'CANCELLED';
@@ -51,10 +52,6 @@ export default function PaymentStatus({ status, txHash }: PaymentStatusProps) {
   };
 
   const statusInfo = getStatusMessage();
-  const horizonUrl =
-    process.env.NEXT_PUBLIC_STELLAR_NETWORK === 'TESTNET'
-      ? 'https://stellar.expert/explorer/testnet'
-      : 'https://stellar.expert/explorer/public';
 
   return (
     <div className="card text-center">
@@ -67,9 +64,11 @@ export default function PaymentStatus({ status, txHash }: PaymentStatusProps) {
         </div>
 
         {txHash && (
-          <a
-            href={`${horizonUrl}/tx/${txHash}`}
+          <a href={`${horizonUrl}/tx/${txHash}`}
             aria-label={`View transaction ${txHash} on Stellar Explorer`}
+
+            href={explorerTxUrl(txHash)}
+
             target="_blank"
             rel="noopener noreferrer"
             className="btn btn-outline mt-4"

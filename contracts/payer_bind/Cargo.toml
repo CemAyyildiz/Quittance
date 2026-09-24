@@ -1,0 +1,19 @@
+[workspace]
+
+[package]
+name        = "payer-bind"
+version     = "0.1.0"
+edition     = "2021"
+description = "Optional payer binding helper: validate an Option<Address> against a bound payer address."
+license     = "MIT"
+publish     = false
+
+[lib]
+crate-type = ["rlib"]
+path = "src/lib.rs"
+
+[dependencies]
+soroban-sdk = "25.0.0"
+
+[dev-dependencies]
+soroban-sdk = { version = "25.0.0", features = ["testutils"] }

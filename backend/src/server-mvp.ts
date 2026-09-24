@@ -1,10 +1,22 @@
 import express, { Application, Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import { requestId } from './middleware/request-id';
 import { createInvoiceSchema } from './utils/validation';
 import invoiceService from './services/invoice-memory.service';
-import { generatePaymentQR, generateStellarPaymentQR } from './utils/qrcode';
+import { generatePaymentQR, generateStellarPaymentQR, buildStellarPaymentUri } from './utils/qrcode';
 import stellarService from './services/stellar.service';
+import { rateLimitIfEnabled } from './middleware/rate-limit-stub';
+import healthDetailRouter from './routes/health-detail';
+import { toInvoiceDTO } from './utils/invoice-dto';
+import { isDecimalEqual } from './utils/amount-compare';
+import { VerifyErrorCode, VerifyErrorMessages } from './utils/verify-errors';
+import {
+  assertInvoiceSettleable,
+  runExpirySweep,
+  startExpirySweep,
+} from './utils/invoice-expiry';
+import { paymentAssetMatchesInvoice } from './utils/verify-invoice-payment';
 
 // Load environment variables
 dotenv.config();
@@ -23,6 +35,10 @@ app.use(cors({
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// Rate limiting (opt-in — enabled only when RATE_LIMIT_ENABLED=true)
+app.use(rateLimitIfEnabled());
+app.use(requestId);
+
 // Request logging
 app.use((req: Request, res: Response, next: NextFunction) => {
   console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
@@ -39,6 +55,9 @@ app.get('/', (req: Request, res: Response) => {
     documentation: '/api/health',
   });
 });
+
+// Health detail router (mounted before the simple health check)
+app.use('/api', healthDetailRouter);
 
 // Health check
 app.get('/api/health', (req: Request, res: Response) => {
@@ -63,16 +82,25 @@ app.post('/api/invoices', async (req: Request, res: Response) => {
       invoice.sellerPublicKey,
       invoice.amount.toString(),
       invoice.assetCode,
-      invoice.memo
+      invoice.memo,
+      invoice.assetIssuer
+    );
+    const stellarPaymentUri = buildStellarPaymentUri(
+      invoice.sellerPublicKey,
+      invoice.amount.toString(),
+      invoice.assetCode,
+      invoice.memo,
+      invoice.assetIssuer
     );
 
     res.status(201).json({
       success: true,
       data: {
-        invoice,
+        invoice: toInvoiceDTO(invoice),
         paymentUrl,
         qrCode: qrCodeDataUrl,
         stellarQrCode,
+        stellarPaymentUri,
       },
     });
   } catch (error: any) {
@@ -84,9 +112,45 @@ app.post('/api/invoices', async (req: Request, res: Response) => {
   }
 });
 
+// Registered before `/api/invoices/:id`: Express matches in registration
+// order, so with `:id` first this route was shadowed and every request for
+// it returned "Invoice not found".
+// Get stats (scoped to seller)
+app.get('/api/invoices/stats', async (req: Request, res: Response) => {
+  try {
+    await runExpirySweep(invoiceService);
+
+    const { sellerPublicKey } = req.query;
+
+    if (!sellerPublicKey) {
+      return res.status(400).json({
+        success: false,
+        error: 'sellerPublicKey query parameter is required',
+      });
+    }
+
+    const stats = await invoiceService.getInvoiceStats(sellerPublicKey as string);
+
+    res.json({
+      success: true,
+      data: stats,
+    });
+  } catch (error: any) {
+    console.error('Get stats error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to get statistics',
+    });
+  }
+});
+
 // Get invoice by ID
 app.get('/api/invoices/:id', async (req: Request, res: Response) => {
   try {
+    // Swept on read as well as on the timer, so a lookup one second after
+    // expiry cannot report a stale PENDING while waiting for the next sweep.
+    await runExpirySweep(invoiceService);
+
     const { id } = req.params;
     const invoice = await invoiceService.getInvoiceById(id);
 
@@ -99,7 +163,7 @@ app.get('/api/invoices/:id', async (req: Request, res: Response) => {
 
     res.json({
       success: true,
-      data: invoice,
+      data: toInvoiceDTO(invoice),
     });
   } catch (error: any) {
     console.error('Get invoice error:', error);
@@ -113,6 +177,8 @@ app.get('/api/invoices/:id', async (req: Request, res: Response) => {
 // Get all invoices (scoped by sellerPublicKey when provided)
 app.get('/api/invoices', async (req: Request, res: Response) => {
   try {
+    await runExpirySweep(invoiceService);
+
     const { status, limit = 50, offset = 0, sellerPublicKey } = req.query;
 
     if (!sellerPublicKey) {
@@ -131,7 +197,7 @@ app.get('/api/invoices', async (req: Request, res: Response) => {
 
     res.json({
       success: true,
-      data: invoices,
+      data: invoices.map(toInvoiceDTO),
       pagination: {
         limit: parseInt(limit as string),
         offset: parseInt(offset as string),
@@ -169,6 +235,13 @@ app.get('/api/invoices/:id/payment-info', async (req: Request, res: Response) =>
       invoice.memo,
       invoice.assetIssuer
     );
+    const stellarPaymentUri = buildStellarPaymentUri(
+      invoice.sellerPublicKey,
+      invoice.amount.toString(),
+      invoice.assetCode,
+      invoice.memo,
+      invoice.assetIssuer
+    );
 
     res.json({
       success: true,
@@ -176,7 +249,8 @@ app.get('/api/invoices/:id/payment-info', async (req: Request, res: Response) =>
         paymentUrl,
         qrCode: qrCodeDataUrl,
         stellarQrCode,
-        invoice,
+        stellarPaymentUri,
+        invoice: toInvoiceDTO(invoice),
       },
     });
   } catch (error: any) {
@@ -196,7 +270,7 @@ app.post('/api/invoices/:id/cancel', async (req: Request, res: Response) => {
 
     res.json({
       success: true,
-      data: invoice,
+      data: toInvoiceDTO(invoice),
     });
   } catch (error: any) {
     console.error('Cancel invoice error:', error);
@@ -210,13 +284,16 @@ app.post('/api/invoices/:id/cancel', async (req: Request, res: Response) => {
 // Verify payment against Horizon (memo + amount + destination)
 app.post('/api/invoices/:id/verify', async (req: Request, res: Response) => {
   try {
+    await runExpirySweep(invoiceService);
+
     const { id } = req.params;
     const { txHash } = req.body;
 
     if (!txHash) {
       return res.status(400).json({
         success: false,
-        error: 'Transaction hash is required',
+        code: VerifyErrorCode.TX_HASH_REQUIRED,
+        error: VerifyErrorMessages[VerifyErrorCode.TX_HASH_REQUIRED],
       });
     }
 
@@ -225,21 +302,28 @@ app.post('/api/invoices/:id/verify', async (req: Request, res: Response) => {
     if (!invoice) {
       return res.status(404).json({
         success: false,
-        error: 'Invoice not found',
+        code: VerifyErrorCode.INVOICE_NOT_FOUND,
+        error: VerifyErrorMessages[VerifyErrorCode.INVOICE_NOT_FOUND],
       });
     }
 
     if (invoice.status === 'PAID') {
       return res.status(400).json({
         success: false,
-        error: 'Invoice has already been paid',
+        code: VerifyErrorCode.INVOICE_ALREADY_PAID,
+        error: VerifyErrorMessages[VerifyErrorCode.INVOICE_ALREADY_PAID],
       });
     }
 
-    if (invoice.status !== 'PENDING') {
+    // Expiry is decided before Horizon is contacted: a stale invoice is not
+    // settleable no matter what the chain says, and there is no reason to
+    // spend a Horizon round trip finding that out.
+    const settleable = assertInvoiceSettleable(invoice);
+    if (!settleable.ok) {
       return res.status(400).json({
         success: false,
-        error: 'Invoice is not pending',
+        code: settleable.code,
+        error: VerifyErrorMessages[settleable.code],
       });
     }
 
@@ -250,37 +334,55 @@ app.post('/api/invoices/:id/verify', async (req: Request, res: Response) => {
     if (!paymentOp) {
       return res.status(400).json({
         success: false,
-        error: 'No payment operation found in transaction',
+        code: VerifyErrorCode.NO_PAYMENT_OPERATION,
+        error: VerifyErrorMessages[VerifyErrorCode.NO_PAYMENT_OPERATION],
       });
     }
 
     if (transaction.memo !== invoice.memo) {
       return res.status(400).json({
         success: false,
-        error: 'Memo mismatch',
+        code: VerifyErrorCode.MEMO_MISMATCH,
+        error: VerifyErrorMessages[VerifyErrorCode.MEMO_MISMATCH],
       });
     }
 
     if (paymentOp.to !== invoice.sellerPublicKey) {
       return res.status(400).json({
         success: false,
-        error: 'Payment destination mismatch',
+        code: VerifyErrorCode.DESTINATION_MISMATCH,
+        error: VerifyErrorMessages[VerifyErrorCode.DESTINATION_MISMATCH],
       });
     }
 
-    if (parseFloat(paymentOp.amount).toFixed(7) !== Number(invoice.amount).toFixed(7)) {
+    if (!isDecimalEqual(paymentOp.amount, String(invoice.amount))) {
       return res.status(400).json({
         success: false,
-        error: 'Amount mismatch',
+        code: VerifyErrorCode.AMOUNT_MISMATCH,
+        error: VerifyErrorMessages[VerifyErrorCode.AMOUNT_MISMATCH],
       });
     }
 
-    const opAsset =
-      paymentOp.asset_type === 'native' ? 'XLM' : paymentOp.asset_code;
-    if (opAsset !== invoice.assetCode) {
+    // A Stellar asset is the pair (code, issuer). Comparing codes alone would
+    // let any testnet token called USDC settle a USDC invoice, so the issuer is
+    // compared too; the rules live in `paymentAssetMatchesInvoice` so this
+    // handler and the pure matcher cannot drift apart.
+    const opIsNative = paymentOp.asset_type === 'native';
+    const opAsset = opIsNative ? 'XLM' : paymentOp.asset_code;
+
+    if (
+      !paymentAssetMatchesInvoice({
+        paymentAsset: opAsset,
+        invoiceAssetCode: invoice.assetCode,
+        paymentAssetIssuer: paymentOp.asset_issuer,
+        invoiceAssetIssuer: invoice.assetIssuer,
+        paymentIsNative: opIsNative,
+      })
+    ) {
       return res.status(400).json({
         success: false,
-        error: 'Asset mismatch',
+        code: VerifyErrorCode.ASSET_MISMATCH,
+        error: VerifyErrorMessages[VerifyErrorCode.ASSET_MISMATCH],
       });
     }
 
@@ -292,14 +394,15 @@ app.post('/api/invoices/:id/verify', async (req: Request, res: Response) => {
 
     res.json({
       success: true,
-      data: updatedInvoice,
+      data: toInvoiceDTO(updatedInvoice),
       message: 'Payment verified on Stellar',
     });
   } catch (error: any) {
     console.error('Verify payment error:', error);
     res.status(500).json({
       success: false,
-      error: error.message || 'Failed to verify payment',
+      code: VerifyErrorCode.VERIFY_FAILED,
+      error: VerifyErrorMessages[VerifyErrorCode.VERIFY_FAILED],
     });
   }
 });
@@ -345,7 +448,7 @@ app.post('/api/invoices/:id/simulate-payment', async (req: Request, res: Respons
 
     res.json({
       success: true,
-      data: updatedInvoice,
+      data: toInvoiceDTO(updatedInvoice),
       message: 'Payment simulated successfully',
     });
   } catch (error: any) {
@@ -357,32 +460,6 @@ app.post('/api/invoices/:id/simulate-payment', async (req: Request, res: Respons
   }
 });
 
-// Get stats (scoped to seller)
-app.get('/api/invoices/stats', async (req: Request, res: Response) => {
-  try {
-    const { sellerPublicKey } = req.query;
-
-    if (!sellerPublicKey) {
-      return res.status(400).json({
-        success: false,
-        error: 'sellerPublicKey query parameter is required',
-      });
-    }
-
-    const stats = await invoiceService.getInvoiceStats(sellerPublicKey as string);
-
-    res.json({
-      success: true,
-      data: stats,
-    });
-  } catch (error: any) {
-    console.error('Get stats error:', error);
-    res.status(500).json({
-      success: false,
-      error: error.message || 'Failed to get statistics',
-    });
-  }
-});
 
 // Mock Stellar endpoints (MVP için)
 app.get('/api/stellar/account', (req: Request, res: Response) => {
@@ -418,9 +495,15 @@ app.use((req: Request, res: Response) => {
 });
 
 // Start server
-app.listen(PORT, () => {
-  console.log('\n🚀 Quittance Backend (MVP Mode)');
-  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+//
+// Listening (and the sweep timer) are skipped under test so the module can be
+// imported by supertest without binding a port or leaving a timer running.
+if (process.env.NODE_ENV !== 'test') {
+  startExpirySweep(invoiceService);
+
+  app.listen(PORT, () => {
+    console.log('\n🚀 Quittance Backend (MVP Mode)');
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     console.log(`✅ Server running on port ${PORT}`);
     console.log(`📍 API: http://localhost:${PORT}/api`);
     console.log(`🏥 Health: http://localhost:${PORT}/api/health`);
@@ -428,7 +511,8 @@ app.listen(PORT, () => {
     console.log(`💰 Dynamic Seller: Each user uses their own wallet!`);
     console.log(`🌐 Frontend: ${FRONTEND_URL}`);
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
-});
+  });
+}
 
 export default app;
 

@@ -2,8 +2,9 @@ import { Request, Response } from 'express';
 import invoiceService from '../services/invoice.service';
 import stellarService from '../services/stellar.service';
 import { createInvoiceSchema } from '../utils/validation';
-import { generatePaymentQR, generateStellarPaymentQR } from '../utils/qrcode';
+import { generatePaymentQR, generateStellarPaymentQR, buildStellarPaymentUri } from '../utils/qrcode';
 import { SELLER_PUBLIC_KEY } from '../config/stellar';
+import { toInvoiceDTO } from '../utils/invoice-dto';
 
 class InvoiceController {
   async createInvoice(req: Request, res: Response) {
@@ -17,16 +18,25 @@ class InvoiceController {
         invoice.sellerPublicKey,
         invoice.amount.toString(),
         invoice.assetCode,
-        invoice.memo
+        invoice.memo,
+        invoice.assetIssuer
+      );
+      const stellarPaymentUri = buildStellarPaymentUri(
+        invoice.sellerPublicKey,
+        invoice.amount.toString(),
+        invoice.assetCode,
+        invoice.memo,
+        invoice.assetIssuer
       );
 
       res.status(201).json({
         success: true,
         data: {
-          invoice,
+          invoice: toInvoiceDTO(invoice),
           paymentUrl,
           qrCode: qrCodeDataUrl,
           stellarQrCode,
+          stellarPaymentUri,
         },
       });
     } catch (error: any) {
@@ -51,7 +61,7 @@ class InvoiceController {
 
       res.json({
         success: true,
-        data: invoice,
+        data: toInvoiceDTO(invoice),
       });
     } catch (error: any) {
       res.status(500).json({
@@ -74,7 +84,7 @@ class InvoiceController {
 
       res.json({
         success: true,
-        data: invoices,
+        data: invoices.map(toInvoiceDTO),
         pagination: {
           limit: parseInt(limit as string),
           offset: parseInt(offset as string),
@@ -96,7 +106,7 @@ class InvoiceController {
 
       res.json({
         success: true,
-        data: invoice,
+        data: toInvoiceDTO(invoice),
       });
     } catch (error: any) {
       res.status(400).json({
@@ -161,7 +171,7 @@ class InvoiceController {
 
       res.json({
         success: true,
-        data: updatedInvoice,
+        data: toInvoiceDTO(updatedInvoice),
       });
     } catch (error: any) {
       res.status(500).json({
@@ -207,7 +217,15 @@ class InvoiceController {
         invoice.sellerPublicKey,
         invoice.amount.toString(),
         invoice.assetCode,
-        invoice.memo
+        invoice.memo,
+        invoice.assetIssuer
+      );
+      const stellarPaymentUri = buildStellarPaymentUri(
+        invoice.sellerPublicKey,
+        invoice.amount.toString(),
+        invoice.assetCode,
+        invoice.memo,
+        invoice.assetIssuer
       );
 
       res.json({
@@ -216,7 +234,8 @@ class InvoiceController {
           paymentUrl,
           qrCode: qrCodeDataUrl,
           stellarQrCode,
-          invoice,
+          stellarPaymentUri,
+          invoice: toInvoiceDTO(invoice),
         },
       });
     } catch (error: any) {

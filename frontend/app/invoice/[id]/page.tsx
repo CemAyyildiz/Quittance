@@ -4,7 +4,8 @@ import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { invoiceApi } from '@/lib/api';
-import QRCodeDisplay from '@/components/QRCodeDisplay';
+import PaymentQrCodes from '@/components/PaymentQrCodes';
+import { buildStellarPaymentUri } from '@/lib/stellar-payment-uri';
 import PaymentStatus from '@/components/PaymentStatus';
 import WalletConnect from '@/components/WalletConnect';
 import UserProfile from '@/components/UserProfile';
@@ -249,10 +250,19 @@ export default function InvoiceDetailPage() {
                   <h3 className="text-lg font-semibold mb-4 text-center">
                     Payment QR Code
                   </h3>
-                  <QRCodeDisplay
-                    value={paymentInfo.paymentUrl}
+                  <PaymentQrCodes
+                    paymentUrl={paymentInfo.paymentUrl}
+                    stellarPaymentUri={
+                      paymentInfo.stellarPaymentUri ??
+                      buildStellarPaymentUri(
+                        invoice.sellerPublicKey,
+                        invoice.amount.toString(),
+                        invoice.assetCode,
+                        invoice.memo,
+                        invoice.assetIssuer
+                      )
+                    }
                     size={200}
-                    showCopy={true}
                   />
                   <Link
                     href={`/pay/${invoice.id}`}

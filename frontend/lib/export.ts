@@ -1,5 +1,7 @@
 import { format } from 'date-fns';
 import type { Transaction } from '@/components/TransactionHistory';
+import { csvRow } from '@/lib/csvEscape';
+import { mailtoProof } from '@/lib/mailtoProof';
 
 interface Invoice {
   id: string;
@@ -328,15 +330,15 @@ export function generatePDFContent(
     <p>This is an automatically generated report. All transactions are recorded on the Stellar blockchain.</p>
   </div>
 
-  <div style="position: fixed; top: 10px; right: 10px; background: #06b6d4; color: white; padding: 15px; border-radius: 8px; z-index: 1000; max-width: 300px; font-family: Arial, sans-serif;">
-    <h3 style="margin: 0 0 10px 0; font-size: 14px;">PDF olarak kaydetmek için:</h3>
+  <div class="no-print" style="position: fixed; top: 10px; right: 10px; background: #06b6d4; color: white; padding: 15px; border-radius: 8px; z-index: 1000; max-width: 300px; font-family: Arial, sans-serif;">
+    <h3 style="margin: 0 0 10px 0; font-size: 14px;">To save as PDF:</h3>
     <ol style="margin: 0; padding-left: 20px; font-size: 12px;">
-      <li>Ctrl+P (Windows) veya Cmd+P (Mac)</li>
-      <li>"Hedef" → "PDF olarak kaydet"</li>
-      <li>"Yazdır" butonuna bas</li>
+      <li>Press Ctrl+P (Windows) or Cmd+P (Mac)</li>
+      <li>Choose “Save as PDF” as the destination</li>
+      <li>Click "Print"</li>
     </ol>
     <button onclick="window.print()" style="background: white; color: #06b6d4; border: none; padding: 8px 16px; border-radius: 4px; margin-top: 10px; cursor: pointer; font-weight: bold; font-size: 12px;">
-      PDF Olarak Kaydet
+      Save as PDF
     </button>
   </div>
 
@@ -408,10 +410,43 @@ interface Invoice {
   paymentTxHash?: string;
 }
 
+
+/** Escape dynamic values before interpolating into print/PDF HTML. */
+export function escapePrintHtml(value: unknown): string {
+  return String(value ?? '').replace(
+    /[&<>"']/g,
+    (character) =>
+      ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#39;',
+      })[character]!,
+  );
+}
+
+/**
+ * Return a Stellar Expert transaction URL only for a canonical 64-char hex hash.
+ * Invalid hashes must never be placed in href.
+ */
+export function getStellarExpertTransactionUrl(
+  paymentTxHash: string | undefined,
+  network: 'Testnet' | 'Mainnet',
+): string | undefined {
+  const hash = paymentTxHash?.trim();
+  if (!hash || !/^[a-fA-F0-9]{64}$/.test(hash)) {
+    return undefined;
+  }
+
+  const explorerNetwork = network === 'Testnet' ? 'testnet' : 'public';
+  return `https://stellar.expert/explorer/${explorerNetwork}/tx/${encodeURIComponent(hash)}`;
+}
+
 export function generateInvoiceCSV(invoices: Invoice[]): string {
   const headers = [
     'Invoice ID',
-    'Date',
+    'Created At',
     'Seller Name',
     'Seller Email',
     'Customer Name',
@@ -420,7 +455,7 @@ export function generateInvoiceCSV(invoices: Invoice[]): string {
     'Amount',
     'Asset',
     'Status',
-    'Payment Date',
+    'Paid At',
     'Payer Name',
     'Payer Email',
     'Expires At',
@@ -444,15 +479,10 @@ export function generateInvoiceCSV(invoices: Invoice[]): string {
     inv.payerEmail || '',
     format(new Date(inv.expiresAt), 'yyyy-MM-dd HH:mm:ss'),
     inv.memo,
-    inv.paymentTxHash || '',
+    inv.status === 'PAID' ? inv.paymentTxHash || '' : '',
   ]);
 
-  const csvContent = [
-    headers.join(','),
-    ...rows.map((row) => row.map((cell) => `"${cell}"`).join(',')),
-  ].join('\n');
-
-  return csvContent;
+  return [csvRow(headers), ...rows.map(csvRow)].join('\n');
 }
 
 export function downloadInvoiceCSV(invoices: Invoice[], filename?: string) {
@@ -461,7 +491,7 @@ export function downloadInvoiceCSV(invoices: Invoice[], filename?: string) {
   const link = document.createElement('a');
   const url = URL.createObjectURL(blob);
 
-  const defaultFilename = `invoices-${format(new Date(), 'yyyy-MM-dd-HHmmss')}.csv`;
+  const defaultFilename = `quittance-invoices-${format(new Date(), 'yyyy-MM-dd-HHmmss')}.csv`;
   link.setAttribute('href', url);
   link.setAttribute('download', filename || defaultFilename);
   link.style.visibility = 'hidden';
@@ -481,7 +511,7 @@ export function generateInvoicePDF(invoice: Invoice): string {
 <html>
 <head>
   <meta charset="UTF-8">
-  <title>Invoice ${invoice.id}</title>
+  <title>Invoice ${escapePrintHtml(invoice.id)}</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body { 
@@ -617,10 +647,13 @@ export function generateInvoicePDF(invoice: Invoice): string {
       margin-bottom: 15px; 
       border-left: 3px solid #f59e0b; 
     }
-    .blockchain-info p { 
-      font-size: 10px; 
-      color: #92400e; 
-      line-height: 1.4; 
+    .blockchain-info p {
+      font-size: 10px;
+      color: #92400e;
+      line-height: 1.4;
+    }
+    @media print {
+      .no-print { display: none; }
     }
   </style>
 </head>
@@ -629,16 +662,16 @@ export function generateInvoicePDF(invoice: Invoice): string {
     <div class="logo">Quittance</div>
     <div class="invoice-title">
       <h1>INVOICE</h1>
-      <div class="invoice-number">#${invoice.id.substring(0, 8).toUpperCase()}</div>
-      <span class="status-badge status-${invoice.status.toLowerCase()}">${invoice.status}</span>
+      <div class="invoice-number">#${escapePrintHtml(invoice.id.substring(0, 8).toUpperCase())}</div>
+      <span class="status-badge status-${invoice.status.toLowerCase()}">${escapePrintHtml(invoice.status)}</span>
     </div>
   </div>
 
   <div class="info-grid">
     <div class="info-section">
       <h3>Bill To</h3>
-      ${invoice.customerName ? `<div class="info-row"><div class="info-label">Customer Name</div><div class="info-value">${invoice.customerName}</div></div>` : ''}
-      ${invoice.customerEmail ? `<div class="info-row"><div class="info-label">Email</div><div class="info-value">${invoice.customerEmail}</div></div>` : ''}
+      ${invoice.customerName ? `<div class="info-row"><div class="info-label">Customer Name</div><div class="info-value">${escapePrintHtml(invoice.customerName)}</div></div>` : ''}
+      ${invoice.customerEmail ? `<div class="info-row"><div class="info-label">Email</div><div class="info-value">${escapePrintHtml(invoice.customerEmail)}</div></div>` : ''}
       ${!invoice.customerName && !invoice.customerEmail ? `<div class="info-value">N/A</div>` : ''}
     </div>
 
@@ -659,34 +692,34 @@ export function generateInvoicePDF(invoice: Invoice): string {
   ${invoice.sellerName || invoice.sellerEmail ? `
   <div class="info-section" style="margin-bottom: 20px;">
     <h3>Seller Information</h3>
-    ${invoice.sellerName ? `<div class="info-row"><div class="info-label">Name</div><div class="info-value">${invoice.sellerName}</div></div>` : ''}
-    ${invoice.sellerEmail ? `<div class="info-row"><div class="info-label">Email</div><div class="info-value">${invoice.sellerEmail}</div></div>` : ''}
+    ${invoice.sellerName ? `<div class="info-row"><div class="info-label">Name</div><div class="info-value">${escapePrintHtml(invoice.sellerName)}</div></div>` : ''}
+    ${invoice.sellerEmail ? `<div class="info-row"><div class="info-label">Email</div><div class="info-value">${escapePrintHtml(invoice.sellerEmail)}</div></div>` : ''}
   </div>` : ''}
 
   ${isPaid && (invoice.payerName || invoice.payerEmail) ? `
   <div class="info-section" style="margin-bottom: 20px;">
     <h3>Payer Information</h3>
-    ${invoice.payerName ? `<div class="info-row"><div class="info-label">Name</div><div class="info-value">${invoice.payerName}</div></div>` : ''}
-    ${invoice.payerEmail ? `<div class="info-row"><div class="info-label">Email</div><div class="info-value">${invoice.payerEmail}</div></div>` : ''}
+    ${invoice.payerName ? `<div class="info-row"><div class="info-label">Name</div><div class="info-value">${escapePrintHtml(invoice.payerName)}</div></div>` : ''}
+    ${invoice.payerEmail ? `<div class="info-row"><div class="info-label">Email</div><div class="info-value">${escapePrintHtml(invoice.payerEmail)}</div></div>` : ''}
   </div>` : ''}
 
   <div class="amount-section">
     <div class="amount-label">Amount ${isPaid ? 'Paid' : 'Due'}</div>
-    <div class="amount-value">${invoice.amount}</div>
-    <div class="amount-asset">${invoice.assetCode}</div>
+    <div class="amount-value">${escapePrintHtml(invoice.amount)}</div>
+    <div class="amount-asset">${escapePrintHtml(invoice.assetCode)}</div>
   </div>
 
-  ${invoice.description ? `<div class="info-section" style="margin-bottom: 20px;"><h3>Description</h3><p style="color: #1f2937; line-height: 1.6;">${invoice.description}</p></div>` : ''}
+  ${invoice.description ? `<div class="info-section" style="margin-bottom: 20px;"><h3>Description</h3><p style="color: #1f2937; line-height: 1.6;">${escapePrintHtml(invoice.description)}</p></div>` : ''}
 
   <table class="details-table">
-    <tr><td>Invoice ID</td><td style="font-family: monospace; font-size: 12px;">${invoice.id}</td></tr>
-    <tr><td>Memo</td><td style="font-family: monospace;">${invoice.memo}</td></tr>
-    <tr><td>Seller Address</td><td style="font-family: monospace; font-size: 11px; word-break: break-all;">${invoice.sellerPublicKey}</td></tr>
+    <tr><td>Invoice ID</td><td style="font-family: monospace; font-size: 12px;">${escapePrintHtml(invoice.id)}</td></tr>
+    <tr><td>Memo</td><td style="font-family: monospace;">${escapePrintHtml(invoice.memo)}</td></tr>
+    <tr><td>Seller Address</td><td style="font-family: monospace; font-size: 11px; word-break: break-all;">${escapePrintHtml(invoice.sellerPublicKey)}</td></tr>
     ${isPaid && invoice.paymentTxHash ? `
-    <tr><td>Transaction Hash</td><td style="font-family: monospace; font-size: 11px; word-break: break-all;">${invoice.paymentTxHash}</td></tr>
+    <tr><td>Transaction Hash</td><td style="font-family: monospace; font-size: 11px; word-break: break-all;">${escapePrintHtml(invoice.paymentTxHash)}</td></tr>
     <tr><td>Payer Address</td><td style="font-family: monospace; font-size: 11px; word-break: break-all;">${invoice.payerPublicKey || 'N/A'}</td></tr>
-    ${invoice.payerName ? `<tr><td>Payer Name</td><td>${invoice.payerName}</td></tr>` : ''}
-    ${invoice.payerEmail ? `<tr><td>Payer Email</td><td>${invoice.payerEmail}</td></tr>` : ''}` : ''}
+    ${invoice.payerName ? `<tr><td>Payer Name</td><td>${escapePrintHtml(invoice.payerName)}</td></tr>` : ''}
+    ${invoice.payerEmail ? `<tr><td>Payer Email</td><td>${escapePrintHtml(invoice.payerEmail)}</td></tr>` : ''}` : ''}
     <tr><td>Network</td><td>${network}</td></tr>
   </table>
 
@@ -698,15 +731,15 @@ export function generateInvoicePDF(invoice: Invoice): string {
     <p style="margin-top: 10px;">This is an automatically generated invoice.</p>
   </div>
 
-  <div style="position: fixed; top: 10px; right: 10px; background: #06b6d4; color: white; padding: 15px; border-radius: 8px; z-index: 1000; max-width: 300px; font-family: Arial, sans-serif;">
-    <h3 style="margin: 0 0 10px 0; font-size: 14px;">PDF olarak kaydetmek için:</h3>
+  <div class="no-print" style="position: fixed; top: 10px; right: 10px; background: #06b6d4; color: white; padding: 15px; border-radius: 8px; z-index: 1000; max-width: 300px; font-family: Arial, sans-serif;">
+    <h3 style="margin: 0 0 10px 0; font-size: 14px;">To save as PDF:</h3>
     <ol style="margin: 0; padding-left: 20px; font-size: 12px;">
-      <li>Ctrl+P (Windows) veya Cmd+P (Mac)</li>
-      <li>"Hedef" → "PDF olarak kaydet"</li>
-      <li>"Yazdır" butonuna bas</li>
+      <li>Press Ctrl+P (Windows) or Cmd+P (Mac)</li>
+      <li>Choose “Save as PDF” as the destination</li>
+      <li>Click "Print"</li>
     </ol>
     <button onclick="window.print()" style="background: white; color: #06b6d4; border: none; padding: 8px 16px; border-radius: 4px; margin-top: 10px; cursor: pointer; font-weight: bold; font-size: 12px;">
-      PDF Olarak Kaydet
+      Save as PDF
     </button>
   </div>
 
@@ -760,7 +793,6 @@ export function shareInvoiceByEmail(invoice: Invoice) {
   
   body += `\nPowered by Quittance`;
   
-  const mailtoLink = `mailto:${invoice.customerEmail}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  const mailtoLink = mailtoProof(invoice.customerEmail, subject, body);
   window.location.href = mailtoLink;
 }
-
