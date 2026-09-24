@@ -31,7 +31,7 @@ const mockInvoices: MockInvoice[] = [
     assetIssuer: undefined,
     description: 'Web development service',
     customerName: 'John Doe',
-    customerEmail: 'ahmet@example.com',
+    customerEmail: 'john.doe@example.com',
     status: 'PAID',
     memo: 'INV-DEMO-001',
     sellerPublicKey: 'GABC123EXAMPLE456',
