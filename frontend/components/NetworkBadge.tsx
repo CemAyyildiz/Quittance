@@ -16,6 +16,8 @@ export default function NetworkBadge() {
 
   return (
     <span
+      role="status"
+      aria-label={`Network: ${kind}`}
       className="inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider select-none"
       style={{
         borderColor: 'rgba(180, 83, 9, 0.3)',
