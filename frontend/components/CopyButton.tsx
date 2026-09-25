@@ -62,6 +62,7 @@ export default function CopyButton({
   'data-testid': testId,
 }: CopyButtonProps) {
   const [copied, setCopied] = useState(false);
+  const [announceCopy, setAnnounceCopy] = useState(false);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -85,8 +86,10 @@ export default function CopyButton({
         clearTimeout(timeoutRef.current);
       }
       setCopied(true);
+      setAnnounceCopy(true);
       timeoutRef.current = setTimeout(() => {
         setCopied(false);
+        setAnnounceCopy(false);
         timeoutRef.current = null;
       }, timeout);
     }
@@ -118,6 +121,9 @@ export default function CopyButton({
         <Copy className="w-4 h-4" aria-hidden="true" />
       )}
       {!iconOnly && <span>{currentLabel}</span>}
+      <span role="status" aria-live="polite">
+        {announceCopy && <span className="sr-only">{copiedLabel}</span>}
+      </span>
     </button>
   );
 }
