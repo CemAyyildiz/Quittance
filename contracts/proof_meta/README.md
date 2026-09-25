@@ -67,6 +67,82 @@ let bad = ProofMeta {
 assert!(bad.pack().is_err());
 ```
 
+## CLI invoke examples
+
+`proof_meta` is a pure helper crate: it compiles into a library, not into a
+deployed contract with its own entry points. The `soroban contract invoke`
+examples below therefore target a **deployed wrapper contract** that exposes
+`pack_meta` / `unpack_meta` over this crate — replace each placeholder
+(`C...` contract id, `G...` account) with your own values before running.
+If your CLI is installed under the newer `stellar` name, the flags are
+identical: `stellar contract invoke ...`.
+
+### Prerequisites
+
+```bash
+# Placeholders — replace before running:
+export CONTRACT_ID=C...      # deployed wrapper contract id
+export SOURCE_ACCOUNT=G...   # account that signs the invoke
+```
+
+### Pack proof metadata
+
+Serializes the proof fields into the packed binary layout documented above
+(max 91 bytes).
+
+```bash
+soroban contract invoke \
+  --id "$CONTRACT_ID" \
+  --source "$SOURCE_ACCOUNT" \
+  --network testnet \
+  -- \
+  pack_meta \
+  --amount 100000000 \
+  --asset_code XLM \
+  --memo INV-001 \
+  --tx_hash abababababababababababababababababababababababababababababababab
+```
+
+**Return shape:** the packed bytes as a hex string (≤ 91 bytes, 182 hex
+characters at most). For the input above the result is:
+
+```
+00000000000000000000000005f5e10003584c4d0107494e562d303031abababababababababababababababababababababababababababababababab
+```
+
+Persist it wherever the payment proof needs the on-chain commitment.
+
+### Unpack proof metadata
+
+Round-trips packed bytes back into their fields:
+
+```bash
+soroban contract invoke \
+  --id "$CONTRACT_ID" \
+  --source "$SOURCE_ACCOUNT" \
+  --network testnet \
+  -- \
+  unpack_meta \
+  --packed 00000000000000000000000005f5e10003584c4d0107494e562d303031abababababababababababababababababababababababababababababababab
+```
+
+**Return shape:** a struct with `amount: i128` (stroops),
+`asset_code: String`, `memo: Option<String>` (absent when no memo was
+packed) and `tx_hash: Bytes` (32 bytes). The CLI prints it roughly as:
+
+```json
+{"amount": 100000000, "asset_code": "XLM", "memo": "INV-001", "tx_hash": "abab..."}
+```
+
+### Notes
+
+- Amounts are always in **stroops** (1 XLM = 10,000,000 stroops); the
+  example packs 10 XLM.
+- `--tx_hash` takes the 64-character hex transaction hash and is stored as
+  the fixed 32 raw bytes (`TX_HASH_LEN`).
+- Validation failures (`AssetCodeTooLong`, `MemoTooLong`, `Truncated`, ...)
+  surface as the invoke's error output — see the API table above.
+
 ## Running the tests
 
 ```bash
