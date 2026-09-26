@@ -116,6 +116,20 @@ describe("formatStroops invalid inputs", () => {
   it("throws on empty string", () => {
     expect(() => formatStroops("")).toThrow(RangeError);
   });
+
+  it("throws a TypeError on null with an unexpected-type message", () => {
+    expect(() => formatStroops(null as unknown as bigint)).toThrow(TypeError);
+    expect(() => formatStroops(null as unknown as bigint)).toThrow(
+      /unexpected argument type/i,
+    );
+  });
+
+  it("throws a TypeError on an object with an unexpected-type message", () => {
+    expect(() => formatStroops({} as unknown as bigint)).toThrow(TypeError);
+    expect(() => formatStroops({} as unknown as bigint)).toThrow(
+      /unexpected argument type/i,
+    );
+  });
 });
 
 // ---------------------------------------------------------------------------
