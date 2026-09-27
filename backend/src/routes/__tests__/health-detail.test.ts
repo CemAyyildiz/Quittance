@@ -80,4 +80,20 @@ describe('GET /health/detail', () => {
 
     expect(body.environment).toBe('test');
   });
+
+  it('reports the service name and version', async () => {
+    const { body } = await request();
+
+    expect(body.service).toBe('Quittance API');
+    expect(body.version).toBe('1.0.0');
+  });
+
+  it('exposes the health and detail endpoint paths', async () => {
+    const { body } = await request();
+
+    expect(body.endpoints).toEqual({
+      health: '/api/health',
+      detail: '/api/health/detail',
+    });
+  });
 });

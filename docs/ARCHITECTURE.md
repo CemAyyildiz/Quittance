@@ -68,9 +68,12 @@ These are load-bearing and must not drift:
 
 1. Open `/pay/[id]` — no Google, no account required.
 2. Pay on Stellar via Freighter, QR, or a manual transfer carrying the memo.
-3. `POST /api/invoices/:id/verify` asks Horizon whether a matching payment
-   landed (memo + amount + destination + asset). Fake hashes are rejected; a
-   real matching tx flips the invoice to **PAID**.
+3. `POST /api/invoices/:id/verify` checks the invoice itself before it asks
+   Horizon anything: an expired invoice is rejected with `INVOICE_EXPIRED`
+   up front, and a non-pending invoice that is not expired fails with
+   `INVOICE_NOT_PENDING`. Only then does it ask Horizon whether a matching
+   payment landed (memo + amount + destination + asset). Fake hashes are
+   rejected; a real matching tx flips the invoice to **PAID**.
 
 **Proof**
 
