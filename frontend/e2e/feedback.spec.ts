@@ -32,4 +32,29 @@ test.describe('Feedback page smoke', () => {
 
     await expect(page.getByText('Please rate the product and leave a short note')).toBeVisible();
   });
+
+  test('rejects a whitespace-only note even with a rating', async ({ page }) => {
+    await page.goto('/feedback');
+
+    await page.getByRole('button', { name: 'Useful' }).click();
+    await page.getByLabel('What should we improve?').fill('   ');
+
+    await page.locator('form').evaluate((form) => {
+      form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    });
+
+    await expect(page.getByText('Please rate the product and leave a short note')).toBeVisible();
+  });
+
+  test('rejects a note submitted without a rating', async ({ page }) => {
+    await page.goto('/feedback');
+
+    await page.getByLabel('What should we improve?').fill('Proof download was clear');
+
+    await page.locator('form').evaluate((form) => {
+      form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    });
+
+    await expect(page.getByText('Please rate the product and leave a short note')).toBeVisible();
+  });
 });
