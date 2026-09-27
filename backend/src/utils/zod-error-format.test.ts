@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { z } from 'zod';
 
 import { createInvoiceSchema } from './validation';
 import { formatZodError, formatIfZodError } from './zod-error-format';
@@ -99,6 +100,47 @@ describe('formatZodError', () => {
       const originalIssues = result.error.issues.map((i) => ({ ...i }));
       formatZodError(result.error);
       expect(result.error.issues).toEqual(originalIssues);
+    }
+  });
+
+  it('stores a nested issue path under a dotted key', () => {
+    const schema = z.object({
+      user: z.object({
+        name: z.string(),
+      }),
+    });
+    const result = schema.safeParse({
+      user: { name: 123 },
+    });
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues[0].path).toEqual(['user', 'name']);
+      const formatted = formatZodError(result.error);
+      expect(formatted.error).toBe('Validation failed');
+      expect(formatted.fields['user.name']).toBeDefined();
+      expect(Array.isArray(formatted.fields['user.name'])).toBe(true);
+      expect(formatted.fields['user.name'].length).toBeGreaterThan(0);
+      expect(typeof formatted.fields['user.name'][0]).toBe('string');
+    }
+  });
+
+  it('stores an issue with an empty path under _root', () => {
+    const schema = z
+      .object({
+        amount: z.number(),
+      })
+      .refine(() => false, { message: 'Root failure' });
+    const result = schema.safeParse({ amount: 1 });
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues[0].path).toEqual([]);
+      const formatted = formatZodError(result.error);
+      expect(formatted.error).toBe('Validation failed');
+      expect(formatted.fields._root).toBeDefined();
+      expect(Array.isArray(formatted.fields._root)).toBe(true);
+      expect(formatted.fields._root).toContain('Root failure');
     }
   });
 });
