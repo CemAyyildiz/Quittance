@@ -178,9 +178,23 @@ mod tests {
         assert_eq!(validate_tx_hash(&padded), Err(TxHashError::InvalidLength));
     }
 
+    #[test]
+    fn validate_rejects_0x_prefix_before_64_chars() {
+        let bad = format!("0x{}", VALID_LOWER);
+        assert_eq!(validate_tx_hash(&bad), Err(TxHashError::InvalidLength));
+        assert!(!is_valid_tx_hash(&bad));
+    }
+
     // -----------------------------------------------------------------------
     // validate_tx_hash — character violations
     // -----------------------------------------------------------------------
+
+    #[test]
+    fn validate_rejects_0x_prefix_in_64_chars() {
+        let bad = format!("0x{}", &VALID_LOWER[..62]);
+        assert_eq!(validate_tx_hash(&bad), Err(TxHashError::InvalidCharacter));
+        assert!(!is_valid_tx_hash(&bad));
+    }
 
     #[test]
     fn validate_rejects_lowercase_g() {

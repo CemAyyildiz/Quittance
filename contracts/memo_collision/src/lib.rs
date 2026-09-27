@@ -228,6 +228,15 @@ mod tests {
         assert!(!guard.note("")); // second empty string is a collision
     }
 
+    #[test]
+    fn note_treats_space_as_distinct_from_empty_string() {
+        let mut guard = MemoCollisionGuard::new();
+        assert!(guard.note(""));
+        assert!(!guard.has_seen(" "));
+        assert!(guard.note(" "));
+        assert!(guard.has_seen(" "));
+    }
+
     // -----------------------------------------------------------------
     // has_seen
     // -----------------------------------------------------------------

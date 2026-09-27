@@ -5,6 +5,7 @@ describe('networkBadgeModel', () => {
   it('returns TESTNET for testnet values', () => {
     expect(networkBadgeModel('TESTNET')).toBe('TESTNET');
     expect(networkBadgeModel('testnet')).toBe('TESTNET');
+    expect(networkBadgeModel('  Testnet  ')).toBe('TESTNET');
   });
 
   it('returns PUBLIC for public values', () => {
@@ -22,5 +23,7 @@ describe('networkBadgeModel', () => {
   it('falls back to PUBLIC for unrecognised input', () => {
     expect(networkBadgeModel('mainnet')).toBe('PUBLIC');
     expect(networkBadgeModel('production')).toBe('PUBLIC');
+    expect(networkBadgeModel('futurenet')).toBe('PUBLIC');
+    expect(networkBadgeModel('Futurenet')).toBe('PUBLIC');
   });
 });

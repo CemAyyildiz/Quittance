@@ -149,3 +149,31 @@ fn set_seller_replaces_binding() {
     let inner = outer_mismatch.expect("expected our custom error variant");
     assert_eq!(inner, Error::SellerMismatch);
 }
+
+#[test]
+fn init_replaces_existing_binding() {
+    let env = Env::default();
+    let seller_a = Address::generate(&env);
+    let seller_b = Address::generate(&env);
+    let contract_id = env.register(SellerBind, ());
+    let client = SellerBindClient::new(&env, &contract_id);
+
+    client.init(&seller_a);
+    client.init(&seller_b);
+
+    let outer = client
+        .try_get_seller()
+        .expect("get_seller should not error after repeated init");
+    assert!(matches!(&outer, Ok(addr) if addr == &seller_b));
+
+    let outer_match = client
+        .try_check_seller(&seller_b)
+        .expect("check_seller should not error for the new binding");
+    assert!(matches!(outer_match, Ok(())));
+
+    let outer_mismatch = client
+        .try_check_seller(&seller_a)
+        .expect_err("the old binding should no longer match");
+    let inner = outer_mismatch.expect("expected our custom error variant");
+    assert_eq!(inner, Error::SellerMismatch);
+}

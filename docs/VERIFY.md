@@ -56,6 +56,8 @@ Every invoice carries an `expiresAt`. On the MVP path (`server-mvp.ts`) expiry i
 
 An invoice is expired once `expiresAt` is strictly in the past, matching the storage sweep; an invoice verified at exactly `expiresAt` is still settleable. A past-due invoice returns `INVOICE_EXPIRED` whether or not the sweep has reached it yet, so the answer does not depend on sweep timing.
 
+An `expiresAt` value that cannot be parsed is not treated as expired.
+
 ## Error cases
 
 | Condition | Result |
@@ -67,6 +69,7 @@ An invoice is expired once `expiresAt` is strictly in the past, matching the sto
 | Destination does not match invoice creator | Verification fails — wrong recipient |
 | Invoice is past its `expiresAt` | Verification fails — `INVOICE_EXPIRED` (checked before Horizon) |
 | Invoice already swept to `EXPIRED` | Verification fails — `INVOICE_EXPIRED` |
+| Invoice is not expired and its status is not `PENDING` (for example, `PAID` or `CANCELLED`) | Verification fails — `INVOICE_NOT_PENDING` |
 | Asset code does not match invoice asset | Verification fails — `ASSET_MISMATCH` |
 | Credit asset issuer differs from `invoice.assetIssuer` | Verification fails — `ASSET_MISMATCH` |
 | Credit asset payment or invoice records no issuer | Verification fails — `ASSET_MISMATCH` (fails closed) |

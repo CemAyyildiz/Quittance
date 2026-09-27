@@ -45,7 +45,7 @@ Freighter must be unlocked before Quittance can read your public key or sign tra
 
 ### Wrong network selected
 
-Freighter connects to the Stellar network (testnet or mainnet). Make sure the network selected in Freighter matches the network configured in Quittance. The application will indicate which network it expects.
+Quittance's network badge uses the `NEXT_PUBLIC_STELLAR_NETWORK` environment variable to show the network it expects. When this variable is unset or empty, the badge shows TESTNET; when it is set to `PUBLIC`, the badge shows PUBLIC. Make sure the network selected in Freighter matches the network shown in the badge.
 
 ### Permission request dismissed
 

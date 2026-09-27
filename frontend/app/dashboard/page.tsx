@@ -117,8 +117,12 @@ export default function DashboardPage() {
                 window.location.reload();
               }} />
             )}
-            <Link href="/" className="btn btn-primary flex items-center gap-2">
-              <Plus className="w-5 h-5" />
+            <Link
+              href="/"
+              className="btn btn-primary flex items-center gap-2"
+              aria-label="New Invoice"
+            >
+              <Plus className="w-5 h-5" aria-hidden="true" />
               <span className="hidden sm:inline">New Invoice</span>
             </Link>
           </div>
@@ -144,6 +148,7 @@ export default function DashboardPage() {
           <div className="bg-white rounded-lg border border-gray-200 mb-6 p-2 flex gap-2">
             <button
               onClick={() => setViewMode('invoices')}
+              aria-pressed={viewMode === 'invoices'}
               className={`flex-1 px-4 py-2 rounded-lg font-semibold transition-colors ${
                 viewMode === 'invoices'
                   ? 'bg-cyan-500 text-white'
@@ -154,6 +159,7 @@ export default function DashboardPage() {
             </button>
             <button
               onClick={() => setViewMode('transactions')}
+              aria-pressed={viewMode === 'transactions'}
               className={`flex-1 px-4 py-2 rounded-lg font-semibold transition-colors ${
                 viewMode === 'transactions'
                   ? 'bg-cyan-500 text-white'
@@ -249,8 +255,9 @@ export default function DashboardPage() {
                 onClick={handleExportCSV}
                 className="btn btn-primary flex items-center gap-2 whitespace-nowrap"
                 title="Export displayed invoices"
+                aria-label="Export CSV"
               >
-                <Download className="w-5 h-5" />
+                <Download className="w-5 h-5" aria-hidden="true" />
                 <span className="hidden sm:inline">Export CSV</span>
               </button>
             </div>
@@ -260,6 +267,7 @@ export default function DashboardPage() {
                 <button
                   key={status}
                   onClick={() => setFilter(status)}
+                  aria-pressed={filter === status}
                   className={`px-4 py-2 rounded-lg font-semibold transition-colors ${
                     filter === status
                       ? 'bg-cyan-500 text-white'
@@ -315,7 +323,7 @@ export default function DashboardPage() {
                   onClick={loadData}
                   className="btn btn-primary inline-flex items-center gap-2"
                 >
-                  <RefreshCw className="w-5 h-5" />
+                  <RefreshCw className="w-5 h-5" aria-hidden="true" />
                   Try again
                 </button>
               </div>
@@ -332,7 +340,7 @@ export default function DashboardPage() {
                 </p>
                 {!searchQuery && (
                   <Link href="/" className="btn btn-primary inline-flex items-center gap-2">
-                    <Plus className="w-5 h-5" />
+                    <Plus className="w-5 h-5" aria-hidden="true" />
                     Create invoice
                   </Link>
                 )}

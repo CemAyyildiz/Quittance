@@ -381,4 +381,62 @@ mod tests {
             assert_ne!(is_pending, is_terminal, "{:?}", s);
         }
     }
+
+    // ── already-paid / invalid transition boundary (issue #590) ─────
+    //
+    // The crate deliberately contains no transition logic — that belongs
+    // to the consumer contract.  The rejection path for "mark as paid
+    // when already paid" is therefore expressed through `is_terminal()`,
+    // which is the single source of truth for whether a status can still
+    // change.
+    //
+    // A caller that wants to guard against double-marking does:
+    //
+    //   if current_status.is_terminal() {
+    //       // reject — expected error: "status is already terminal,
+    //       //           cannot transition to Paid"
+    //   }
+    //
+    // The tests below lock that contract.
+
+    /// An invoice that is already `Paid` is terminal.
+    /// Attempting to mark it paid again must be rejected by the caller
+    /// because `is_terminal()` returns `true`.
+    ///
+    /// Expected behaviour: `PaidStatus::Paid.is_terminal() == true`
+    /// signals that the transition is invalid; the caller must not
+    /// proceed with a second "mark as paid" operation.
+    #[test]
+    fn already_paid_status_is_terminal_so_transition_is_rejected() {
+        // `Paid` is a terminal state — the canonical signal that a
+        // double-mark must be rejected.
+        assert!(
+            PaidStatus::Paid.is_terminal(),
+            "Paid must be terminal so callers can detect and reject \
+             the already-paid / double-mark transition"
+        );
+
+        // Confirm the inverse: `Pending` is the only state from which
+        // a payment can legitimately be confirmed.
+        assert!(
+            !PaidStatus::Pending.is_terminal(),
+            "Pending must NOT be terminal — it is the only valid \
+             source state for a Paid transition"
+        );
+
+        // Exhaustive: every non-Pending variant rejects further
+        // transitions, including the already-paid case.
+        for already_terminal in [
+            PaidStatus::Paid,
+            PaidStatus::Expired,
+            PaidStatus::Cancelled,
+        ] {
+            assert!(
+                already_terminal.is_terminal(),
+                "{:?} must be terminal — any attempt to transition it \
+                 to Paid is an invalid / already-paid operation",
+                already_terminal
+            );
+        }
+    }
 }

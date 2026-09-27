@@ -44,6 +44,22 @@ describe('generateInvoiceCSV', () => {
   it('returns the stable headers for an empty invoice list', () => {
     expect(generateInvoiceCSV([])).toBe(HEADERS);
   });
+
+  it('populates seller and customer columns and quotes names with commas', () => {
+    const csv = generateInvoiceCSV([
+      {
+        ...paidInvoice,
+        sellerName: 'Acme, Inc.',
+        sellerEmail: 'seller@example.com',
+        customerName: 'Doe, Jane',
+        customerEmail: 'customer@example.com',
+      },
+    ]);
+
+    expect(csv.split('\n')[1]).toBe(
+      'inv-123,2026-07-01 10:15:30,"Acme, Inc.",seller@example.com,"Doe, Jane",customer@example.com,,125.5,USDC,PAID,2026-07-02 09:05:04,,,2026-07-31 10:15:30,"Consulting, July",abc123',
+    );
+  });
 });
 
 describe('downloadInvoiceCSV', () => {

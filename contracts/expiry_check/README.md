@@ -28,6 +28,24 @@ The expiry timestamp is an **inclusive** boundary:
 | `now == expiry` | **Expired** — payment rejected |
 | `now >  expiry` | **Expired** — payment rejected |
 
+## Tests
+
+Run the crate tests from this directory:
+
+```sh
+cargo test
+```
+
+From the repository root, run the same tests with:
+
+```sh
+cargo test -p quittance-expiry-check
+```
+
+These tests lock in the inclusive expiry boundary: `now == expiry` is expired,
+while the instant before expiry is active. They also verify that a non-future
+expiry is rejected.
+
 ## Usage
 
 ### Pure helpers (no Soroban host required)

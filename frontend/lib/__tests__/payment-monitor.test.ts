@@ -55,6 +55,7 @@ vi.mock('../stellar', () => ({
 
 // Import after mocks are set up
 import { paymentMonitor } from '../payment-monitor';
+import { toast } from 'sonner';
 
 describe('paymentMonitor.isMonitoring()', () => {
   beforeEach(() => {
@@ -210,5 +211,31 @@ describe('paymentMonitor.startMonitoring() – stream integration', () => {
     });
 
     expect(cb).not.toHaveBeenCalled();
+  });
+
+  it('handles stream error by showing toast and reconnecting after 5000ms', () => {
+    vi.useFakeTimers();
+    try {
+      const cb = vi.fn();
+      paymentMonitor.startMonitoring('GBDEST', cb);
+
+      expect(mockForAccount).toHaveBeenCalledWith('GBDEST');
+      expect(mockForAccount).toHaveBeenCalledTimes(1);
+
+      // Invoke the captured stream onerror
+      streamOnerror!(new Error('Network error'));
+
+      expect(toast.error).toHaveBeenCalledWith('Payment monitoring disconnected', {
+        description: 'Reconnecting...',
+      });
+
+      // Advancing 5000ms opens the stream again for the same public key
+      vi.advanceTimersByTime(5000);
+
+      expect(mockForAccount).toHaveBeenCalledTimes(2);
+      expect(mockForAccount).toHaveBeenLastCalledWith('GBDEST');
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

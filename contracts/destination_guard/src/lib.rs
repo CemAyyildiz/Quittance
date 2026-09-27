@@ -296,6 +296,15 @@ mod tests {
         assert_eq!(check_destination(&bad), Err(DestinationError::InvalidPrefix));
     }
 
+    #[test]
+    fn rejects_leading_space_as_invalid_prefix() {
+        let mut bad = ZERO_STRKEY.to_string();
+        bad.replace_range(0..1, " ");
+        assert_eq!(bad.len(), STRKEY_LENGTH);
+        assert_eq!(check_destination(&bad), Err(DestinationError::InvalidPrefix));
+        assert!(!is_valid_destination(&bad));
+    }
+
     // ── character alphabet ───────────────────────────────────────────
 
     #[test]
