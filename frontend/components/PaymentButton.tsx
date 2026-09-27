@@ -110,16 +110,17 @@ export default function PaymentButton({
       <button
         onClick={handlePayment}
         disabled={loading}
+        aria-busy={loading}
         className="btn btn-primary w-full flex items-center justify-center gap-2 text-lg py-4"
       >
         {loading ? (
           <>
-            <Loader2 className="w-6 h-6 animate-spin" />
+            <Loader2 aria-hidden="true" className="w-6 h-6 animate-spin" />
             Processing...
           </>
         ) : (
           <>
-            <Wallet className="w-6 h-6" />
+            <Wallet aria-hidden="true" className="w-6 h-6" />
             Pay with Freighter
           </>
         )}
