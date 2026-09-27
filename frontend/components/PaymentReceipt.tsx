@@ -80,7 +80,7 @@ Stellar Blockchain Payment System
     <div className="card print:shadow-none" id="payment-receipt">
       <div className="text-center mb-6 border-b pb-6">
         <div className="inline-flex items-center justify-center w-16 h-16 bg-green-100 rounded-full mb-4">
-          <Check className="w-10 h-10 text-green-600" />
+          <Check aria-hidden="true" className="w-10 h-10 text-green-600" />
         </div>
         <h2 className="text-3xl font-bold text-gray-900 mb-2">Payment Receipt</h2>
         <p className="text-green-600 font-semibold text-lg">Payment Confirmed</p>
@@ -177,7 +177,7 @@ Stellar Blockchain Payment System
           onClick={handleDownloadPDF}
           className="btn btn-primary w-full flex items-center justify-center gap-2"
         >
-          <FileText className="w-5 h-5" />
+          <FileText aria-hidden="true" className="w-5 h-5" />
           Download Proof
         </button>
 
@@ -186,7 +186,7 @@ Stellar Blockchain Payment System
             onClick={handleEmailProof}
             className="btn btn-secondary w-full flex items-center justify-center gap-2"
           >
-            <Mail className="w-5 h-5" />
+            <Mail aria-hidden="true" className="w-5 h-5" />
             Email Proof
           </button>
         )}
@@ -197,7 +197,7 @@ Stellar Blockchain Payment System
           rel="noopener noreferrer"
           className="btn btn-outline w-full flex items-center justify-center gap-2"
         >
-          <ExternalLink className="w-5 h-5" />
+          <ExternalLink aria-hidden="true" className="w-5 h-5" />
           View on Stellar Explorer
         </a>
 
@@ -205,7 +205,7 @@ Stellar Blockchain Payment System
           onClick={handleDownload}
           className="btn btn-outline w-full flex items-center justify-center gap-2 text-sm"
         >
-          <Download className="w-4 h-4" />
+          <Download aria-hidden="true" className="w-4 h-4" />
           Download TXT receipt
         </button>
       </div>
