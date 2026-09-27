@@ -104,7 +104,7 @@ export default function InvoiceCard({ invoice }: InvoiceCardProps) {
           href={`/invoice/${invoice.id}`}
           className="btn btn-outline flex-1 flex items-center justify-center gap-2 text-sm"
         >
-          <ExternalLink className="w-4 h-4" />
+          <ExternalLink className="w-4 h-4" aria-hidden="true" />
           View
         </Link>
         {invoice.status === 'PENDING' && (
@@ -121,7 +121,7 @@ export default function InvoiceCard({ invoice }: InvoiceCardProps) {
             onClick={handleDownloadPDF}
             className="btn btn-primary flex-1 flex items-center justify-center gap-2 text-sm"
           >
-            <Download className="w-4 h-4" />
+            <Download className="w-4 h-4" aria-hidden="true" />
             Download Proof
           </button>
         )}
