@@ -302,7 +302,15 @@ mod tests {
             let bump_p: fn(&Env, &soroban_sdk::Symbol, u32, u32) = bump_persistent::<soroban_sdk::Symbol>;
             let bump_t: fn(&Env, &soroban_sdk::Symbol, u32, u32) = bump_temporary::<soroban_sdk::Symbol>;
             let bump_i: fn(&Env, u32, u32) = bump_instance;
-            let _ = (&key, bump_p, bump_t, bump_i);
+            // The `*_default` wrappers supply the threshold and ledger counts
+            // themselves, so their signatures carry no u32 arguments. They are
+            // bound but deliberately never called: invoking either would reach
+            // `extend_ttl` and panic, because `Env::default()` has no storage
+            // host. Assigning them is enough for the compiler to check that the
+            // wrappers still monomorphise for K = Symbol.
+            let bump_pd: fn(&Env, &soroban_sdk::Symbol) = bump_persistent_default::<soroban_sdk::Symbol>;
+            let bump_td: fn(&Env, &soroban_sdk::Symbol) = bump_temporary_default::<soroban_sdk::Symbol>;
+            let _ = (&key, bump_p, bump_t, bump_i, bump_pd, bump_td);
         }
     }
 
