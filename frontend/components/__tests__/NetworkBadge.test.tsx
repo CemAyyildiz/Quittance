@@ -1,6 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { render, screen } from '@testing-library/react';
+import '@testing-library/jest-dom/vitest';
 import NetworkBadge from '../NetworkBadge';
 
 let originalNetwork: string | undefined;
@@ -41,5 +43,25 @@ describe('NetworkBadge', () => {
     vi.stubEnv('NEXT_PUBLIC_STELLAR_NETWORK', '');
     const html = renderToStaticMarkup(<NetworkBadge />);
     expect(html).toContain('TESTNET');
+  });
+
+  it('is announced as Network: TESTNET when env is TESTNET', () => {
+    vi.stubEnv('NEXT_PUBLIC_STELLAR_NETWORK', 'TESTNET');
+    render(<NetworkBadge />);
+
+    expect(screen.getByRole('status', { name: 'Network: TESTNET' })).toBeInTheDocument();
+  });
+
+  it('is announced as Network: TESTNET when env is unset', () => {
+    render(<NetworkBadge />);
+
+    expect(screen.getByRole('status', { name: 'Network: TESTNET' })).toBeInTheDocument();
+  });
+
+  it('is announced as Network: TESTNET when env is empty', () => {
+    vi.stubEnv('NEXT_PUBLIC_STELLAR_NETWORK', '');
+    render(<NetworkBadge />);
+
+    expect(screen.getByRole('status', { name: 'Network: TESTNET' })).toBeInTheDocument();
   });
 });
