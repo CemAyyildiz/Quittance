@@ -146,6 +146,13 @@ mod tests {
         assert_eq!(check_payer(None, &addr), Ok(()));
     }
 
+    /// `PayerError` is `#[repr(u32)]`; downstream contracts may match on
+    /// the raw numeric code, so `PayerMismatch` must stay `1`.
+    #[test]
+    fn payer_mismatch_discriminant_is_one() {
+        assert_eq!(PayerError::PayerMismatch as u32, 1);
+    }
+
     /// Two different generated addresses are never equal, so `other`
     /// should always mismatch against `bound`.
     #[test]

@@ -165,6 +165,23 @@ describe('MVP invoice expiry', () => {
     expect(stats.pending_invoices).toBe(1);
   });
 
+  it('rejects a cancelled invoice with INVOICE_NOT_PENDING', async () => {
+    // A cancelled invoice is not pending, so it must be turned away by
+    // `assertInvoiceSettleable` before Horizon is ever contacted — even
+    // though it has not expired and a matching payment exists.
+    const invoice = seedInvoice(nextWeek());
+    memoryStorage.updateInvoice(invoice.id, { status: 'CANCELLED' });
+    getTransaction.mockResolvedValue(matchingHorizonTx(invoice.memo));
+
+    const { status, body } = await call('POST', `/api/invoices/${invoice.id}/verify`, {
+      txHash: TX_HASH,
+    });
+
+    expect(status).toBe(400);
+    expect(body.code).toBe('INVOICE_NOT_PENDING');
+    expect(getTransaction).not.toHaveBeenCalled();
+  });
+
   it('leaves an already-paid invoice alone', async () => {
     // The handler answers INVOICE_ALREADY_PAID before the expiry check runs;
     // this pins that the new check did not take that answer over.

@@ -40,6 +40,15 @@ describe('isMockEnabled', () => {
     expect(isMockEnabled()).toBe(false);
   });
 
+  it('returns false when NEXT_PUBLIC_USE_MOCK is "true" with surrounding spaces', () => {
+    // The check is an exact string comparison — padded values are not the
+    // literal "true" and must not enable the mock.
+    for (const value of [' true', 'true ', ' true ']) {
+      vi.stubEnv('NEXT_PUBLIC_USE_MOCK', value);
+      expect(isMockEnabled()).toBe(false);
+    }
+  });
+
   it('hard-blocks mock when NODE_ENV is production even if USE_MOCK=true', () => {
     vi.stubEnv('NEXT_PUBLIC_USE_MOCK', 'true');
     vi.stubEnv('NODE_ENV', 'production');

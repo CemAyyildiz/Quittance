@@ -73,6 +73,16 @@ describe('useWalletStore — updateBalance', () => {
     expect(state.connected).toBe(true);
   });
 
+  it('updates the balance on the initial disconnected state', () => {
+    // A balance refresh should not imply a wallet connection: the update
+    // must leave publicKey and connected exactly as they were.
+    store.getState().updateBalance('12');
+    const state = store.getState();
+    expect(state.balance).toBe('12');
+    expect(state.publicKey).toBeNull();
+    expect(state.connected).toBe(false);
+  });
+
   it('sets balance to "0" when called with "0"', () => {
     store.getState().setWallet('GBX…AAAA', '10');
     store.getState().updateBalance('0');
