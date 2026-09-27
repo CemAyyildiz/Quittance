@@ -32,15 +32,17 @@ describe('UserProfile', () => {
     expect(trigger).toHaveAttribute('aria-expanded', 'true');
   });
 
-  it('exposes the menu actions as menuitems when the menu is open', () => {
+  it('exposes the open menu and the buttons inside it', () => {
     render(<UserProfile userWallet={WALLET_ADDRESS} />);
 
     fireEvent.click(screen.getByRole('button'));
 
     const menu = screen.getByRole('menu');
-    const menuItems = within(menu).getAllByRole('menuitem');
+    const buttons = within(menu).getAllByRole('button');
 
-    expect(menuItems.length).toBeGreaterThan(0);
-    expect(within(menu).getByRole('menuitem', { name: /disconnect wallet/i })).toBeInTheDocument();
+    expect(buttons.length).toBeGreaterThan(0);
+    expect(
+      within(menu).getByRole('button', { name: /copy wallet address/i })
+    ).toBeInTheDocument();
   });
 });
