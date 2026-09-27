@@ -145,4 +145,80 @@ describe('mockInvoiceApi', () => {
       expect(expires - created).toBe(7 * 24 * 60 * 60 * 1000);
     });
   });
+
+  describe('invoice lifecycle', () => {
+    beforeEach(() => {
+      stubOrigin('https://quittance.test');
+    });
+
+    it('creates then cancels an invoice and treats unknown ids as a successful no-op', async () => {
+      vi.useFakeTimers();
+
+      const createPromise = mockInvoiceApi.create({
+        amount: 77,
+        assetCode: 'XLM',
+        description: 'Invoice lifecycle check',
+        customerName: 'Ada Lovelace',
+      });
+      await vi.advanceTimersByTimeAsync(1000);
+      const created = await createPromise;
+      const invoiceId = created.data.invoice.id;
+
+      const cancelPromise = mockInvoiceApi.cancel(invoiceId);
+      await vi.advanceTimersByTimeAsync(500);
+      const cancelled = await cancelPromise;
+
+      expect(cancelled.success).toBe(true);
+      expect(cancelled.data).toBeTruthy();
+      expect(cancelled.data.id).toBe(invoiceId);
+      expect(cancelled.data.status).toBe('CANCELLED');
+
+      const missingCancelPromise = mockInvoiceApi.cancel('missing-invoice-id');
+      await vi.advanceTimersByTimeAsync(500);
+      const missingCancel = await missingCancelPromise;
+
+      expect(missingCancel.success).toBe(true);
+      expect(missingCancel.data).toBeUndefined();
+    });
+
+    it('verifies a created invoice and stores the payment tx hash', async () => {
+      vi.useFakeTimers();
+
+      const createPromise = mockInvoiceApi.create({
+        amount: 85,
+        assetCode: 'XLM',
+        description: 'Verification check',
+        customerName: 'Grace Hopper',
+      });
+      await vi.advanceTimersByTimeAsync(1000);
+      const created = await createPromise;
+      const invoiceId = created.data.invoice.id;
+      const txHash = 'TXHASH123ABC456';
+
+      const verifyPromise = mockInvoiceApi.verify(invoiceId, txHash);
+      await vi.advanceTimersByTimeAsync(1000);
+      const verified = await verifyPromise;
+
+      expect(verified.success).toBe(true);
+      expect(verified.data).toBeTruthy();
+      expect(verified.data.id).toBe(invoiceId);
+      expect(verified.data.status).toBe('PAID');
+      expect(verified.data.paymentTxHash).toBe(txHash);
+      expect(typeof verified.data.paidAt).toBe('string');
+      expect(new Date(verified.data.paidAt).getTime()).not.toBeNaN();
+    });
+
+    it('returns a single stats row with XLM as the asset code', async () => {
+      vi.useFakeTimers();
+
+      const statsPromise = mockInvoiceApi.getStats();
+      await vi.advanceTimersByTimeAsync(500);
+      const stats = await statsPromise;
+
+      expect(stats.success).toBe(true);
+      expect(Array.isArray(stats.data)).toBe(true);
+      expect(stats.data).toHaveLength(1);
+      expect(stats.data[0].asset_code).toBe('XLM');
+    });
+  });
 });
