@@ -116,6 +116,7 @@ export default function WalletConnect({ onConnect, onConnectionFailure }: Wallet
         <button
           onClick={openExplorer}
           className="hidden sm:flex items-center gap-2 px-3 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+          aria-label="View wallet on Stellar Explorer"
         >
           <Wallet className="w-4 h-4 text-cyan-600" />
           <span className="text-sm font-mono text-gray-900">{formatAddress(publicKey, 4)}</span>
@@ -162,11 +163,12 @@ export default function WalletConnect({ onConnect, onConnectionFailure }: Wallet
     <button
       onClick={handleConnect}
       disabled={loading}
+      aria-busy={loading}
       className="btn btn-primary flex items-center gap-2"
     >
       {loading ? (
         <>
-          <Loader2 className="w-5 h-5 animate-spin" />
+          <Loader2 className="w-5 h-5 animate-spin" aria-hidden="true" />
           <span className="hidden sm:inline">Connecting...</span>
         </>
       ) : (
