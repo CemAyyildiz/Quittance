@@ -18,6 +18,9 @@ const VALID_KEY_2 = `G${repeat('Z', 55)}` as const;
 /** A valid key including digits (2-7). */
 const VALID_KEY_DIGITS = `G${repeat('7', 55)}` as const;
 
+/** A real Stellar contract address: 56 chars, starts with C, base-32. */
+const CONTRACT_ADDRESS = 'CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM';
+
 // ── isValidPublicKey ───────────────────────────────────────────────────────
 
 describe('isValidPublicKey', () => {
@@ -75,6 +78,15 @@ describe('isValidPublicKey', () => {
 
   it('returns false when key starts with "S" (secret seed prefix)', () => {
     expect(isValidPublicKey(`S${repeat('A', 55)}`)).toBe(false);
+  });
+
+  it('returns false when key starts with "C" (contract address prefix)', () => {
+    expect(isValidPublicKey(`C${repeat('A', 55)}`)).toBe(false);
+  });
+
+  it('returns false for a real 56-character contract address', () => {
+    expect(CONTRACT_ADDRESS).toHaveLength(STELLAR_KEY_LENGTH);
+    expect(isValidPublicKey(CONTRACT_ADDRESS)).toBe(false);
   });
 
   it('returns false when key starts with a digit', () => {
@@ -171,6 +183,17 @@ describe('assertValidPublicKey', () => {
   it('throws when key starts with "S"', () => {
     const key = `S${repeat('A', 55)}`;
     expect(() => assertValidPublicKey(key)).toThrow("must start with 'G'");
+  });
+
+  it('throws when key starts with "C" (contract address)', () => {
+    const key = `C${repeat('A', 55)}`;
+    expect(() => assertValidPublicKey(key)).toThrow("must start with 'G'");
+  });
+
+  it('throws for a real 56-character contract address with a custom label', () => {
+    expect(() => assertValidPublicKey(CONTRACT_ADDRESS, 'sellerPublicKey')).toThrow(
+      "sellerPublicKey must start with 'G'",
+    );
   });
 
   // ❌ Invalid characters

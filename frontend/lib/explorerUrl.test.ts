@@ -30,6 +30,30 @@ describe('explorerAccountUrl', () => {
     );
   });
 
+  // `resolveNetwork` only accepts the exact string 'PUBLIC'. Any other casing
+  // stays on testnet, so a mis-configured env never silently points at mainnet.
+  it('falls back to testnet when env is lowercase "public"', () => {
+    process.env.NEXT_PUBLIC_STELLAR_NETWORK = 'public';
+    const url = explorerAccountUrl('GABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789ABCDEFGHIJKL');
+    expect(url).toBe(
+      'https://stellar.expert/explorer/testnet/account/GABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789ABCDEFGHIJKL',
+    );
+  });
+
+  it('falls back to testnet when env is padded " PUBLIC "', () => {
+    process.env.NEXT_PUBLIC_STELLAR_NETWORK = ' PUBLIC ';
+    const url = explorerAccountUrl('GABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789ABCDEFGHIJKL');
+    expect(url).toBe(
+      'https://stellar.expert/explorer/testnet/account/GABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789ABCDEFGHIJKL',
+    );
+  });
+
+  it('falls back to testnet when env is mixed case "Public"', () => {
+    process.env.NEXT_PUBLIC_STELLAR_NETWORK = 'Public';
+    const url = explorerAccountUrl('GABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789ABCDEFGHIJKL');
+    expect(url).toContain('/explorer/testnet/account/');
+  });
+
   it('accepts an explicit network override (PUBLIC)', () => {
     const url = explorerAccountUrl(
       'GABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789ABCDEFGHIJKL',
@@ -104,6 +128,24 @@ describe('explorerTxUrl', () => {
     process.env.NEXT_PUBLIC_STELLAR_NETWORK = 'PUBLIC';
     const url = explorerTxUrl('deadbeefcafe');
     expect(url).toBe('https://stellar.expert/explorer/public/tx/deadbeefcafe');
+  });
+
+  it('falls back to testnet when env is lowercase "public"', () => {
+    process.env.NEXT_PUBLIC_STELLAR_NETWORK = 'public';
+    const url = explorerTxUrl('deadbeefcafe');
+    expect(url).toBe('https://stellar.expert/explorer/testnet/tx/deadbeefcafe');
+  });
+
+  it('falls back to testnet when env is padded " PUBLIC "', () => {
+    process.env.NEXT_PUBLIC_STELLAR_NETWORK = ' PUBLIC ';
+    const url = explorerTxUrl('deadbeefcafe');
+    expect(url).toBe('https://stellar.expert/explorer/testnet/tx/deadbeefcafe');
+  });
+
+  it('falls back to testnet when env is mixed case "Public"', () => {
+    process.env.NEXT_PUBLIC_STELLAR_NETWORK = 'Public';
+    const url = explorerTxUrl('deadbeefcafe');
+    expect(url).toContain('/explorer/testnet/tx/');
   });
 
   it('accepts explicit network override (TESTNET)', () => {

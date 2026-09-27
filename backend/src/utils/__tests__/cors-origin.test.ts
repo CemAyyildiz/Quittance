@@ -14,6 +14,55 @@ describe('parseCorsOrigin', () => {
     expect(parseCorsOrigin(undefined, '*')).toEqual(['*']);
   });
 
+  // The fallback is a full CORS value, so it is split and trimmed exactly like
+  // a raw list. Lock that a multi-origin fallback still yields two entries.
+  it('splits a comma-separated fallback into two trimmed origins when raw is undefined', () => {
+    expect(parseCorsOrigin(undefined, 'https://pay.example, https://app.example')).toEqual([
+      'https://pay.example',
+      'https://app.example',
+    ]);
+  });
+
+  it('splits a comma-separated fallback into two trimmed origins when raw is whitespace', () => {
+    expect(parseCorsOrigin('   ', 'https://pay.example, https://app.example')).toEqual([
+      'https://pay.example',
+      'https://app.example',
+    ]);
+  });
+
+  it('splits a comma-separated fallback into two trimmed origins when raw is an empty string', () => {
+    expect(parseCorsOrigin('', 'https://pay.example, https://app.example')).toEqual([
+      'https://pay.example',
+      'https://app.example',
+    ]);
+  });
+
+  it('trims each origin of a padded comma-separated fallback', () => {
+    expect(parseCorsOrigin(undefined, '  https://pay.example  ,  https://app.example  ')).toEqual([
+      'https://pay.example',
+      'https://app.example',
+    ]);
+  });
+
+  it('splits a three-origin fallback into three entries when raw is undefined', () => {
+    expect(parseCorsOrigin(undefined, 'https://a.example,https://b.example, https://c.example')).toEqual([
+      'https://a.example',
+      'https://b.example',
+      'https://c.example',
+    ]);
+  });
+
+  it('filters empty segments out of a ragged comma-separated fallback', () => {
+    expect(parseCorsOrigin(undefined, 'https://pay.example,,  ,https://app.example,')).toEqual([
+      'https://pay.example',
+      'https://app.example',
+    ]);
+  });
+
+  it('does not let a multi-origin fallback collapse back into a single string', () => {
+    expect(parseCorsOrigin(undefined, 'https://pay.example, https://app.example')).toHaveLength(2);
+  });
+
   it('returns fallback when raw is empty string', () => {
     expect(parseCorsOrigin('')).toEqual(['http://localhost:3000']);
   });

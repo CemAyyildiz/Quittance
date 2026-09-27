@@ -47,6 +47,54 @@ describe('parseSellerPublicKeyQuery', () => {
     });
   });
 
+  // The query value is passed straight to `isValidPublicKey`, which does not
+  // trim. A valid key wrapped in spaces therefore fails validation.
+  it('returns an invalid-format error for a valid key with a leading space', () => {
+    const result = parseSellerPublicKeyQuery(` ${VALID_KEY}`);
+    expect(result).toEqual({
+      ok: false,
+      error: 'sellerPublicKey must be a valid Stellar public key',
+    });
+  });
+
+  it('returns an invalid-format error for a valid key with a trailing space', () => {
+    const result = parseSellerPublicKeyQuery(`${VALID_KEY} `);
+    expect(result).toEqual({
+      ok: false,
+      error: 'sellerPublicKey must be a valid Stellar public key',
+    });
+  });
+
+  it('returns an invalid-format error for a valid key wrapped in spaces', () => {
+    const result = parseSellerPublicKeyQuery(`  ${VALID_KEY}  `);
+    expect(result).toEqual({
+      ok: false,
+      error: 'sellerPublicKey must be a valid Stellar public key',
+    });
+  });
+
+  it('returns an invalid-format error for a space-wrapped key with a custom label', () => {
+    const result = parseSellerPublicKeyQuery(` ${VALID_KEY}`, 'payerPublicKey');
+    expect(result).toEqual({
+      ok: false,
+      error: 'payerPublicKey must be a valid Stellar public key',
+    });
+  });
+
+  it('returns an invalid-format error for a 56-character key with an interior space', () => {
+    const key = `G${repeat('A', 27)} ${repeat('A', 27)}`;
+    expect(key).toHaveLength(56);
+    const result = parseSellerPublicKeyQuery(key);
+    expect(result).toEqual({
+      ok: false,
+      error: 'sellerPublicKey must be a valid Stellar public key',
+    });
+  });
+
+  it('does not trim: the same key with no extra spaces is still accepted', () => {
+    expect(parseSellerPublicKeyQuery(VALID_KEY)).toEqual({ ok: true, value: VALID_KEY });
+  });
+
   // ❌ Invalid
   it('returns an error result when the value is not a valid Stellar public key', () => {
     const result = parseSellerPublicKeyQuery('not-a-valid-key');
