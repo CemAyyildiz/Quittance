@@ -30,4 +30,20 @@ describe('invoice status helpers', () => {
       expect(isCancelled(status)).toBe(false);
     }
   });
+
+  it('returns false for every helper on a lowercase pending status', () => {
+    // Comparisons are exact, so a lowercase value is not a valid status.
+    const lowercasePending = 'pending' as unknown as InvoiceStatus;
+
+    expect(canCancel(lowercasePending)).toBe(false);
+    expect(isPending(lowercasePending)).toBe(false);
+    expect(isPaid(lowercasePending)).toBe(false);
+    expect(isExpired(lowercasePending)).toBe(false);
+    expect(isCancelled(lowercasePending)).toBe(false);
+  });
+
+  it('still treats uppercase PENDING as cancelable and pending', () => {
+    expect(canCancel('PENDING')).toBe(true);
+    expect(isPending('PENDING')).toBe(true);
+  });
 });

@@ -17,4 +17,8 @@ describe('freighterGuidance', () => {
   it('keeps install guidance hidden for a connected wallet', () => {
     expect(shouldShowFreighterInstallGuidance(true, true)).toBe(false);
   });
+
+  it('keeps install guidance hidden for a connected wallet while Freighter is available', () => {
+    expect(shouldShowFreighterInstallGuidance(true, false)).toBe(false);
+  });
 });

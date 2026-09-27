@@ -25,6 +25,20 @@ describe('safeJsonParse', () => {
     expect(safeJsonParse('null').success).toBe(true);
   });
 
+  it('keeps the parsed payload for null and false', () => {
+    const nullResult = safeJsonParse<null>('null');
+    expect(nullResult.success).toBe(true);
+    if (nullResult.success) {
+      expect(nullResult.data).toBeNull();
+    }
+
+    const falseResult = safeJsonParse<boolean>('false');
+    expect(falseResult.success).toBe(true);
+    if (falseResult.success) {
+      expect(falseResult.data).toBe(false);
+    }
+  });
+
   it('returns error for invalid JSON', () => {
     const result = safeJsonParse('{invalid}');
     expect(result.success).toBe(false);
