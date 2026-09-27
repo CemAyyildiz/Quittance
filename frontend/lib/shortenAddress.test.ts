@@ -60,4 +60,10 @@ describe('shortenAddress', () => {
     const address = 'GA4S7W3X6P2Q5KZDPRQZ4YQZ3NZF2WX4X5Y6Z7Q8R9S0T1U2V3W4X5Y6Z7';
     expect(shortenAddress(address, { suffixLength: 0 })).toBe('GA4S...');
   });
+
+  it('uses prefixLength=0 and suffixLength=0 showing only the ellipsis', () => {
+    const address = 'GA4S7W3X6P2Q5KZDPRQZ4YQZ3NZF2WX4X5Y6Z7Q8R9S0T1U2V3W4X5Y6Z7';
+    expect(shortenAddress(address, { prefixLength: 0, suffixLength: 0 })).toBe('...');
+    expect(shortenAddress('', { prefixLength: 0, suffixLength: 0 })).toBe('');
+  });
 });

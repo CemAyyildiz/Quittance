@@ -25,6 +25,12 @@ describe('getStellarExpertTransactionUrl', () => {
     expect(getStellarExpertTransactionUrl(`${hash}" onclick="alert(1)`, 'Mainnet')).toBeUndefined();
     expect(getStellarExpertTransactionUrl('javascript:alert(1)', 'Mainnet')).toBeUndefined();
   });
+
+  it('rejects undefined, empty, and short hashes for Mainnet', () => {
+    expect(getStellarExpertTransactionUrl(undefined, 'Mainnet')).toBeUndefined();
+    expect(getStellarExpertTransactionUrl('', 'Mainnet')).toBeUndefined();
+    expect(getStellarExpertTransactionUrl('a'.repeat(63), 'Mainnet')).toBeUndefined();
+  });
 });
 
 describe('generateInvoiceCSV', () => {

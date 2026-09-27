@@ -110,6 +110,30 @@ describe('requestId middleware', () => {
     expect(req.requestId.length).toBe(128);
   });
 
+  it('honors a one-character inbound id', () => {
+    const incomingId = 'a';
+    const req = mockReq({ 'x-request-id': incomingId });
+    const res = mockRes();
+    const next = vi.fn();
+
+    requestId(req, res, next);
+
+    expect(req.requestId).toBe(incomingId);
+    expect(res.setHeader).toHaveBeenCalledWith('x-request-id', incomingId);
+  });
+
+  it('honors an inbound id made only of dot, underscore, and dash', () => {
+    const incomingId = '._-';
+    const req = mockReq({ 'x-request-id': incomingId });
+    const res = mockRes();
+    const next = vi.fn();
+
+    requestId(req, res, next);
+
+    expect(req.requestId).toBe(incomingId);
+    expect(res.setHeader).toHaveBeenCalledWith('x-request-id', incomingId);
+  });
+
   it('rejects an inbound id containing a CRLF injection attempt', () => {
     const unsafe = 'safe-id\r\nX-Injected-Header: evil';
     const req = mockReq({ 'x-request-id': unsafe });
