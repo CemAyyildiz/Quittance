@@ -64,4 +64,17 @@ mod test {
         client.__constructor(&admin);
         client.__constructor(&admin);
     }
+
+    #[test]
+    #[should_panic(expected = "already initialized")]
+    fn test_double_init_fails_with_different_admin() {
+        let env = Env::default();
+        let contract_id = env.register_contract(None, InitOnce);
+        let client = InitOnceClient::new(&env, &contract_id);
+
+        let admin_a = Address::generate(&env);
+        let admin_b = Address::generate(&env);
+        client.__constructor(&admin_a);
+        client.__constructor(&admin_b);
+    }
 }
