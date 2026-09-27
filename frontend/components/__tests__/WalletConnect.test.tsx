@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import React, { useState } from 'react';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
 
 const FREIGHTER_INSTALL_URL = 'https://www.freighter.app/';
@@ -61,6 +61,8 @@ vi.mock('@/lib/explorerUrl', () => ({
 
 import WalletConnect from '../WalletConnect';
 import { requestWalletAccess } from '@/lib/stellar';
+import { useWalletStore } from '@/lib/store';
+import { paymentMonitor } from '@/lib/payment-monitor';
 import { toast } from 'sonner';
 
 function FreighterGuard() {
@@ -128,5 +130,99 @@ describe('WalletConnect', () => {
         expect.stringContaining('Freighter')
       );
     });
+  });
+});
+
+describe('WalletConnect connected-state button names', () => {
+  const PUBLIC_KEY = 'GCONNECTED7W2N7W2N7W2N7W2N7W2N7W2N7W2N7W2N7W2N7';
+
+  // The disconnect button has no visible text, so its accessible name can only
+  // come from aria-label. Same for the monitoring toggle and the mobile
+  // explorer button, which is icon-only.
+  const EXPLORER_NAME = 'View wallet on Stellar Explorer';
+  const DISCONNECT_NAME = 'Disconnect wallet';
+  const MONITORING_ON = 'Monitoring active';
+  const MONITORING_OFF = 'Start monitoring';
+
+  const connectedStore = () => ({
+    publicKey: PUBLIC_KEY,
+    balance: '100.00',
+    connected: true,
+    setWallet: vi.fn(),
+    updateBalance: vi.fn(),
+    disconnect: vi.fn(),
+  });
+
+  const disconnectedStore = () => ({
+    publicKey: null,
+    balance: '0',
+    connected: false,
+    setWallet: vi.fn(),
+    updateBalance: vi.fn(),
+    disconnect: vi.fn(),
+  });
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(useWalletStore).mockImplementation(connectedStore);
+    vi.mocked(paymentMonitor.isMonitoring).mockImplementation(() => false);
+  });
+
+  afterEach(() => {
+    // Restore the module-level defaults so the disconnected suite above and any
+    // later file importing these mocks see the original behaviour.
+    vi.mocked(useWalletStore).mockImplementation(disconnectedStore);
+    vi.mocked(paymentMonitor.isMonitoring).mockImplementation(() => false);
+  });
+
+  it('names the explorer, disconnect, and monitoring buttons when connected', () => {
+    render(<WalletConnect />);
+
+    // The explorer button is rendered twice (desktop and small-screen) and both
+    // currently share one aria-label. Query every match and require only that at
+    // least one carries the name, so this deliberately does NOT pin the desktop
+    // button to any particular label.
+    const explorerButtons = screen.getAllByRole('button', { name: EXPLORER_NAME });
+    expect(explorerButtons.length).toBeGreaterThan(0);
+    expect(
+      explorerButtons.some((button) => button.getAttribute('aria-label') === EXPLORER_NAME)
+    ).toBe(true);
+
+    // These two have no text content at all, so the accessible name can only come
+    // from aria-label. Assert the attribute too, because `title` mirrors the same
+    // strings and would otherwise mask a dropped aria-label.
+    const disconnect = screen.getByRole('button', { name: DISCONNECT_NAME });
+    expect(disconnect).toBeInTheDocument();
+    expect(disconnect).toHaveAttribute('aria-label', DISCONNECT_NAME);
+
+    // Monitoring auto-starts on mount, so the toggle reports the active name.
+    const monitoring = screen.getByRole('button', { name: MONITORING_ON });
+    expect(monitoring).toBeInTheDocument();
+    expect(monitoring).toHaveAttribute('aria-label', MONITORING_ON);
+  });
+
+  it('renames the monitoring button to Start monitoring once monitoring is paused', async () => {
+    render(<WalletConnect />);
+
+    // Active on mount, because the effect starts monitoring for the connected key.
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: MONITORING_ON })).toBeInTheDocument();
+    });
+    expect(paymentMonitor.startMonitoring).toHaveBeenCalledWith(
+      PUBLIC_KEY,
+      expect.any(Function)
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: MONITORING_ON }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: MONITORING_OFF })).toBeInTheDocument();
+    });
+    expect(screen.getByRole('button', { name: MONITORING_OFF })).toHaveAttribute(
+      'aria-label',
+      MONITORING_OFF
+    );
+    expect(screen.queryByRole('button', { name: MONITORING_ON })).not.toBeInTheDocument();
+    expect(paymentMonitor.stopMonitoring).toHaveBeenCalledWith(PUBLIC_KEY);
   });
 });
