@@ -136,7 +136,7 @@ export default function FeedbackPage() {
             />
           </div>
 
-          <button type="submit" className="btn btn-primary" disabled={submitting}>
+          <button type="submit" className="btn btn-primary" disabled={submitting} aria-busy={submitting}>
             {submitting ? 'Opening…' : 'Send feedback'}
           </button>
 
