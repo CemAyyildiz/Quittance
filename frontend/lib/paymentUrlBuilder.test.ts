@@ -17,6 +17,15 @@ describe('paymentUrlBuilder', () => {
     expect(url).toBe('http://localhost:3000/pay/xyz');
   });
 
+  it('strips every trailing slash from origin', () => {
+    const url = paymentUrlBuilder('http://localhost:3000///', 'abc');
+    expect(url).toBe('http://localhost:3000/pay/abc');
+  });
+
+  it('throws if origin is only slashes', () => {
+    expect(() => paymentUrlBuilder('///', 'abc')).toThrow('Origin is required');
+  });
+
   it('encodes special characters in id', () => {
     const url = paymentUrlBuilder('http://localhost:3000', 'a/b c');
     expect(url).toBe('http://localhost:3000/pay/a%2Fb%20c');

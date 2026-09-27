@@ -21,4 +21,12 @@ describe('NotFound', () => {
     expect(html).toContain('Error 404');
     expect(html).toContain('This page could not be found.');
   });
+
+  it('keeps the recovery sentence and header brand', () => {
+    const html = renderToStaticMarkup(<NotFound />);
+    expect(html).toContain(
+      'The link may be incorrect or the page may have moved. Return to Quittance to create or manage your invoices.'
+    );
+    expect(html).toContain('>Quittance</a>');
+  });
 });

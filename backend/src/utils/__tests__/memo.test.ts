@@ -69,6 +69,12 @@ describe('isValidMemo', () => {
     expect(isValidMemo('INV-ABC-123-')).toBe(false);
   });
 
+  it('returns false for a valid memo wrapped in spaces', () => {
+    expect(isValidMemo(' INV-AB-CD')).toBe(false);
+    expect(isValidMemo('INV-AB-CD ')).toBe(false);
+    expect(isValidMemo('INV-AB-CD')).toBe(true);
+  });
+
   it('returns false for non-string-like but coerced values edge', () => {
     // isValidMemo expects string; passing non-string would be type error, but ensure it handles stringified check
     expect(isValidMemo('INV-abc-123' as string)).toBe(false);
