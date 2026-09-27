@@ -15,6 +15,22 @@ afterEach(() => {
   cleanup();
 });
 
+/**
+ * jsdom applies the email value-sanitization algorithm (stripping leading and
+ * trailing whitespace) to <input type="email">, so a plain fireEvent.change
+ * can never deliver a whitespace-only value to the component. Override the
+ * value IDL attribute so the change event carries the raw string a user could
+ * type, while leaving the input as type="email".
+ */
+function changeEmailTo(input: HTMLElement, value: string) {
+  Object.defineProperty(input, 'value', {
+    configurable: true,
+    get: () => value,
+    set: () => {},
+  });
+  fireEvent.change(input, { bubbles: true });
+}
+
 describe('InvoiceForm client email validation', () => {
   it('shows no error while the field is empty', () => {
     render(<InvoiceForm />);
@@ -75,5 +91,37 @@ describe('InvoiceForm client email validation', () => {
 
     expect(screen.getByText('Enter a valid client email')).toBeTruthy();
     expect(invoiceApi.create).not.toHaveBeenCalled();
+  });
+
+  it('rejects a whitespace-only email and marks the field invalid', () => {
+    render(<InvoiceForm />);
+    const emailInput = screen.getByPlaceholderText('client@example.com — for sending the invoice');
+
+    changeEmailTo(emailInput, '   ');
+
+    expect(screen.getByText('Enter a valid email address')).toBeTruthy();
+    expect(emailInput.getAttribute('aria-invalid')).toBe('true');
+  });
+
+  it('rejects an address with a leading space', () => {
+    render(<InvoiceForm />);
+    const emailInput = screen.getByPlaceholderText('client@example.com — for sending the invoice');
+
+    changeEmailTo(emailInput, ' user@example.com');
+
+    expect(screen.getByText('Enter a valid email address')).toBeTruthy();
+    expect(emailInput.getAttribute('aria-invalid')).toBe('true');
+  });
+
+  it('clears the error when the field is emptied again', () => {
+    render(<InvoiceForm />);
+    const emailInput = screen.getByPlaceholderText('client@example.com — for sending the invoice');
+
+    changeEmailTo(emailInput, '   ');
+    expect(screen.getByText('Enter a valid email address')).toBeTruthy();
+
+    changeEmailTo(emailInput, '');
+    expect(screen.queryByText('Enter a valid email address')).toBeNull();
+    expect(emailInput.getAttribute('aria-invalid')).toBe('false');
   });
 });
