@@ -219,11 +219,12 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
       <button
         type="submit"
         disabled={loading}
+        aria-busy={loading}
         className="btn btn-primary w-full flex items-center justify-center gap-2 mt-6"
       >
         {loading ? (
           <>
-            <Loader2 className="w-5 h-5 animate-spin" />
+            <Loader2 className="w-5 h-5 animate-spin" aria-hidden="true" />
             Creating...
           </>
         ) : (
