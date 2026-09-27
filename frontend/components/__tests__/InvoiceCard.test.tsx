@@ -1,6 +1,8 @@
 import { describe, it, expect, afterEach, vi } from 'vitest';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { cleanup, render, screen } from '@testing-library/react';
+import '@testing-library/jest-dom/vitest';
 import InvoiceCard from '../InvoiceCard';
 
 const sampleInvoice = {
@@ -15,6 +17,7 @@ const sampleInvoice = {
 
 describe('InvoiceCard', () => {
   afterEach(() => {
+    cleanup();
     vi.unstubAllGlobals();
   });
 
@@ -30,5 +33,30 @@ describe('InvoiceCard', () => {
     expect(html).toContain('XLM');
     expect(html).toContain(sampleInvoice.memo);
     expect(html).toContain('Pending');
+  });
+
+  // The two icon-only controls are the card's only unlabeled buttons, so their
+  // accessible names are asserted through the rendered DOM rather than markup.
+  it('exposes the copy control as "Copy invoice link" while the invoice is pending', () => {
+    render(<InvoiceCard invoice={sampleInvoice} />);
+
+    expect(screen.getByRole('button', { name: 'Copy invoice link' })).toBeInTheDocument();
+  });
+
+  it('exposes the email control as "Email payment proof" for a paid invoice with a customer email', () => {
+    render(
+      <InvoiceCard
+        invoice={{ ...sampleInvoice, status: 'PAID', customerEmail: 'client@example.com' }}
+      />,
+    );
+
+    expect(screen.getByRole('button', { name: 'Email payment proof' })).toBeInTheDocument();
+  });
+
+  it('does not expose either icon-only control when its action is unavailable', () => {
+    render(<InvoiceCard invoice={{ ...sampleInvoice, status: 'PAID', customerEmail: undefined }} />);
+
+    expect(screen.queryByRole('button', { name: 'Copy invoice link' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Email payment proof' })).not.toBeInTheDocument();
   });
 });
