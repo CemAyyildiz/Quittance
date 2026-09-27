@@ -87,6 +87,13 @@ describe('assertInvoiceSettleable', () => {
       });
     }
   });
+
+  it('allows a pending invoice with an unreadable expiresAt', () => {
+    // Unparseable expiry is treated as not expired, so settlement proceeds.
+    expect(assertInvoiceSettleable(invoice({ expiresAt: 'not-a-date' }), NOW)).toEqual({
+      ok: true,
+    });
+  });
 });
 
 describe('startExpirySweep', () => {
