@@ -42,4 +42,27 @@ describe('parsePaginationQuery', () => {
       offset: 12,
     });
   });
+
+  it('pins regex edge cases for explicit signs and padded values', () => {
+    expect(parsePaginationQuery({ limit: '+25', offset: '+0' })).toEqual({
+      limit: 25,
+      offset: 0,
+    });
+    expect(parsePaginationQuery({ limit: ' 10 ', offset: ' 0 ' })).toEqual({
+      limit: 10,
+      offset: 0,
+    });
+  });
+
+  it('falls back to the default limit when an explicit sign yields zero', () => {
+    expect(parsePaginationQuery({ limit: '+0' })).toEqual({
+      limit: DEFAULT_PAGE_LIMIT,
+      offset: 0,
+    });
+    expect(parsePaginationQuery({ limit: '+0' }).limit).toBe(DEFAULT_PAGE_LIMIT);
+    expect(parsePaginationQuery({ limit: ' +0 ' })).toEqual({
+      limit: DEFAULT_PAGE_LIMIT,
+      offset: 0,
+    });
+  });
 });

@@ -318,7 +318,7 @@ export default function HomePage() {
                         }}
                         className="btn btn-secondary"
                       >
-                        <Mail className="w-4 h-4" />
+                        <Mail className="w-4 h-4" aria-hidden="true" />
                         Send
                       </button>
                     )}

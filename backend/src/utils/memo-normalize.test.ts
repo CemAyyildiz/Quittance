@@ -78,6 +78,19 @@ describe('memosMatch', () => {
     expect(memosMatch('INV-ABC-123', 'INV-ABC-123')).toBe(true);
   });
 
+  it('rejects different internal whitespace: double space vs single space', () => {
+    // normalizeMemo only trims the ends, it does not collapse internal
+    // spaces. Two memos differing in internal whitespace must not match.
+    expect(memosMatch('a  b', 'a b')).toBe(false);
+  });
+
+  it('matches same internal whitespace after trimming surrounding whitespace', () => {
+    // The internal double-space is preserved in both strings; only the
+    // leading/trailing whitespace is removed. The normalized forms are
+    // identical so they match.
+    expect(memosMatch('a  b', ' a  b ')).toBe(true);
+  });
+
   it('rejects different strings', () => {
     expect(memosMatch('INV-ABC-123', 'INV-ABC-999')).toBe(false);
   });

@@ -66,4 +66,12 @@ describe('LoadingSpinner', () => {
     const mutedHtml = renderToStaticMarkup(<LoadingSpinner variant="muted" />);
     expect(mutedHtml).toContain('text-[var(--muted)]');
   });
+
+  it('falls back to teal variant for an unknown variant', () => {
+    const html = renderToStaticMarkup(
+      <LoadingSpinner variant={'unknown-variant' as any} />
+    );
+    expect(html).toContain('text-[var(--teal)]');
+    expect(html).toContain('role="status"');
+  });
 });

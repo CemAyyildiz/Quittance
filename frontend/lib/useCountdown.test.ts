@@ -81,6 +81,24 @@ describe('useCountdown', () => {
     countdown.unmount();
   });
 
+  it('updates an expiry far in the future using an hourly interval', () => {
+    const countdown = renderCountdown(new Date(NOW.getTime() + 2 * 3600_000));
+
+    expect(countdown.value).toBe('2h 0m');
+
+    act(() => {
+      vi.advanceTimersByTime(1_000);
+    });
+    expect(countdown.value).toBe('2h 0m');
+
+    act(() => {
+      vi.advanceTimersByTime(59_000);
+    });
+    expect(countdown.value).toBe('1h 59m');
+
+    countdown.unmount();
+  });
+
   it('reports a past expiry immediately and schedules no timer', () => {
     const countdown = renderCountdown(new Date(NOW.getTime() - 1_000));
 

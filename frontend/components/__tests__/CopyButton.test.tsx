@@ -62,4 +62,45 @@ describe('CopyButton', () => {
     await waitFor(() => expect(onCopy).toHaveBeenCalledWith(false));
     expect(screen.getByRole('button', { name: 'Copy' })).toBeInTheDocument();
   });
+
+  it('renders a polite live region that announces the copied label', async () => {
+    render(<CopyButton text="INV-42" />);
+
+    const liveRegion = screen.getByRole('status');
+    expect(liveRegion).toHaveAttribute('aria-live', 'polite');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Copy' }));
+
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Copied'));
+  });
+
+  it('clears the live region announcement when copied state ends', async () => {
+    vi.useFakeTimers();
+    render(<CopyButton text="memo" timeout={1000} />);
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Copy' }));
+      await Promise.resolve();
+    });
+    expect(screen.getByRole('status')).toHaveTextContent('Copied');
+
+    act(() => vi.advanceTimersByTime(1000));
+    expect(screen.getByRole('status')).toBeEmptyDOMElement();
+  });
+
+  it('does not announce when the clipboard write fails', async () => {
+    copyMock.mockResolvedValue(false);
+    render(<CopyButton text="secret" />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Copy' }));
+
+    await waitFor(() => expect(screen.getByRole('status')).toBeEmptyDOMElement());
+  });
+
+  it('keeps the live region empty while idle', () => {
+    render(<CopyButton text="quiet" />);
+
+    expect(screen.getByRole('status')).toBeInTheDocument();
+    expect(screen.getByRole('status')).toBeEmptyDOMElement();
+  });
 });

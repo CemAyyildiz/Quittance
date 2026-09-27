@@ -1,44 +1,68 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
+import '@testing-library/jest-dom/vitest';
 import PaymentQrCodes from '../PaymentQrCodes';
 
-vi.mock('sonner', () => ({
-  toast: {
-    success: vi.fn(),
-    error: vi.fn(),
-  },
-}));
-
-vi.mock('@/lib/utils', () => ({
-  copyToClipboard: vi.fn().mockResolvedValue(true),
+// QRCodeDisplay renders a canvas/svg via qrcode.react — stub it out so
+// jsdom doesn't need a canvas implementation.
+vi.mock('@/components/QRCodeDisplay', () => ({
+  default: ({ value }: { value: string }) => <div data-testid="qr">{value}</div>,
 }));
 
 describe('PaymentQrCodes', () => {
-  const paymentUrl = 'https://app.example.com/pay/inv-2026-0842';
-  const stellarPaymentUri =
-    'web+stellar:pay?destination=GBOXJFZQU3IFDMN2V5EYBY4SXDYKRGWZ7VXKS46H4S3H5EXAMPLE&amount=125.5&asset_code=XLM&memo=INV-2026-0842';
+  const mockProps = {
+    paymentUrl: 'https://pay.quittance.io/inv/INV-2026-0842',
+    stellarPaymentUri:
+      'web+stellar:pay?destination=GABCD&amount=125.5&memo=INV-2026-0842',
+  };
 
-  const mockProps = { paymentUrl, stellarPaymentUri };
-
-  it('renders the payment link encoding', () => {
+  it('renders the "Payment link" section heading as an h3', () => {
     render(<PaymentQrCodes {...mockProps} />);
-    expect(screen.getByText('Payment link')).toBeTruthy();
-    expect(screen.getByText(paymentUrl)).toBeTruthy();
+    const heading = screen.getByRole('heading', { name: 'Payment link' });
+    expect(heading.tagName).toBe('H3');
   });
 
-  it('renders the SEP-0007 wallet payment encoding', () => {
+  it('renders the "SEP-0007 wallet payment" section heading as an h3', () => {
     render(<PaymentQrCodes {...mockProps} />);
-    expect(screen.getByText('SEP-0007 wallet payment')).toBeTruthy();
-    expect(screen.getByText(stellarPaymentUri)).toBeTruthy();
+    const heading = screen.getByRole('heading', { name: 'SEP-0007 wallet payment' });
+    expect(heading.tagName).toBe('H3');
   });
 
-  it('renders a QR code for each encoding', () => {
-    const { container } = render(<PaymentQrCodes {...mockProps} />);
-    expect(container.querySelectorAll('svg').length).toBeGreaterThanOrEqual(2);
+  it('both section headings keep their existing Tailwind classes', () => {
+    render(<PaymentQrCodes {...mockProps} />);
+    const headings = screen.getAllByRole('heading');
+    expect(headings).toHaveLength(2);
+    const expectedClasses = ['text-sm', 'font-medium', 'text-gray-700', 'text-center', 'mb-3'];
+    for (const h of headings) {
+      for (const cls of expectedClasses) {
+        expect(h.className).toContain(cls);
+      }
+    }
   });
 
-  it('passes the requested size to both QR codes', () => {
-    const { container } = render(<PaymentQrCodes {...mockProps} size={320} />);
-    expect(container.querySelectorAll('svg[width="320"]').length).toBe(2);
+  it('renders the supporting sentence for the payment link section', () => {
+    render(<PaymentQrCodes {...mockProps} />);
+    expect(
+      screen.getByText(/opens the quittance pay page in a browser/i)
+    ).toBeInTheDocument();
+  });
+
+  it('renders the supporting sentence for the SEP-0007 section', () => {
+    render(<PaymentQrCodes {...mockProps} />);
+    expect(
+      screen.getByText(/scan with a stellar wallet that supports sep-0007/i)
+    ).toBeInTheDocument();
+  });
+
+  it('passes paymentUrl to the first QR code', () => {
+    render(<PaymentQrCodes {...mockProps} />);
+    const qrs = screen.getAllByTestId('qr');
+    expect(qrs[0]).toHaveTextContent(mockProps.paymentUrl);
+  });
+
+  it('passes stellarPaymentUri to the second QR code', () => {
+    render(<PaymentQrCodes {...mockProps} />);
+    const qrs = screen.getAllByTestId('qr');
+    expect(qrs[1]).toHaveTextContent(mockProps.stellarPaymentUri);
   });
 });

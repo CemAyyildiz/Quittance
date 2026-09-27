@@ -11,6 +11,7 @@ Quittance is designed around the Stellar testnet MVP and keeps the initial payme
 
 ## USDC on testnet
 
+- Quittance uses `GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5` as its testnet USDC issuer.
 - USDC can be supported for the MVP when it is issued on Stellar testnet.
 - The expected asset should be identified by both its code and issuer account, for example: `USDC` with a valid testnet issuer account.
 - The issuer account must be a testnet account and must be configured consistently for the invoice and the payment flow.

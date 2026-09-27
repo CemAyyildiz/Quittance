@@ -83,9 +83,13 @@ export default function InvoiceDetailPage() {
         <div className="orb orb-1"></div>
         <div className="orb orb-2"></div>
         <div className="orb orb-3"></div>
-        <div className="relative">
-          <div className="absolute inset-0 bg-gradient-to-r from-cyan-400 to-blue-500 rounded-full blur-2xl opacity-30"></div>
-          <Loader2 className="w-16 h-16 animate-spin text-cyan-400 relative z-10" />
+        <div className="relative" role="status">
+          <div className="absolute inset-0 bg-gradient-to-r from-cyan-400 to-blue-500 rounded-full blur-2xl opacity-30" aria-hidden="true"></div>
+          <Loader2
+            className="w-16 h-16 animate-spin text-cyan-400 relative z-10"
+            aria-label="Loading invoice details"
+          />
+          <span className="sr-only">Loading invoice details</span>
         </div>
       </div>
     );
@@ -117,8 +121,9 @@ export default function InvoiceDetailPage() {
               <button
                 onClick={() => router.back()}
                 className="btn btn-outline flex items-center gap-2"
+                aria-label="Back"
               >
-                <ArrowLeft className="w-5 h-5" />
+                <ArrowLeft className="w-5 h-5" aria-hidden="true" />
                 <span className="hidden sm:inline">Back</span>
               </button>
               <Link href="/" className="hover:opacity-90 transition-opacity">
@@ -136,8 +141,9 @@ export default function InvoiceDetailPage() {
                 <button
                   onClick={handleShare}
                   className="btn btn-primary flex items-center gap-2"
+                  aria-label="Share"
                 >
-                  <Share2 className="w-5 h-5" />
+                  <Share2 className="w-5 h-5" aria-hidden="true" />
                   <span className="hidden sm:inline">Share</span>
                 </button>
               )}
@@ -145,8 +151,9 @@ export default function InvoiceDetailPage() {
                 <button
                   onClick={handleDownloadProof}
                   className="btn btn-primary flex items-center gap-2"
+                  aria-label="Download Proof"
                 >
-                  <Download className="w-5 h-5" />
+                  <Download className="w-5 h-5" aria-hidden="true" />
                   <span className="hidden sm:inline">Download Proof</span>
                 </button>
               )}
@@ -181,8 +188,9 @@ export default function InvoiceDetailPage() {
                     type="button"
                     onClick={handleDownloadProof}
                     className="btn btn-primary w-full flex items-center justify-center gap-2"
+                    aria-label="Download Proof"
                   >
-                    <Download className="w-5 h-5" />
+                    <Download className="w-5 h-5" aria-hidden="true" />
                     Download Proof
                   </button>
                 )}

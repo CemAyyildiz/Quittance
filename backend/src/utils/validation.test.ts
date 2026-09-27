@@ -154,6 +154,78 @@ describe('createInvoiceSchema', () => {
 
     expect(result.success).toBe(true);
   });
+
+  it('accepts description at 500 chars and rejects 501', () => {
+    const validResult = createInvoiceSchema.safeParse({
+      amount: 10,
+      description: 'a'.repeat(500),
+      sellerPublicKey: validSellerPublicKey,
+    });
+
+    expect(validResult.success).toBe(true);
+
+    const invalidResult = createInvoiceSchema.safeParse({
+      amount: 10,
+      description: 'a'.repeat(501),
+      sellerPublicKey: validSellerPublicKey,
+    });
+
+    expect(invalidResult.success).toBe(false);
+    if (invalidResult.success) {
+      throw new Error('Expected description length 501 to fail validation');
+    }
+    expect(
+      invalidResult.error.issues.some((issue) => issue.path.includes('description')),
+    ).toBe(true);
+  });
+
+  it('accepts customerName at 255 chars and rejects 256', () => {
+    const validResult = createInvoiceSchema.safeParse({
+      amount: 10,
+      customerName: 'a'.repeat(255),
+      sellerPublicKey: validSellerPublicKey,
+    });
+
+    expect(validResult.success).toBe(true);
+
+    const invalidResult = createInvoiceSchema.safeParse({
+      amount: 10,
+      customerName: 'a'.repeat(256),
+      sellerPublicKey: validSellerPublicKey,
+    });
+
+    expect(invalidResult.success).toBe(false);
+    if (invalidResult.success) {
+      throw new Error('Expected customerName length 256 to fail validation');
+    }
+    expect(
+      invalidResult.error.issues.some((issue) => issue.path.includes('customerName')),
+    ).toBe(true);
+  });
+
+  it('accepts sellerName at 255 chars and rejects 256', () => {
+    const validResult = createInvoiceSchema.safeParse({
+      amount: 10,
+      sellerName: 'a'.repeat(255),
+      sellerPublicKey: validSellerPublicKey,
+    });
+
+    expect(validResult.success).toBe(true);
+
+    const invalidResult = createInvoiceSchema.safeParse({
+      amount: 10,
+      sellerName: 'a'.repeat(256),
+      sellerPublicKey: validSellerPublicKey,
+    });
+
+    expect(invalidResult.success).toBe(false);
+    if (invalidResult.success) {
+      throw new Error('Expected sellerName length 256 to fail validation');
+    }
+    expect(
+      invalidResult.error.issues.some((issue) => issue.path.includes('sellerName')),
+    ).toBe(true);
+  });
 });
 
 describe('stellarPublicKeySchema', () => {
