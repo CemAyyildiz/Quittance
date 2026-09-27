@@ -25,6 +25,14 @@ vi.mock('next/image', () => ({
   ),
 }));
 
+/**
+ * Reads back the exact `alt` attribute rendered on the image, so the assertion
+ * fails on a longer alt string that merely contains the expected text.
+ */
+function imageAlt(html: string): string | undefined {
+  return html.match(/\balt="([^"]*)"/)?.[1];
+}
+
 describe('AssetLogo', () => {
   it('renders an unknown asset code as plain text without an image', () => {
     const html = renderToStaticMarkup(<AssetLogo code="BTC" />);
@@ -46,9 +54,14 @@ describe('AssetLogo', () => {
     expect(html).toContain(
       'src="https://assets.coingecko.com/coins/images/100/small/stellar-xlm-logo.png"',
     );
-    expect(html).toContain('alt="Stellar Lumens logo"');
+    expect(imageAlt(html)).toBe('Stellar Lumens logo');
     expect(html).toContain('width="20"');
     expect(html).toContain('height="20"');
+  });
+
+  it('locks the USDC logo alt to the exact display name plus "logo"', () => {
+    const html = renderToStaticMarkup(<AssetLogo code="USDC" />);
+    expect(imageAlt(html)).toBe('USD Coin logo');
   });
 
   it('shows the human-readable asset name next to the logo by default', () => {
