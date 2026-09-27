@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
 import UserProfile from '../UserProfile';
 
@@ -30,5 +30,17 @@ describe('UserProfile', () => {
 
     fireEvent.click(trigger);
     expect(trigger).toHaveAttribute('aria-expanded', 'true');
+  });
+
+  it('exposes the menu actions as menuitems when the menu is open', () => {
+    render(<UserProfile userWallet={WALLET_ADDRESS} />);
+
+    fireEvent.click(screen.getByRole('button'));
+
+    const menu = screen.getByRole('menu');
+    const menuItems = within(menu).getAllByRole('menuitem');
+
+    expect(menuItems.length).toBeGreaterThan(0);
+    expect(within(menu).getByRole('menuitem', { name: /disconnect wallet/i })).toBeInTheDocument();
   });
 });
