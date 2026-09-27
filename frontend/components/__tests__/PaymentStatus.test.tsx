@@ -17,6 +17,21 @@ describe('PaymentStatus', () => {
   // A 64-char hex string that passes the explorer helper's validation.
   const TX_HASH = 'a'.repeat(64);
 
+  const STATUSES: Array<'PENDING' | 'PAID' | 'EXPIRED' | 'CANCELLED'> = [
+    'PAID',
+    'EXPIRED',
+    'CANCELLED',
+    'PENDING',
+  ];
+
+  // The panel renders exactly one lucide icon, so the first <svg> tag is the
+  // status icon and its attributes can be read back verbatim.
+  const firstSvgTag = (html: string): string => {
+    const match = html.match(/<svg[^>]*>/);
+    expect(match, 'expected the status panel to render an icon').not.toBeNull();
+    return match![0];
+  };
+
   it('renders success copy when status is PAID', () => {
     const html = renderToStaticMarkup(<PaymentStatus status="PAID" />);
     expect(html).toContain('Payment Successful!');
@@ -52,6 +67,25 @@ describe('PaymentStatus', () => {
   it('does not render an explorer link when txHash is absent', () => {
     const html = renderToStaticMarkup(<PaymentStatus status="PAID" />);
     expect(html).not.toContain('View on Stellar Explorer');
+    expect(html).not.toContain('stellar.expert');
+  });
+
+  it.each(STATUSES)('hides the %s status icon from assistive technology', (status) => {
+    const html = renderToStaticMarkup(<PaymentStatus status={status} />);
+    expect(firstSvgTag(html)).toContain('aria-hidden="true"');
+  });
+
+  it('names the explorer link with the full transaction hash', () => {
+    const html = renderToStaticMarkup(<PaymentStatus status="PAID" txHash={TX_HASH} />);
+    expect(html).toContain(
+      `aria-label="View transaction ${TX_HASH} on Stellar Explorer"`,
+    );
+  });
+
+  it('omits the explorer link and its accessible name when txHash is absent', () => {
+    const html = renderToStaticMarkup(<PaymentStatus status="PAID" />);
+    expect(html).not.toMatch(/<a[\s>]/);
+    expect(html).not.toContain('View transaction');
     expect(html).not.toContain('stellar.expert');
   });
 });
