@@ -41,4 +41,10 @@ describe('mailtoProof', () => {
     const url = mailtoProof('  frank@example.com  ', 'Hi', 'Hello');
     expect(url).toBe('mailto:frank@example.com?subject=Hi&body=Hello');
   });
+
+  it('percent-encodes a newline in the subject', () => {
+    const url = mailtoProof('grace@example.com', 'Line1\nLine2', 'Body');
+    expect(url).toBe('mailto:grace@example.com?subject=Line1%0ALine2&body=Body');
+    expect(url).not.toContain('\n');
+  });
 });

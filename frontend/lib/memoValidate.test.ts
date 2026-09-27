@@ -22,6 +22,10 @@ describe('memoValidate', () => {
     expect(memoValidate('1234567890')).toEqual({ valid: true });
   });
 
+  it('accepts memos with leading and trailing spaces', () => {
+    expect(memoValidate('  Hello  ')).toEqual({ valid: true });
+  });
+
   it('accepts memos exactly at 28 bytes', () => {
     const memo = '1234567890123456789012345678';
     expect(memo.length).toBe(28);

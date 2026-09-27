@@ -49,6 +49,13 @@ describe('buildStellarPaymentUri', () => {
     expect(uri).toBe(`web+stellar:pay?destination=${DESTINATION}&amount=3`);
   });
 
+  it('appends asset_code and asset_issuer for lowercase xlm with an issuer', () => {
+    const uri = buildStellarPaymentUri(DESTINATION, '4', 'xlm', undefined, USDC_ISSUER);
+    expect(uri).toBe(
+      `web+stellar:pay?destination=${DESTINATION}&amount=4&asset_code=xlm&asset_issuer=${USDC_ISSUER}`,
+    );
+  });
+
   // ── Memo encoding ──────────────────────────────────────────
 
   it('appends memo and memo_type when a memo is provided', () => {
