@@ -55,4 +55,12 @@ describe('MemoChip', () => {
     );
     expect(html).toContain('my-custom-class');
   });
+
+  it('renders empty memo with empty visible label and aria-label="Memo: "', () => {
+    const html = renderToStaticMarkup(<MemoChip memo="" />);
+    expect(html).toContain('aria-label="Memo: "');
+    expect(html).toContain('title=""');
+    expect(html).toContain('></span>');
+  });
 });
+

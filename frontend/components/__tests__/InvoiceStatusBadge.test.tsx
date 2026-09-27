@@ -51,4 +51,23 @@ describe('InvoiceStatusBadge', () => {
     expect(html).toContain('aria-label="Invoice status: Paid"');
     expect(html).toContain('aria-label="Invoice status: Expired"');
   });
+
+  it('includes text-sm by default', () => {
+    const html = renderToStaticMarkup(<InvoiceStatusBadge status="PAID" />);
+    expect(html).toContain('text-sm');
+  });
+
+  it('includes text-xs when size is sm', () => {
+    const html = renderToStaticMarkup(
+      <InvoiceStatusBadge status="PAID" size="sm" />,
+    );
+    expect(html).toContain('text-xs');
+  });
+
+  it('includes text-base when size is lg', () => {
+    const html = renderToStaticMarkup(
+      <InvoiceStatusBadge status="PAID" size="lg" />,
+    );
+    expect(html).toContain('text-base');
+  });
 });

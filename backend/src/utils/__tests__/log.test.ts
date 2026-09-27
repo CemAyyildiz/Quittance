@@ -66,6 +66,18 @@ describe('log secret sanitization', () => {
     expect(parsed.nested).toEqual({ id: 'x' });
   });
 
+  it('does not scan nested objects and leaves nested sensitive keys intact while redacting top-level keys', () => {
+    const context = {
+      password: 'top-secret',
+      user: { password: 'secret-value' },
+    };
+    const line = callLog('info', 'msg', context);
+    const parsed = JSON.parse(line);
+    expect(parsed.password).toBe('[REDACTED]');
+    expect(parsed.user).toEqual({ password: 'secret-value' });
+    expect(parsed.user.password).toBe('secret-value');
+  });
+
   it('redacts sensitive keys only, leaving normal keys intact in the same entry', () => {
     const line = callLog('warn', 'syncing', { userId: 7, sessionToken: 'tok' });
     const parsed = JSON.parse(line);

@@ -41,6 +41,8 @@ The proof **does not** include — and Quittance does not collect — any of the
 
 Seller-typed `customerName` / `customerEmail` on an invoice are the seller's own bookkeeping (notes about who the invoice is for). They are seller-supplied, not data Quittance collects, and they are not part of the on-chain verified record.
 
+The browser invoice CSV export (`generateInvoiceCSV`) includes columns for `Seller Name`, `Seller Email`, `Customer Name`, `Customer Email`, `Payer Name`, and `Payer Email`. These CSV columns repeat seller-typed invoice fields from the invoice the seller created (with `Payer Name` and `Payer Email` populated only when those optional fields are already present on the invoice). The verify process does not look up a payer name or email.
+
 This matches the product thesis: settlement stays on-chain, the proof goes to the owner, and other people's wallet history stays private.
 
 ## Verifying the field set
