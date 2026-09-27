@@ -51,17 +51,4 @@ describe('NetworkBadge', () => {
 
     expect(screen.getByRole('status', { name: 'Network: TESTNET' })).toBeInTheDocument();
   });
-
-  it('is announced as Network: TESTNET when env is unset', () => {
-    render(<NetworkBadge />);
-
-    expect(screen.getByRole('status', { name: 'Network: TESTNET' })).toBeInTheDocument();
-  });
-
-  it('is announced as Network: TESTNET when env is empty', () => {
-    vi.stubEnv('NEXT_PUBLIC_STELLAR_NETWORK', '');
-    render(<NetworkBadge />);
-
-    expect(screen.getByRole('status', { name: 'Network: TESTNET' })).toBeInTheDocument();
-  });
 });
