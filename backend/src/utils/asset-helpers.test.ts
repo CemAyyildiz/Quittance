@@ -47,6 +47,22 @@ describe('assetTypeToCode', () => {
       expect(assetTypeToCode({ asset_type: 'credit_alphanum12' })).toBe('UNKNOWN');
     });
   });
+
+  describe('liquidity pool shares (non-credit, non-native)', () => {
+    it('maps liquidity_pool_shares with no asset_code to UNKNOWN', () => {
+      // Horizon returns { asset_type: 'liquidity_pool_shares' } for LP tokens.
+      // These are neither native nor credit assets, so they fall back to UNKNOWN.
+      expect(assetTypeToCode({ asset_type: 'liquidity_pool_shares' })).toBe('UNKNOWN');
+    });
+
+    it('liquidity_pool_shares is not a native asset', () => {
+      expect(isNativeAsset({ asset_type: 'liquidity_pool_shares' })).toBe(false);
+    });
+
+    it('liquidity_pool_shares is not a credit asset', () => {
+      expect(isCreditAsset({ asset_type: 'liquidity_pool_shares' })).toBe(false);
+    });
+  });
 });
 
 // ---------------------------------------------------------------------------
