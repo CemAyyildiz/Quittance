@@ -59,6 +59,7 @@ export default function AssetLogo({
           <Image
             src={asset.logo}
             alt={`${assetDisplayName(asset.code)} logo`}
+            aria-hidden={showName || undefined}
             width={size - 4}
             height={size - 4}
             className="object-contain rounded-full"
