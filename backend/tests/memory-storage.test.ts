@@ -248,4 +248,107 @@ beforeEach(() => {
   const refreshedPaid = memoryStorage.getInvoiceById(paidInvoice.id);
   expect(refreshedPaid?.status).toBe('PAID', 'PAID invoice is untouched');
 });
+
+describe('InvoiceMemoryService cancel, markAsPaid, and stats', () => {
+  const PAYER = 'G' + 'P'.repeat(55);
+
+  it('cancelInvoice moves a PENDING invoice to CANCELLED', async () => {
+    const pending = memoryStorage.createInvoice(buildSeed({ memo: nextMemo('cancel-pending') }));
+    expect(pending.status).toBe('PENDING', 'invoice starts as PENDING');
+
+    const cancelled = await invoiceMemoryService.cancelInvoice(pending.id);
+
+    expect(cancelled.status).toBe('CANCELLED');
+    expect(memoryStorage.getInvoiceById(pending.id)?.status).toBe('CANCELLED');
+  });
+
+  it('cancelInvoice throws for a missing id', async () => {
+    await expect(invoiceMemoryService.cancelInvoice('does-not-exist')).rejects.toThrow(
+      /^Invoice not found or already processed$/,
+    );
+  });
+
+  it('cancelInvoice throws for a PAID invoice and leaves it PAID', async () => {
+    const invoice = memoryStorage.createInvoice(buildSeed({ memo: nextMemo('cancel-paid') }));
+    await invoiceMemoryService.markAsPaid(invoice.id, 'tx-hash-cancel-paid', PAYER);
+    expect(memoryStorage.getInvoiceById(invoice.id)?.status).toBe('PAID', 'setup: invoice is PAID');
+
+    await expect(invoiceMemoryService.cancelInvoice(invoice.id)).rejects.toThrow(
+      /^Invoice not found or already processed$/,
+    );
+    expect(memoryStorage.getInvoiceById(invoice.id)?.status).toBe('PAID', 'failed cancel leaves it PAID');
+  });
+
+  it('cancelInvoice throws for an already CANCELLED invoice', async () => {
+    const invoice = memoryStorage.createInvoice(buildSeed({ memo: nextMemo('cancel-twice') }));
+    await invoiceMemoryService.cancelInvoice(invoice.id);
+    expect(memoryStorage.getInvoiceById(invoice.id)?.status).toBe('CANCELLED');
+
+    await expect(invoiceMemoryService.cancelInvoice(invoice.id)).rejects.toThrow(
+      /^Invoice not found or already processed$/,
+    );
+    expect(memoryStorage.getInvoiceById(invoice.id)?.status).toBe('CANCELLED');
+  });
+
+  it('markAsPaid throws for a missing id', async () => {
+    await expect(
+      invoiceMemoryService.markAsPaid('does-not-exist', 'tx-hash-missing', PAYER),
+    ).rejects.toThrow(/^Invoice not found$/);
+  });
+
+  it('getInvoiceStats returns a one-element array of storage stats with no cancelled count', async () => {
+    // Seller A: 2 PENDING + 1 PAID + 1 EXPIRED + 1 CANCELLED = 5 invoices.
+    memoryStorage.createInvoice(buildSeed({ memo: nextMemo('stat-pending-1'), amount: 100 }));
+    memoryStorage.createInvoice(buildSeed({ memo: nextMemo('stat-pending-2'), amount: 200 }));
+    const toExpire = memoryStorage.createInvoice(
+      buildSeed({
+        memo: nextMemo('stat-expired'),
+        amount: 300,
+        expiresAt: new Date(Date.now() - 24 * 60 * 60 * 1000), // yesterday
+      }),
+    );
+    const toCancel = memoryStorage.createInvoice(
+      buildSeed({ memo: nextMemo('stat-cancelled'), amount: 400 }),
+    );
+    const toPay = memoryStorage.createInvoice(buildSeed({ memo: nextMemo('stat-paid'), amount: 500 }));
+    // Seller B must never leak into seller A's stats.
+    memoryStorage.createInvoice(
+      buildSeed({ sellerPublicKey: SELLER_B, memo: nextMemo('stat-B'), amount: 900 }),
+    );
+
+    memoryStorage.markExpiredInvoices(); // past-dated PENDING -> EXPIRED
+    await invoiceMemoryService.markAsPaid(toPay.id, 'tx-hash-stats', PAYER);
+    await invoiceMemoryService.cancelInvoice(toCancel.id);
+
+    expect(memoryStorage.getInvoiceById(toExpire.id)?.status).toBe('EXPIRED');
+    expect(memoryStorage.getInvoiceById(toCancel.id)?.status).toBe('CANCELLED');
+    expect(memoryStorage.getInvoiceById(toPay.id)?.status).toBe('PAID');
+
+    const stats = await invoiceMemoryService.getInvoiceStats(SELLER_A);
+
+    expect(Array.isArray(stats)).toBe(true);
+    expect(stats).toHaveLength(1);
+
+    expect(stats[0]).toEqual({
+      total_invoices: 5,
+      paid_invoices: 1,
+      pending_invoices: 2,
+      expired_invoices: 1,
+      total_revenue: 500,
+      asset_code: 'XLM',
+    });
+
+    // Exactly the storage stats keys — no cancelled_invoices field.
+    expect(Object.keys(stats[0]).sort()).toEqual([
+      'asset_code',
+      'expired_invoices',
+      'paid_invoices',
+      'pending_invoices',
+      'total_invoices',
+      'total_revenue',
+    ]);
+    expect(stats[0]).not.toHaveProperty('cancelled_invoices');
+    expect(stats[0]).toEqual(memoryStorage.getStats(SELLER_A));
+  });
+});
 });
