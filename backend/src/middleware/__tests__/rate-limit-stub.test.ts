@@ -197,6 +197,41 @@ describe('rateLimitStub', () => {
     expect(res.statusCode).toBe(429);
     expect(next).toHaveBeenCalledTimes(1);
   });
+
+  it('uses the default 60-request window when called with no options', () => {
+    const middleware = rateLimitStub();
+    const req = mockReq('/api/rate-limit-defaults');
+    const res = mockRes();
+    const next = nextSpy();
+
+    middleware(req, res, next);
+
+    expect(res.statusCode).toBe(200);
+    expect(next).toHaveBeenCalledTimes(1);
+    expect(res.headers['X-RateLimit-Limit']).toBe('60');
+    expect(res.headers['X-RateLimit-Remaining']).toBe('59');
+  });
+
+  it('shares one unknown client counter when ip and remoteAddress are missing', () => {
+    const middleware = rateLimitStub({ windowMs: 60_000, maxRequests: 1 });
+    const req: any = {
+      socket: { remoteAddress: undefined },
+      path: '/api/rate-limit-unknown-client',
+    };
+    const res = mockRes();
+    const next = nextSpy();
+
+    middleware(req, res, next);
+    middleware(req, res, next);
+
+    expect(res.statusCode).toBe(429);
+    expect(next).toHaveBeenCalledTimes(1);
+    expect(res.body).toMatchObject({
+      success: false,
+      error: 'Too many requests. Please try again later.',
+      retryAfter: expect.any(Number),
+    });
+  });
 });
 
 describe('rateLimitIfEnabled', () => {
