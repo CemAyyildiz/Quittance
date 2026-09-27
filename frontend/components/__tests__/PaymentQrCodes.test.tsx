@@ -11,50 +11,34 @@ vi.mock('sonner', () => ({
 
 vi.mock('@/lib/utils', () => ({
   copyToClipboard: vi.fn().mockResolvedValue(true),
-  formatAmount: vi.fn((amount: number, decimals = 2) =>
-    amount.toLocaleString('en-US', {
-      minimumFractionDigits: decimals,
-      maximumFractionDigits: decimals,
-    })
-  ),
 }));
 
 describe('PaymentQrCodes', () => {
-  const mockProps = {
-    memo: 'INV-2026-0842',
-    amount: 125.5,
-    destination: 'GBOXJFZQU3IFDMN2V5EYBY4SXDYKRGWZ7VXKS46H4S3H5EXAMPLE',
-  };
+  const paymentUrl = 'https://app.example.com/pay/inv-2026-0842';
+  const stellarPaymentUri =
+    'web+stellar:pay?destination=GBOXJFZQU3IFDMN2V5EYBY4SXDYKRGWZ7VXKS46H4S3H5EXAMPLE&amount=125.5&asset_code=XLM&memo=INV-2026-0842';
 
-  it('renders the memo', () => {
+  const mockProps = { paymentUrl, stellarPaymentUri };
+
+  it('renders the payment link encoding', () => {
     render(<PaymentQrCodes {...mockProps} />);
-    expect(screen.getByText('INV-2026-0842')).toBeInTheDocument();
+    expect(screen.getByText('Payment link')).toBeTruthy();
+    expect(screen.getByText(paymentUrl)).toBeTruthy();
   });
 
-  it('renders the amount', () => {
+  it('renders the SEP-0007 wallet payment encoding', () => {
     render(<PaymentQrCodes {...mockProps} />);
-    expect(screen.getByText(/125\.5/)).toBeInTheDocument();
+    expect(screen.getByText('SEP-0007 wallet payment')).toBeTruthy();
+    expect(screen.getByText(stellarPaymentUri)).toBeTruthy();
   });
 
-  it('renders the destination', () => {
-    render(<PaymentQrCodes {...mockProps} />);
-    expect(
-      screen.getByText('GBOXJFZQU3IFDMN2V5EYBY4SXDYKRGWZ7VXKS46H4S3H5EXAMPLE')
-    ).toBeInTheDocument();
+  it('renders a QR code for each encoding', () => {
+    const { container } = render(<PaymentQrCodes {...mockProps} />);
+    expect(container.querySelectorAll('svg').length).toBeGreaterThanOrEqual(2);
   });
 
-  it('renders the QR code section heading', () => {
-    render(<PaymentQrCodes {...mockProps} />);
-    expect(screen.getByText('Scan QR Code')).toBeInTheDocument();
-  });
-
-  it('renders payment information heading', () => {
-    render(<PaymentQrCodes {...mockProps} />);
-    expect(screen.getByText('Payment Information')).toBeInTheDocument();
-  });
-
-  it('displays default asset code XLM', () => {
-    render(<PaymentQrCodes {...mockProps} />);
-    expect(screen.getByText(/XLM/)).toBeInTheDocument();
+  it('passes the requested size to both QR codes', () => {
+    const { container } = render(<PaymentQrCodes {...mockProps} size={320} />);
+    expect(container.querySelectorAll('svg[width="320"]').length).toBe(2);
   });
 });

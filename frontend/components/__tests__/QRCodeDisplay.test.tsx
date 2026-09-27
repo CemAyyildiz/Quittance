@@ -57,10 +57,11 @@ describe('QRCodeDisplay', () => {
     expect(html).toContain('btn-secondary');
   });
 
-  it('renders copy disabled state when not shareable', () => {
+  it('hides the copy control when the value is not shareable', () => {
     const html = renderToStaticMarkup(
       <QRCodeDisplay value={base64DataUrl} showCopy={true} />
     );
-    expect(html).toContain('Nothing shareable to copy');
+    expect(html).not.toContain('btn-secondary');
+    expect(html).toContain('QR preview unavailable');
   });
 });

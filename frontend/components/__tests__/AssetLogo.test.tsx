@@ -46,7 +46,7 @@ describe('AssetLogo', () => {
     expect(html).toContain(
       'src="https://assets.coingecko.com/coins/images/100/small/stellar-xlm-logo.png"',
     );
-    expect(html).toContain('alt="Stellar Lumens"');
+    expect(html).toContain('alt="Stellar Lumens logo"');
     expect(html).toContain('width="20"');
     expect(html).toContain('height="20"');
   });
