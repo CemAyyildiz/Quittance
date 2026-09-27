@@ -260,6 +260,38 @@ mod test {
     // ----- boundary regression tests ---------------------------------
 
     #[test]
+    fn zero_payment_rejected_by_positive_floor() {
+        // Zero is only ever acceptable when the floor is itself zero. Against
+        // any positive floor it is simply the smallest underpayment, so a
+        // regression that guarded on sign alone (`payment > 0`, or a `0`
+        // short-circuit before the floor comparison) would let it through.
+        let env = Env::default();
+        let client = deploy(&env, TEN_XLM_STROOPS);
+
+        assert!(!client.check(&0));
+        // The floor itself remains the smallest accepted payment, so this
+        // pins `0` as the rejected neighbour rather than the whole range.
+        assert!(client.check(&TEN_XLM_STROOPS));
+
+        // The tightest possible positive floor, where `0` is exactly one
+        // stroop below the bar, must reject it too.
+        let tightest = deploy(&env, 1);
+        assert!(!tightest.check(&0));
+        assert!(tightest.check(&1));
+    }
+
+    #[test]
+    #[should_panic(expected = "payment below configured minimum floor")]
+    fn require_panics_on_zero_payment_against_positive_floor() {
+        // `require` must reject the same zero payment that `check` refuses,
+        // with the same message, so callers gating on either helper agree.
+        let env = Env::default();
+        let client = deploy(&env, TEN_XLM_STROOPS);
+
+        client.require(&0);
+    }
+
+    #[test]
     fn off_by_one_boundary_with_irrational_floor() {
         // Use a floor that is not a round multiple of any natural
         // unit so an accidental `>` (strict-greater) instead of `>=`
