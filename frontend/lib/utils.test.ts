@@ -3,6 +3,7 @@ import {
   cn,
   formatAmount,
   formatAddress,
+  copyToClipboard,
   formatDate,
   getTimeRemaining,
   getShareUrl,
@@ -70,6 +71,47 @@ describe('formatAddress', () => {
 
   it('handles short address', () => {
     expect(formatAddress('GBR6')).toBe('GBR6...GBR6');
+  });
+});
+
+describe('copyToClipboard', () => {
+  const originalClipboard = navigator.clipboard;
+
+  // jsdom does not implement the async clipboard API, so install a stub that
+  // resolves or rejects on demand and hand the caller the promise it returns.
+  const stubClipboard = (writeText: (text: string) => Promise<void>) => {
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText },
+    });
+  };
+
+  beforeEach(() => {
+    // The failure path logs the caught error; silence it so the suite output
+    // stays readable without asserting on logging.
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: originalClipboard,
+    });
+  });
+
+  it('returns true when writeText resolves', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    stubClipboard(writeText);
+
+    await expect(copyToClipboard('https://quittance.app/pay/inv-1')).resolves.toBe(true);
+    expect(writeText).toHaveBeenCalledWith('https://quittance.app/pay/inv-1');
+  });
+
+  it('returns false when writeText rejects', async () => {
+    stubClipboard(vi.fn().mockRejectedValue(new Error('Write permission denied')));
+
+    await expect(copyToClipboard('https://quittance.app/pay/inv-1')).resolves.toBe(false);
   });
 });
 
