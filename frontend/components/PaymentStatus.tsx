@@ -58,7 +58,7 @@ export default function PaymentStatus({ status, txHash }: PaymentStatusProps) {
       <div className="flex flex-col items-center gap-4">
         {getStatusIcon()}
 
-        <div>
+        <div role="status" aria-label={statusInfo.title}>
           <h2 className={`text-2xl font-bold ${statusInfo.color}`}>{statusInfo.title}</h2>
           <p className="text-gray-600 mt-2">{statusInfo.description}</p>
         </div>
