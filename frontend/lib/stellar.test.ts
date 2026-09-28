@@ -1,17 +1,30 @@
-import { describe, it, expect, vi, beforeAll } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // Mock freighter-api — it targets a browser extension and is not
 // available in the Vitest Node environment.  The mock only needs to
 // cover the top-level named imports that stellar.ts re-exports.
 vi.mock('@stellar/freighter-api', () => ({
-  isConnected: vi.fn().mockResolvedValue(false),
-  getPublicKey: vi.fn().mockResolvedValue(null),
-  signTransaction: vi.fn().mockResolvedValue(''),
-  isAllowed: vi.fn().mockResolvedValue(false),
-  setAllowed: vi.fn().mockResolvedValue(undefined),
+  isConnected: vi.fn(),
+  getPublicKey: vi.fn(),
+  signTransaction: vi.fn(),
+  isAllowed: vi.fn(),
+  setAllowed: vi.fn(),
 }));
 
-import { formatStellarAmount, isValidPublicKey } from './stellar';
+import {
+  formatStellarAmount,
+  isValidPublicKey,
+  checkWalletConnection,
+  requestWalletAccess,
+  getUserPublicKey,
+} from './stellar';
+
+import {
+  isConnected,
+  getPublicKey,
+  isAllowed,
+  setAllowed,
+} from '@stellar/freighter-api';
 
 // A well-known, valid Stellar Ed25519 public key (56 chars, starts with G,
 // base32-encoded payload).  This is the same key used in publicKeyValidate.test.ts
@@ -95,5 +108,80 @@ describe('formatStellarAmount', () => {
 
   it('formats an integer XLM amount', () => {
     expect(formatStellarAmount('1000')).toBe('1000');
+  });
+});
+
+
+describe('checkWalletConnection', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('returns true when isConnected resolves true', async () => {
+    (isConnected as any).mockResolvedValue(true);
+    const result = await checkWalletConnection();
+    expect(result).toBe(true);
+    expect(isConnected).toHaveBeenCalledTimes(1);
+  });
+
+  it('returns false when isConnected throws', async () => {
+    (isConnected as any).mockRejectedValue(new Error('Wallet not installed'));
+    const result = await checkWalletConnection();
+    expect(result).toBe(false);
+    expect(isConnected).toHaveBeenCalledTimes(1);
+  });
+});
+
+
+describe('requestWalletAccess', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('returns true when setAllowed and isAllowed succeed', async () => {
+    (setAllowed as any).mockResolvedValue(undefined);
+    (isAllowed as any).mockResolvedValue(true);
+    const result = await requestWalletAccess();
+    expect(result).toBe(true);
+    expect(setAllowed).toHaveBeenCalledTimes(1);
+    expect(isAllowed).toHaveBeenCalledTimes(1);
+  });
+
+  it('returns false when setAllowed throws', async () => {
+    (setAllowed as any).mockRejectedValue(new Error('User denied access'));
+    const result = await requestWalletAccess();
+    expect(result).toBe(false);
+    expect(setAllowed).toHaveBeenCalledTimes(1);
+  });
+
+  it('returns false when isAllowed throws', async () => {
+    (setAllowed as any).mockResolvedValue(undefined);
+    (isAllowed as any).mockRejectedValue(new Error('Permission check failed'));
+    const result = await requestWalletAccess();
+    expect(result).toBe(false);
+    expect(setAllowed).toHaveBeenCalledTimes(1);
+    expect(isAllowed).toHaveBeenCalledTimes(1);
+  });
+});
+
+
+describe('getUserPublicKey', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('returns the resolved public key when getPublicKey succeeds', async () => {
+    const publicKey = 'GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5';
+    (getPublicKey as any).mockResolvedValue(publicKey);
+    const result = await getUserPublicKey();
+    expect(result).toBe(publicKey);
+    expect(getPublicKey).toHaveBeenCalledTimes(1);
+  });
+
+  it('returns null when getPublicKey throws', async () => {
+    (getPublicKey as any).mockRejectedValue(new Error('No account selected'));
+    const result = await getUserPublicKey();
+    expect(result).toBeNull();
+    expect(getPublicKey).toHaveBeenCalledTimes(1);
   });
 });
