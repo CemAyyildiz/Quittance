@@ -744,20 +744,30 @@ export function shareInvoiceByEmail(invoice: Invoice) {
   body += `Invoice ID: ${invoice.id}\n`;
   body += `Amount: ${invoice.amount} ${invoice.assetCode}\n`;
   body += `Status: ${invoice.status}\n`;
-  
+
+  // Add seller information if available
+  if (invoice.sellerName || invoice.sellerEmail) {
+    body += `\nSeller Information:\n`;
+    if (invoice.sellerName) body += `Seller Name: ${invoice.sellerName}\n`;
+    if (invoice.sellerEmail) body += `Seller Email: ${invoice.sellerEmail}\n`;
+    if (invoice.sellerPublicKey) body += `Seller Address: ${invoice.sellerPublicKey}\n`;
+  }
+
   if (invoice.customerName) body += `Client: ${invoice.customerName}\n`;
   if (invoice.description) body += `Description: ${invoice.description}\n`;
-  
+
   if (isPaid && invoice.paymentTxHash) {
     body += `\nPayment Information:\n`;
     body += `Payment Date: ${format(new Date(invoice.paidAt!), 'PPpp')}\n`;
     body += `Transaction Hash: ${invoice.paymentTxHash}\n`;
     if (invoice.payerPublicKey) body += `Payer Address: ${invoice.payerPublicKey}\n`;
+    if (invoice.payerName) body += `Payer Name: ${invoice.payerName}\n`;
+    if (invoice.payerEmail) body += `Payer Email: ${invoice.payerEmail}\n`;
     body += `Verified on Stellar Blockchain\n`;
   } else {
     body += `\nPayment Link: ${window.location.origin}/pay/${invoice.id}\n`;
   }
-  
+
   body += `\nPowered by Quittance`;
   
   const mailtoLink = `mailto:${invoice.customerEmail}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
