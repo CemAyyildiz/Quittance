@@ -71,4 +71,12 @@ describe('AmountDisplay', () => {
     );
     expect(html).toContain('my-amount');
   });
+
+  it('renders a negative amount with a visible minus sign', () => {
+    const html = renderToStaticMarkup(
+      <AmountDisplay amount={-1.5} assetCode="XLM" />
+    );
+    expect(html).toContain('-1.5000000');
+    expect(html).toContain('aria-label="-1.5000000 XLM"');
+  });
 });
