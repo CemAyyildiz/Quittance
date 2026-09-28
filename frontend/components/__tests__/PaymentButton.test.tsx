@@ -45,6 +45,12 @@ const TX_HASH = 'a'.repeat(64);
 const PAY_IDLE_LABEL = 'Pay with Freighter';
 const PAY_PROCESSING_LABEL = 'Processing...';
 
+// The full trustline sentence the button must render for a non-native asset.
+// The render helper defaults to amount="10" and this test passes USDC +
+// G-USDC-ISSUER, so the copy below is asserted verbatim.
+const USDC_TRUSTLINE_GUIDANCE =
+  'Your Freighter wallet needs a USDC trustline to issuer G-USDC-ISSUER and at least 10 USDC. Without it the payment cannot go through.';
+
 type PaymentButtonProps = ComponentProps<typeof PaymentButton>;
 
 function renderButton(overrides: Partial<PaymentButtonProps> = {}) {
@@ -173,7 +179,12 @@ describe('PaymentButton', () => {
     renderButton({ assetCode: 'USDC', assetIssuer: 'G-USDC-ISSUER' });
 
     expect(screen.getByText('Paying with USDC (testnet)')).toBeInTheDocument();
-    expect(screen.getByText(/Freighter wallet needs a USDC trustline/)).toBeInTheDocument();
+
+    // Assert the whole sentence, not a substring, so issuer, minimum amount and
+    // the "without it" consequence can no longer drift silently.
+    const guidance = screen.getByText(USDC_TRUSTLINE_GUIDANCE);
+    expect(guidance).toBeInTheDocument();
+    expect(guidance.textContent).toBe(USDC_TRUSTLINE_GUIDANCE);
   });
 
   it('omits trustline guidance for the native XLM asset', () => {

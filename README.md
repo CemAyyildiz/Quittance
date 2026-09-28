@@ -192,6 +192,8 @@ backend/     Express API — use server-mvp.ts for demo
 frontend/    Next.js app
 deploy/      Vercel handoff + VPS systemd/nginx + CORS checklist
 db/          Postgres schema (post-demo)
+contracts/   Soroban helper crates
+docs/        Product and operator docs
 PLAN.md      Product & delivery plan
 ROADMAP.md   Short commit checklist
 EVIDENCE.md  Public demo URL + testnet evidence (reviewer one-pager)

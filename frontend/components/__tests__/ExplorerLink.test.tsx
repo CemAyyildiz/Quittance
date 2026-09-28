@@ -34,6 +34,23 @@ describe('ExplorerLink', () => {
       );
     });
 
+    it('opens the explorer in a new tab without leaking the opener reference', () => {
+      render(<ExplorerLink txHash={VALID_HASH} network="testnet" />);
+
+      const link = screen.getByRole('link');
+      expect(link).toHaveAttribute('target', '_blank');
+      expect(link).toHaveAttribute('rel', 'noopener noreferrer');
+    });
+
+    it('keeps target and rel on the public network link', () => {
+      render(<ExplorerLink txHash={VALID_HASH} network="public" />);
+
+      const link = screen.getByRole('link');
+      expect(link).toHaveAttribute('href', `${EXPLORER_BASE}/public/tx/${VALID_HASH}`);
+      expect(link).toHaveAttribute('target', '_blank');
+      expect(link).toHaveAttribute('rel', 'noopener noreferrer');
+    });
+
     it('includes accessible aria-label', () => {
       render(<ExplorerLink txHash={VALID_HASH} network="testnet" />);
 
