@@ -148,6 +148,45 @@ describe('toInvoiceDTO', () => {
     });
   });
 
+  it('locks the DTO field list to the current invoice-scoped keys', () => {
+    const result = toInvoiceDTO(makeInvoice());
+
+    expect(Object.keys(result).sort()).toEqual([
+      'amount',
+      'assetCode',
+      'assetIssuer',
+      'createdAt',
+      'customerEmail',
+      'customerName',
+      'description',
+      'expiresAt',
+      'id',
+      'memo',
+      'paidAt',
+      'payerPublicKey',
+      'paymentTxHash',
+      'sellerPublicKey',
+      'status',
+    ]);
+  });
+
+  it('does not copy sellerName or sellerEmail while keeping customer fields', () => {
+    const invoice = {
+      ...makeInvoice(),
+      sellerName: 'Seller Co',
+      sellerEmail: 'seller@example.com',
+    };
+
+    const result = toInvoiceDTO(invoice);
+
+    const ownKeys = Object.keys(result);
+    expect(ownKeys).not.toContain('sellerName');
+    expect(ownKeys).not.toContain('sellerEmail');
+
+    expect(result.customerName).toBe('Alice');
+    expect(result.customerEmail).toBe('alice@example.com');
+  });
+
   it('only exposes invoice-scoped wallet keys, no unrelated wallet fields', () => {
     const invoice = makeInvoice({
       sellerPublicKey: 'GD5Q...ABCD',
