@@ -9,7 +9,7 @@ class InvoiceController {
   async createInvoice(req: Request, res: Response) {
     try {
       const validatedData = createInvoiceSchema.parse(req.body);
-      const invoice = await invoiceService.createInvoice(validatedData);
+      const invoice = await invoiceService.createInvoice(validatedData, undefined);
       const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
       const paymentUrl = `${frontendUrl}/pay/${invoice.id}`;
       const qrCodeDataUrl = await generatePaymentQR(paymentUrl);
