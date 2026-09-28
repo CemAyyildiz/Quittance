@@ -15,12 +15,13 @@
 //!   feature. `soroban-sdk v22.0.0` hard-pins
 //!   `soroban-env-host = "=22.1.0"`, and env-host 22.1.0's
 //!   `builtin_contracts::testutils::with_test_prng` lambda is
-//!   uncompilable under the resolved `rand 0.8` /
-//!   `ed25519-dalek 3.x` trait graph (an upstream
-//!   `ChaCha20Rng: CryptoRng` trait-bound mismatch). We therefore
-//!   do not enable `testutils` and these tests cover the **topic**
-//!   and **data** builders only — not the full
-//!   `env.events().publish(...) → .all()` round-trip.
+//!   uncompilable against a freshly resolved `ed25519-dalek 3.x` (an
+//!   upstream `ChaCha20Rng: CryptoRng` trait-bound mismatch). We
+//!   therefore do not enable `testutils` and these tests cover the
+//!   **topic** and **data** builders only — not the full
+//!   `env.events().publish(...) → .all()` round-trip. Issue #50
+//!   asks explicitly for "Topic builder covered by unit tests" so
+//!   this is the canonical fit.
 //! * The crate is `#![no_std]`, so `alloc` is not in scope in the
 //!   test module either; we avoid `Symbol::to_string` /
 //!   the Soroban `String::to_string` calls entirely and instead
