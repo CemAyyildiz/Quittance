@@ -174,6 +174,26 @@ mod tests {
         }
     }
 
+    #[test]
+    fn display_matches_hex_encoding() {
+        let (seller, amount, memo, expiry) = sample();
+        let hash = compute(seller, amount, memo, expiry);
+        let displayed = format!("{}", hash);
+
+        // Printing a claim hash must use the same lowercase hex encoding
+        // as `to_hex`, so log lines and error messages can never disagree
+        // with the canonical string form.
+        assert_eq!(displayed, hash.to_hex());
+        assert_eq!(displayed.len(), 64);
+        for ch in displayed.chars() {
+            assert!(
+                ch.is_ascii_hexdigit() && !ch.is_ascii_uppercase(),
+                "expected lowercase hex from Display, got {:?}",
+                ch
+            );
+        }
+    }
+
     // ── stability ────────────────────────────────────────────────────
 
     #[test]
