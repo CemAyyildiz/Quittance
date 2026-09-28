@@ -14,7 +14,7 @@ export const verifyTxHashSchema = z.string()
 export const createInvoiceSchema = z.object({
   amount: z.number().positive().max(1000000000),
   assetCode: z.string().default('XLM').optional(),
-  assetIssuer: stellarPublicKeySchema.optional(),
+  assetIssuer: z.string().optional(),
   description: z.string().max(500).optional(),
   customerName: z.string().max(255).optional(),
   customerEmail: z.string().email().optional(),
