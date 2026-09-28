@@ -4,6 +4,8 @@ import { v4 as uuidv4 } from 'uuid';
 interface Invoice {
   id: string;
   sellerPublicKey: string;
+  sellerName?: string;
+  sellerEmail?: string;
   amount: number;
   assetCode: string;
   assetIssuer?: string;
@@ -14,6 +16,8 @@ interface Invoice {
   status: 'PENDING' | 'PAID' | 'EXPIRED' | 'CANCELLED';
   paymentTxHash?: string;
   payerPublicKey?: string;
+  payerName?: string;
+  payerEmail?: string;
   createdAt: Date;
   paidAt?: Date;
   expiresAt: Date;
@@ -28,6 +32,8 @@ class MemoryStorage {
     const invoice: Invoice = {
       id: data.id || uuidv4(),
       sellerPublicKey: data.sellerPublicKey!,
+      sellerName: data.sellerName,
+      sellerEmail: data.sellerEmail,
       amount: data.amount!,
       assetCode: data.assetCode || 'XLM',
       assetIssuer: data.assetIssuer,
@@ -71,11 +77,13 @@ class MemoryStorage {
   }
 
   // Mark as paid
-  markAsPaid(id: string, txHash: string, payerPublicKey: string): Invoice | undefined {
+  markAsPaid(id: string, txHash: string, payerPublicKey: string, payerInfo?: { payerName?: string; payerEmail?: string }): Invoice | undefined {
     return this.updateInvoice(id, {
       status: 'PAID',
       paymentTxHash: txHash,
       payerPublicKey,
+      payerName: payerInfo?.payerName,
+      payerEmail: payerInfo?.payerEmail,
       paidAt: new Date(),
     });
   }
