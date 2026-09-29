@@ -50,6 +50,24 @@ assert_eq!(targets.len(), 3);
 | Expired   | *         | ❌      |
 | Cancelled | *         | ❌      |
 
+## Tests
+
+Run the crate tests from this directory:
+
+```sh
+cargo test
+```
+
+From the repository root, run the same tests with:
+
+```sh
+cargo test -p quittance-status-transitions
+```
+
+These tests verify that `Pending` may transition to `Paid`, `Expired`, or
+`Cancelled`; terminal statuses have no allowed targets; and self-transitions
+are denied.
+
 ## License
 
 MIT

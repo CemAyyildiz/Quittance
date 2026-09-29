@@ -5,7 +5,8 @@
 //! Covers the acceptance criteria:
 //! - match returns `Ok(())`
 //! - mismatch returns a clear `Error::SellerMismatch`
-//! - calling before initialization returns `Error::NotInitialized`
+//! - calling `check_seller`, `set_seller`, or `get_seller` before
+//!   initialization returns `Error::NotInitialized`
 //! - `get_seller` / `set_seller` roundtrip the binding correctly.
 //!
 //! All fallible calls go through the generated `try_*` client methods
@@ -69,6 +70,35 @@ fn check_seller_returns_not_initialized_before_init() {
 }
 
 #[test]
+fn set_seller_returns_not_initialized_before_init() {
+    let env = Env::default();
+    let seller = Address::generate(&env);
+    let contract_id = env.register(SellerBind, ());
+    let client = SellerBindClient::new(&env, &contract_id);
+
+    // intentionally do not call `init` here.
+    let outer = client
+        .try_set_seller(&seller)
+        .expect_err("pre-init call should surface as an invocation-level error");
+    let inner = outer.expect("expected our custom error variant, not a VM error");
+    assert_eq!(inner, Error::NotInitialized);
+}
+
+#[test]
+fn get_seller_returns_not_initialized_before_init() {
+    let env = Env::default();
+    let contract_id = env.register(SellerBind, ());
+    let client = SellerBindClient::new(&env, &contract_id);
+
+    // intentionally do not call `init` here.
+    let outer = client
+        .try_get_seller()
+        .expect_err("pre-init call should surface as an invocation-level error");
+    let inner = outer.expect("expected our custom error variant, not a VM error");
+    assert_eq!(inner, Error::NotInitialized);
+}
+
+#[test]
 fn get_seller_returns_bound_address() {
     let env = Env::default();
     let seller = Address::generate(&env);
@@ -116,6 +146,34 @@ fn set_seller_replaces_binding() {
     let outer_mismatch = client
         .try_check_seller(&seller)
         .expect_err("old binding should no longer match");
+    let inner = outer_mismatch.expect("expected our custom error variant");
+    assert_eq!(inner, Error::SellerMismatch);
+}
+
+#[test]
+fn init_replaces_existing_binding() {
+    let env = Env::default();
+    let seller_a = Address::generate(&env);
+    let seller_b = Address::generate(&env);
+    let contract_id = env.register(SellerBind, ());
+    let client = SellerBindClient::new(&env, &contract_id);
+
+    client.init(&seller_a);
+    client.init(&seller_b);
+
+    let outer = client
+        .try_get_seller()
+        .expect("get_seller should not error after repeated init");
+    assert!(matches!(&outer, Ok(addr) if addr == &seller_b));
+
+    let outer_match = client
+        .try_check_seller(&seller_b)
+        .expect("check_seller should not error for the new binding");
+    assert!(matches!(outer_match, Ok(())));
+
+    let outer_mismatch = client
+        .try_check_seller(&seller_a)
+        .expect_err("the old binding should no longer match");
     let inner = outer_mismatch.expect("expected our custom error variant");
     assert_eq!(inner, Error::SellerMismatch);
 }

@@ -36,6 +36,10 @@ describe('isBase64DataUrl', () => {
   it('returns false for a data URL with non-image MIME type', () => {
     expect(isBase64DataUrl('data:text/plain;base64,SGVsbG8=')).toBe(false);
   });
+
+  it('returns false for an uppercase DATA:image prefix', () => {
+    expect(isBase64DataUrl('DATA:image/png;base64,aaaa')).toBe(false);
+  });
 });
 
 describe('getCopyablePayload', () => {
@@ -80,5 +84,10 @@ describe('getCopyablePayload', () => {
   it('ignores fallback when value is already a usable URL', () => {
     const url = 'https://example.com/pay/abc';
     expect(getCopyablePayload(url, 'https://should-not-use.com')).toBe(url);
+  });
+
+  it('returns the original string for an uppercase DATA:image prefix even with a fallback', () => {
+    const value = 'DATA:image/png;base64,aaaa';
+    expect(getCopyablePayload(value, fallbackUrl)).toBe(value);
   });
 });
