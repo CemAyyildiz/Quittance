@@ -240,3 +240,42 @@ fn data_handles_zero_and_large_values() {
     let decoded_big: (i128, Address, u64) = big.into_val(&env);
     assert_eq!(decoded_big, (i128::MAX / 2, asset, u64::MAX));
 }
+
+#[test]
+fn publish_records_event_with_correct_topics_and_data() {
+    let env = Env::default();
+    let invoice_id = String::from_str(&env, "inv-001");
+    let payer = addr_payer(&env);
+    let seller = addr_seller(&env);
+    let asset = addr_asset(&env);
+    let amount: i128 = 1_000_000_000;
+    let paid_at: u64 = 1_700_000_000;
+
+    // Call the publish function
+    publish(&env, &invoice_id, &payer, &seller, amount, &asset, paid_at);
+
+    // Get all published events
+    let events = env.events().all();
+    assert_eq!(events.len(), 1, "Expected exactly one published event");
+
+    // Get the published event
+    let event = events.get(0).unwrap();
+
+    // Verify topics match what topics() returns
+    let expected_topics = topics(&env, &invoice_id, &payer, &seller);
+    assert_eq!(event.topics(), expected_topics, "Event topics should match topics() output");
+
+    // Verify data matches what data() returns
+    let expected_data = data(&env, amount, &asset, paid_at);
+    assert_eq!(event.data(), expected_data, "Event data should match data() output");
+
+    // Additional verification: check payer-before-seller order in topics
+    // topic[2] should be payer, topic[3] should be seller
+    let actual_payer: Address = event.topics().get(2).unwrap().into_val(&env);
+    let actual_seller: Address = event.topics().get(3).unwrap().into_val(&env);
+    assert_eq!(actual_payer, payer, "topic[2] should be the payer address");
+    assert_eq!(actual_seller, seller, "topic[3] should be the seller address");
+}
+
+}
+}
