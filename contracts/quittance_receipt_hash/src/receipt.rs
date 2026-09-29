@@ -227,6 +227,20 @@ mod tests {
     }
 
     #[test]
+    fn builder_missing_asset_reports_missing_asset() {
+        // Every earlier required field is set, so the asset check is reached.
+        let result = ReceiptFieldsBuilder::default()
+            .network_passphrase("Test SDF Network ; September 2015")
+            .tx_hash([0u8; 32])
+            .ledger(1)
+            .seller("SellerA")
+            .payer("PayerA")
+            .amount_stroops(100)
+            .build();
+        assert_eq!(result, Err(BuildError::MissingAsset));
+    }
+
+    #[test]
     fn builder_completes_with_all_required_fields() {
         let f = ReceiptFieldsBuilder::default()
             .network_passphrase("Test SDF Network ; September 2015")

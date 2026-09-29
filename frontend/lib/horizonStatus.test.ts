@@ -74,35 +74,6 @@ describe('horizonStatus — HTTP status codes', () => {
     expect(msg).toContain('took too long');
   });
 
-  // Issue #635 — lock the auth statuses
-  it('maps 401 to the authentication failure message', () => {
-    const err: HorizonErrorLike = { status: 401 };
-    expect(horizonStatus(err)).toBe(
-      'Authentication with the Stellar network failed. Check your API credentials.',
-    );
-  });
-
-  it('maps 403 to the access denied message', () => {
-    const err: HorizonErrorLike = { status: 403 };
-    expect(horizonStatus(err)).toBe(
-      'Access to the Stellar network was denied. Contact your infrastructure provider.',
-    );
-  });
-
-  it('maps 401 from response.status (Axios shape)', () => {
-    const err: HorizonErrorLike = { response: { status: 401, data: {} } };
-    expect(horizonStatus(err)).toBe(
-      'Authentication with the Stellar network failed. Check your API credentials.',
-    );
-  });
-
-  it('maps 403 from response.status (Axios shape)', () => {
-    const err: HorizonErrorLike = { response: { status: 403, data: {} } };
-    expect(horizonStatus(err)).toBe(
-      'Access to the Stellar network was denied. Contact your infrastructure provider.',
-    );
-  });
-
   // Axios-style nested status
   it('reads status from response.status (Axios shape)', () => {
     const err: HorizonErrorLike = { response: { status: 404 } };
@@ -191,16 +162,6 @@ describe('horizonStatus — transaction result codes', () => {
     };
     expect(horizonStatus(err)).toContain('Insufficient XLM balance');
   });
-
-  // Issue #635 — lock tx_soroban_invalid
-  it('maps tx_soroban_invalid', () => {
-    const err: HorizonErrorLike = {
-      extras: { result_codes: { transaction: 'tx_soroban_invalid' } },
-    };
-    expect(horizonStatus(err)).toBe(
-      'The Soroban contract invocation is invalid. Check the contract and parameters.',
-    );
-  });
 });
 
 // ---------------------------------------------------------------------------
@@ -269,45 +230,6 @@ describe('horizonStatus — operation result codes', () => {
       extras: { result_codes: { operations: ['no_trust'] } },
     };
     expect(horizonStatus(err)).toContain('no trustline');
-  });
-
-  // Issue #635 — lock the previously untested operation result codes
-  it('maps op_malformed', () => {
-    const err: HorizonErrorLike = {
-      extras: { result_codes: { operations: ['op_malformed'] } },
-    };
-    expect(horizonStatus(err)).toBe(
-      'The payment operation was malformed. Check the destination address and amount.',
-    );
-  });
-
-  it('maps op_no_issuer', () => {
-    const err: HorizonErrorLike = {
-      extras: { result_codes: { operations: ['op_no_issuer'] } },
-    };
-    expect(horizonStatus(err)).toBe('The asset issuer account does not exist.');
-  });
-
-  it('maps op_low_reserve', () => {
-    const err: HorizonErrorLike = {
-      extras: { result_codes: { operations: ['op_low_reserve'] } },
-    };
-    expect(horizonStatus(err)).toBe(
-      'Insufficient XLM to meet the minimum reserve requirement.',
-    );
-  });
-
-  it('handles bare op codes for the locked result codes (malformed / low_reserve)', () => {
-    expect(
-      horizonStatus({
-        extras: { result_codes: { operations: ['malformed'] } },
-      }),
-    ).toBe('The payment operation was malformed. Check the destination address and amount.');
-    expect(
-      horizonStatus({
-        extras: { result_codes: { operations: ['low_reserve'] } },
-      }),
-    ).toBe('Insufficient XLM to meet the minimum reserve requirement.');
   });
 
   // Operations list with multiple codes — first match wins

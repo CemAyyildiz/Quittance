@@ -62,4 +62,19 @@ mod tests {
             DomainSeparator::new("b").as_bytes()
         );
     }
+
+    #[test]
+    fn empty_label_has_empty_bytes() {
+        // An empty label is allowed (not rejected); it simply stores no bytes.
+        assert!(DomainSeparator::new("").as_bytes().is_empty());
+    }
+
+    #[test]
+    fn case_change_is_a_different_separator() {
+        let lowercase_default = DomainSeparator::DEFAULT_LABEL.to_lowercase();
+        assert_ne!(
+            DomainSeparator::new(&lowercase_default).as_bytes(),
+            DomainSeparator::quittance_v1().as_bytes()
+        );
+    }
 }

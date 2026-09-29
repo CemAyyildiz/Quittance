@@ -7,7 +7,9 @@ import { Clock, ExternalLink, Copy, Mail, Download } from 'lucide-react';
 import { copyToClipboard } from '@/lib/utils';
 import { toast } from 'sonner';
 import AssetLogo from './AssetLogo';
+import MemoChip from './MemoChip';
 import { openInvoicePDF, shareInvoiceByEmail } from '@/lib/export';
+import { invoiceStatusLabel } from '@/lib/invoiceStatusLabel';
 
 interface Invoice {
   id: string;
@@ -47,12 +49,12 @@ export default function InvoiceCard({ invoice }: InvoiceCardProps) {
   };
 
   const handleDownloadPDF = () => {
-    openInvoicePDF(invoice as any);
+    openInvoicePDF({ ...invoice, sellerPublicKey: invoice.sellerPublicKey ?? '' });
     toast.success('Opening payment proof');
   };
 
   const handleEmailShare = () => {
-    shareInvoiceByEmail(invoice as any);
+    shareInvoiceByEmail({ ...invoice, sellerPublicKey: invoice.sellerPublicKey ?? '' });
   };
 
   return (
@@ -70,7 +72,7 @@ export default function InvoiceCard({ invoice }: InvoiceCardProps) {
           )}
         </div>
         <span className={`px-3 py-1 rounded-lg text-xs font-semibold ${statusColor}`}>
-          {invoice.status}
+          {invoiceStatusLabel(invoice.status)}
         </span>
       </div>
 
@@ -80,14 +82,18 @@ export default function InvoiceCard({ invoice }: InvoiceCardProps) {
         </p>
       )}
 
+      <div className="mb-4">
+        <MemoChip memo={invoice.memo} />
+      </div>
+
       <div className="space-y-2 mb-4">
         <div className="flex items-center gap-2 text-xs text-gray-500">
-          <Clock className="w-4 h-4" />
+          <Clock className="w-4 h-4" aria-hidden="true" />
           <span>Created: {formatDate(invoice.createdAt)}</span>
         </div>
         {invoice.status === 'PENDING' && (
           <div className="flex items-center gap-2 text-xs text-gray-500">
-            <Clock className="w-4 h-4" />
+            <Clock className="w-4 h-4" aria-hidden="true" />
             <span>Expires: {timeRemaining}</span>
           </div>
         )}
@@ -98,15 +104,16 @@ export default function InvoiceCard({ invoice }: InvoiceCardProps) {
           href={`/invoice/${invoice.id}`}
           className="btn btn-outline flex-1 flex items-center justify-center gap-2 text-sm"
         >
-          <ExternalLink className="w-4 h-4" />
+          <ExternalLink className="w-4 h-4" aria-hidden="true" />
           View
         </Link>
         {invoice.status === 'PENDING' && (
           <button
             onClick={handleCopyLink}
             className="btn btn-secondary flex items-center justify-center gap-2 px-3"
+            aria-label="Copy invoice link"
           >
-            <Copy className="w-4 h-4" />
+            <Copy className="w-4 h-4" aria-hidden="true" />
           </button>
         )}
         {invoice.status === 'PAID' && (
@@ -114,7 +121,7 @@ export default function InvoiceCard({ invoice }: InvoiceCardProps) {
             onClick={handleDownloadPDF}
             className="btn btn-primary flex-1 flex items-center justify-center gap-2 text-sm"
           >
-            <Download className="w-4 h-4" />
+            <Download className="w-4 h-4" aria-hidden="true" />
             Download Proof
           </button>
         )}
@@ -123,8 +130,9 @@ export default function InvoiceCard({ invoice }: InvoiceCardProps) {
             onClick={handleEmailShare}
             className="btn btn-outline flex items-center justify-center gap-2 px-3"
             title="Email Proof"
+            aria-label="Email payment proof"
           >
-            <Mail className="w-4 h-4" />
+            <Mail className="w-4 h-4" aria-hidden="true" />
           </button>
         )}
       </div>

@@ -31,9 +31,8 @@
  *
  * - Pure data: an enum, a frozen message map, and three small helper
  *   predicates.
- * - No edit to controllers, services, or middleware: this PR is
- *   strictly additive. Wiring `VerifyErrorCode` into the `verify`
- *   response body is a follow-up PR once the code base settles.
+ * - The MVP verify handler uses these values directly in its response
+ *   body so clients can branch on codes without parsing English text.
  */
 
 export enum VerifyErrorCode {
@@ -63,6 +62,13 @@ export enum VerifyErrorCode {
    * Reserved for the full-server payment-verification path.
    */
   INVOICE_ALREADY_PAID = 'INVOICE_ALREADY_PAID',
+  /**
+   * The invoice status is not PENDING (e.g. CANCELLED, DRAFT, or
+   * expired). Raised as a separate code from INVOICE_ALREADY_PAID
+   * so the consumer can distinguish duplicate payments from
+   * invoices that cannot be settled at all.
+   */
+  INVOICE_NOT_PENDING = 'INVOICE_NOT_PENDING',
   /**
    * The invoice settlement window has expired.
    * Reserved for the full-server payment-verification path.
@@ -95,6 +101,7 @@ export const VerifyErrorMessages: Readonly<Record<VerifyErrorCode, string>> = Ob
     'Payment destination does not match the invoice seller.',
   [VerifyErrorCode.ASSET_MISMATCH]: 'Payment asset does not match the invoice asset.',
   [VerifyErrorCode.INVOICE_ALREADY_PAID]: 'Invoice has already been paid.',
+  [VerifyErrorCode.INVOICE_NOT_PENDING]: 'Invoice is not pending',
   [VerifyErrorCode.INVOICE_EXPIRED]: 'Invoice settlement window has expired.',
   [VerifyErrorCode.VERIFY_FAILED]: 'Failed to verify payment',
 });
