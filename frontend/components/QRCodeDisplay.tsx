@@ -5,6 +5,7 @@ import { Copy, Check } from 'lucide-react';
 import { useState } from 'react';
 import { copyToClipboard } from '@/lib/utils';
 import { toast } from 'sonner';
+import { isBase64DataUrl } from '@/lib/qrPayload';
 
 interface QRCodeDisplayProps {
   /** HTTPS payment URL or SEP-0007 URI to encode in the QR and copy — never a data URL. */
@@ -14,10 +15,6 @@ interface QRCodeDisplayProps {
   showCopy?: boolean;
 }
 
-function isNonShareablePayload(value: string): boolean {
-  return value.startsWith('data:');
-}
-
 export default function QRCodeDisplay({
   value,
   title,
@@ -25,7 +22,7 @@ export default function QRCodeDisplay({
   showCopy = true,
 }: QRCodeDisplayProps) {
   const [copied, setCopied] = useState(false);
-  const shareable = !isNonShareablePayload(value);
+  const shareable = !isBase64DataUrl(value);
 
   const handleCopy = async () => {
     if (!shareable) {
@@ -72,12 +69,12 @@ export default function QRCodeDisplay({
             <button
               onClick={handleCopy}
               className="btn btn-secondary p-2 shrink-0 hover:scale-105 transition-transform"
-              title="Copy to clipboard"
+              aria-label={copied ? 'Copied to clipboard' : 'Copy to clipboard'}
             >
               {copied ? (
-                <Check className="w-4 h-4 text-green-600" />
+                <Check className="w-4 h-4 text-green-600" aria-hidden="true" />
               ) : (
-                <Copy className="w-4 h-4" />
+                <Copy className="w-4 h-4" aria-hidden="true" />
               )}
             </button>
           </div>

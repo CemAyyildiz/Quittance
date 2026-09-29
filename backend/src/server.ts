@@ -3,6 +3,7 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import { requestId } from './middleware/request-id';
 import routes from './routes';
+import { parseCorsOrigin } from './utils/cors-origin';
 import { pool } from './config/database';
 import { validateStellarConfig } from './config/stellar';
 import paymentMonitorService from './services/payment-monitor.service';
@@ -15,7 +16,7 @@ const PORT = process.env.PORT || 3001;
 
 // Middleware
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+  origin: parseCorsOrigin(process.env.FRONTEND_URL, 'http://localhost:3000'),
   credentials: true,
 }));
 

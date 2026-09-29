@@ -217,4 +217,11 @@ mod tests {
         let key = prefixed(ns).expect("non-empty");
         assert_eq!(&key[1..], ns.as_bytes());
     }
+
+    #[test]
+    fn handles_nul_namespace() {
+        let ns = "\0";
+        assert_eq!(prefixed(ns), Some(vec![0x00, 0x00]));
+        assert_eq!(raw_prefixed(ns), Some(vec![0x00]));
+    }
 }

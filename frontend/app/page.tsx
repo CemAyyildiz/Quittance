@@ -318,7 +318,7 @@ export default function HomePage() {
                         }}
                         className="btn btn-secondary"
                       >
-                        <Mail className="w-4 h-4" />
+                        <Mail className="w-4 h-4" aria-hidden="true" />
                         Send
                       </button>
                     )}
@@ -355,6 +355,9 @@ export default function HomePage() {
           <div className="flex flex-wrap gap-6 text-sm text-[var(--muted)]">
             <Link href="/dashboard" className="hover:text-[var(--ink)]">
               Dashboard
+            </Link>
+            <Link href="/feedback" className="hover:text-[var(--ink)]">
+              Feedback
             </Link>
             <a href="https://www.stellar.org" target="_blank" rel="noopener noreferrer" className="hover:text-[var(--ink)]">
               Stellar

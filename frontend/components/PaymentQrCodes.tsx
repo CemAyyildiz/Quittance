@@ -22,9 +22,9 @@ export default function PaymentQrCodes({
   return (
     <div className="space-y-8">
       <div>
-        <p className="text-sm font-medium text-gray-700 text-center mb-3">
+        <h3 className="text-sm font-medium text-gray-700 text-center mb-3">
           Payment link
-        </p>
+        </h3>
         <p className="text-xs text-gray-500 text-center mb-4 max-w-sm mx-auto">
           Opens the Quittance pay page in a browser. Share this URL with your client.
         </p>
@@ -32,9 +32,9 @@ export default function PaymentQrCodes({
       </div>
 
       <div className="border-t pt-8">
-        <p className="text-sm font-medium text-gray-700 text-center mb-3">
+        <h3 className="text-sm font-medium text-gray-700 text-center mb-3">
           SEP-0007 wallet payment
-        </p>
+        </h3>
         <p className="text-xs text-gray-500 text-center mb-4 max-w-sm mx-auto">
           Scan with a Stellar wallet that supports SEP-0007 to pre-fill destination, amount, asset, and memo.
         </p>
