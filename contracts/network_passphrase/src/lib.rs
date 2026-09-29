@@ -281,5 +281,21 @@ mod tests {
     fn is_known_passphrase_rejects_typo() {
         assert!(!is_known_passphrase("Public Global Stellar Network ; September 2016"));
     }
-}
 
+    // ----- Futurenet is intentionally not recognized (#636) -----------------
+
+    const FUTURENET_PASSPHRASE: &str = "Test SDF Future Network ; October 2022";
+
+    #[test]
+    fn futurenet_passphrase_is_not_known() {
+        assert!(!is_known_passphrase(FUTURENET_PASSPHRASE));
+        assert!(!is_testnet_passphrase(FUTURENET_PASSPHRASE));
+        assert!(!is_public_passphrase(FUTURENET_PASSPHRASE));
+    }
+
+    #[test]
+    fn testnet_and_public_stay_known() {
+        assert!(is_known_passphrase(TESTNET_PASSPHRASE));
+        assert!(is_known_passphrase(PUBLIC_PASSPHRASE));
+    }
+}
