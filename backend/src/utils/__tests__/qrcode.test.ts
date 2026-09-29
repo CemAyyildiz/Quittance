@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach, type Mock } from 'vitest';
 import { buildStellarPaymentUri, generatePaymentQR, generateStellarPaymentQR } from '../qrcode';
 
 // Mock the QRCode module
@@ -73,7 +73,7 @@ describe('buildStellarPaymentUri', () => {
   });
 
   it('omits memo and memo_type when memo is null', () => {
-    const uri = buildStellarPaymentUri(DEST, '10', 'XLM', null);
+    const uri = buildStellarPaymentUri(DEST, '10', 'XLM', null as unknown as string);
     expect(uri).toBe(
       `web+stellar:pay?destination=${DEST}&amount=10`,
     );
@@ -96,7 +96,7 @@ describe('generatePaymentQR', () => {
 
   it('calls QRCode.toDataURL with correct options for payment QR', async () => {
     const mockDataUrl = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUg...';
-    (QRCode.toDataURL as vi.Mock).mockResolvedValue(mockDataUrl);
+    (QRCode.toDataURL as Mock).mockResolvedValue(mockDataUrl);
 
     await generatePaymentQR(paymentUrl);
 
@@ -114,7 +114,7 @@ describe('generatePaymentQR', () => {
 
   it('throws error when QRCode.toDataURL fails', async () => {
     const errorMessage = 'QR generation failed';
-    (QRCode.toDataURL as vi.Mock).mockRejectedValue(new Error(errorMessage));
+    (QRCode.toDataURL as Mock).mockRejectedValue(new Error(errorMessage));
 
     await expect(generatePaymentQR(paymentUrl)).rejects.toThrow('Failed to generate QR code');
   });
@@ -130,12 +130,12 @@ describe('generateStellarPaymentQR', () => {
 
   it('calls QRCode.toDataURL with correct options for Stellar payment QR', async () => {
     const mockDataUrl = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUg...';
-    (QRCode.toDataURL as vi.Mock).mockResolvedValue(mockDataUrl);
+    (QRCode.toDataURL as Mock).mockResolvedValue(mockDataUrl);
 
     await generateStellarPaymentQR(destination, amount);
 
     expect(QRCode.toDataURL).toHaveBeenCalled();
-    const callArgs = (QRCode.toDataURL as vi.Mock).mock.calls[0];
+    const callArgs = (QRCode.toDataURL as Mock).mock.calls[0];
     expect(callArgs[0]).toContain('web+stellar:pay');
     expect(callArgs[1]).toMatchObject({
       errorCorrectionLevel: 'H',
@@ -146,23 +146,23 @@ describe('generateStellarPaymentQR', () => {
 
   it('includes memo in URI when provided', async () => {
     const mockDataUrl = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUg...';
-    (QRCode.toDataURL as vi.Mock).mockResolvedValue(mockDataUrl);
+    (QRCode.toDataURL as Mock).mockResolvedValue(mockDataUrl);
     const memo = 'Test memo';
 
     await generateStellarPaymentQR(destination, amount, 'XLM', memo);
 
-    const callArgs = (QRCode.toDataURL as vi.Mock).mock.calls[0];
+    const callArgs = (QRCode.toDataURL as Mock).mock.calls[0];
     expect(callArgs[0]).toContain(`memo=${encodeURIComponent(memo)}`);
     expect(callArgs[0]).toContain('memo_type=MEMO_TEXT');
   });
 
   it('omits memo from URI when memo is empty string', async () => {
     const mockDataUrl = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUg...';
-    (QRCode.toDataURL as vi.Mock).mockResolvedValue(mockDataUrl);
+    (QRCode.toDataURL as Mock).mockResolvedValue(mockDataUrl);
 
     await generateStellarPaymentQR(destination, amount, 'XLM', '');
 
-    const callArgs = (QRCode.toDataURL as vi.Mock).mock.calls[0];
+    const callArgs = (QRCode.toDataURL as Mock).mock.calls[0];
     expect(callArgs[0]).not.toContain('memo=');
     expect(callArgs[0]).not.toContain('memo_type=');
   });
