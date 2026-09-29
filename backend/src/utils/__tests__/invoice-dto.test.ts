@@ -98,12 +98,101 @@ describe('toInvoiceDTO', () => {
     }
   });
 
+  it('maps an EXPIRED invoice with correct ISO date serialization', () => {
+    const result = toInvoiceDTO(makeInvoice({
+      status: 'EXPIRED',
+      expiresAt: new Date('2026-07-25T10:00:00Z'),
+    }));
+
+    expect(result).toEqual({
+      id: 'inv-001',
+      sellerPublicKey: 'GD5Q...ABCD',
+      amount: 100,
+      assetCode: 'XLM',
+      assetIssuer: undefined,
+      memo: 'memo-abc-123',
+      description: 'Test invoice',
+      customerName: 'Alice',
+      customerEmail: 'alice@example.com',
+      status: 'EXPIRED',
+      paymentTxHash: undefined,
+      payerPublicKey: undefined,
+      createdAt: '2026-07-28T10:00:00.000Z',
+      paidAt: undefined,
+      expiresAt: '2026-07-25T10:00:00.000Z',
+    });
+  });
+
+  it('maps a CANCELLED invoice with correct ISO date serialization', () => {
+    const result = toInvoiceDTO(makeInvoice({
+      status: 'CANCELLED',
+      expiresAt: new Date('2026-07-20T10:00:00Z'),
+    }));
+
+    expect(result).toEqual({
+      id: 'inv-001',
+      sellerPublicKey: 'GD5Q...ABCD',
+      amount: 100,
+      assetCode: 'XLM',
+      assetIssuer: undefined,
+      memo: 'memo-abc-123',
+      description: 'Test invoice',
+      customerName: 'Alice',
+      customerEmail: 'alice@example.com',
+      status: 'CANCELLED',
+      paymentTxHash: undefined,
+      payerPublicKey: undefined,
+      createdAt: '2026-07-28T10:00:00.000Z',
+      paidAt: undefined,
+      expiresAt: '2026-07-20T10:00:00.000Z',
+    });
+  });
+
+  it('locks the DTO field list to the current invoice-scoped keys', () => {
+    const result = toInvoiceDTO(makeInvoice());
+
+    expect(Object.keys(result).sort()).toEqual([
+      'amount',
+      'assetCode',
+      'assetIssuer',
+      'createdAt',
+      'customerEmail',
+      'customerName',
+      'description',
+      'expiresAt',
+      'id',
+      'memo',
+      'paidAt',
+      'payerPublicKey',
+      'paymentTxHash',
+      'sellerPublicKey',
+      'status',
+    ]);
+  });
+
+  it('does not copy sellerName or sellerEmail while keeping customer fields', () => {
+    const invoice = {
+      ...makeInvoice(),
+      sellerName: 'Seller Co',
+      sellerEmail: 'seller@example.com',
+    };
+
+    const result = toInvoiceDTO(invoice);
+
+    const ownKeys = Object.keys(result);
+    expect(ownKeys).not.toContain('sellerName');
+    expect(ownKeys).not.toContain('sellerEmail');
+
+    expect(result.customerName).toBe('Alice');
+    expect(result.customerEmail).toBe('alice@example.com');
+  });
+
   it('only exposes invoice-scoped wallet keys, no unrelated wallet fields', () => {
     const invoice = makeInvoice({
       sellerPublicKey: 'GD5Q...ABCD',
       payerPublicKey: 'GD6R...WXYZ',
     });
-    const result = toInvoiceDTO(invoice) as Record<string, unknown>;
+    const result = toInvoiceDTO(invoice);
 
     const ownKeys = Object.keys(result);
     expect(ownKeys).not.toContain('userId');

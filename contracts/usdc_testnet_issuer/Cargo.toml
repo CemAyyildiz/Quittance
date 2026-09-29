@@ -9,3 +9,8 @@ publish = false
 
 [lib]
 path = "src/lib.rs"
+
+# Runs as its own standalone crate so `cargo test` works without being
+# registered in `contracts/Cargo.toml` (per the wave single-ownership
+# conflict rule, this directory is owned by this issue exclusively).
+[workspace]

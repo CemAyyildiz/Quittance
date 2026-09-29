@@ -1,17 +1,22 @@
+# Dependabot is paused during the Stellar Wave contribution period so
+# dependency-bump PRs do not crowd contributor reviews.
+#
+# To re-enable: set open-pull-requests-limit back to 5 (or remove the
+# pause comment) and optionally restore weekly schedule.
 version: 2
 updates:
   # Frontend (Next.js + React)
   - package-ecosystem: "npm"
     directory: "/frontend"
     schedule:
-      interval: "weekly"
+      interval: "monthly"
       day: "monday"
       time: "09:00"
       timezone: "Europe/Istanbul"
-    open-pull-requests-limit: 5
+    # 0 = do not open new Dependabot PRs
+    open-pull-requests-limit: 0
     versioning-strategy: increase
     groups:
-      # Group all minor/patch bumps into a single PR
       production-deps:
         dependency-type: "production"
         update-types:
@@ -26,7 +31,6 @@ updates:
           - "patch"
         patterns:
           - "*"
-      # Major bumps stay as individual PRs for review
     labels:
       - "dependencies"
       - "frontend"
@@ -38,14 +42,14 @@ updates:
   - package-ecosystem: "npm"
     directory: "/backend"
     schedule:
-      interval: "weekly"
+      interval: "monthly"
       day: "monday"
       time: "09:00"
       timezone: "Europe/Istanbul"
-    open-pull-requests-limit: 5
+    # 0 = do not open new Dependabot PRs
+    open-pull-requests-limit: 0
     versioning-strategy: increase
     groups:
-      # Group all minor/patch bumps into a single PR
       production-deps:
         dependency-type: "production"
         update-types:
@@ -60,7 +64,6 @@ updates:
           - "patch"
         patterns:
           - "*"
-      # Major bumps stay as individual PRs for review
     labels:
       - "dependencies"
       - "backend"

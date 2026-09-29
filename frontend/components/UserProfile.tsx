@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from 'react';
 import { User, LogOut, Wallet, ChevronDown, Check, Copy } from 'lucide-react';
 import { useWalletStore } from '@/lib/store';
 import { copyToClipboard } from '@/lib/utils';
+import { shortenAddress } from '@/lib/shortenAddress';
 
 interface UserProfileProps {
   userWallet: string | null;
@@ -37,7 +38,10 @@ export default function UserProfile({ userWallet, onDisconnect }: UserProfilePro
     return null;
   }
 
-  const shortAddress = `${userWallet.substring(0, 6)}...${userWallet.substring(userWallet.length - 4)}`;
+  const shortAddress = shortenAddress(userWallet, {
+    prefixLength: 6,
+    suffixLength: 4,
+  });
 
   const handleCopyAddress = async () => {
     const copied = await copyToClipboard(userWallet);
@@ -54,19 +58,24 @@ export default function UserProfile({ userWallet, onDisconnect }: UserProfilePro
       <button
         onClick={() => setIsOpen(!isOpen)}
         className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50 transition-colors duration-200 border border-gray-200 bg-white"
+        aria-haspopup="menu"
+        aria-expanded={isOpen}
       >
         <div className="w-8 h-8 bg-gradient-to-br from-cyan-500 to-blue-600 rounded-full flex items-center justify-center">
-          <User className="w-4 h-4 text-white" />
+          <User className="w-4 h-4 text-white" aria-hidden="true" />
         </div>
         <div className="hidden sm:block text-left">
           <p className="text-sm font-medium text-gray-900">Wallet</p>
           <p className="text-xs text-gray-500 font-mono">{shortAddress}</p>
         </div>
-        <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
+        <ChevronDown
+          className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`}
+          aria-hidden="true"
+        />
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-64 bg-white rounded-xl shadow-lg border border-gray-200 py-2 z-50">
+        <div role="menu" className="absolute right-0 mt-2 w-64 bg-white rounded-xl shadow-lg border border-gray-200 py-2 z-50">
           <div className="px-4 py-3 border-b border-gray-100">
             <p className="text-sm font-semibold text-gray-900">Connected wallet</p>
             <div className="mt-2 flex items-center justify-between gap-3">
@@ -100,19 +109,21 @@ export default function UserProfile({ userWallet, onDisconnect }: UserProfilePro
 
           <div className="py-2">
             <button
+              role="menuitem"
               onClick={() => {
                 setIsOpen(false);
                 window.location.href = '/dashboard';
               }}
               className="w-full flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
             >
-              <Wallet className="w-4 h-4" />
+              <Wallet className="w-4 h-4" aria-hidden="true" />
               Dashboard
             </button>
           </div>
 
           <div className="border-t border-gray-100 pt-2">
             <button
+              role="menuitem"
               onClick={() => {
                 disconnect();
                 if (onDisconnect) onDisconnect();
@@ -120,7 +131,7 @@ export default function UserProfile({ userWallet, onDisconnect }: UserProfilePro
               }}
               className="w-full flex items-center gap-3 px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
             >
-              <LogOut className="w-4 h-4" />
+              <LogOut className="w-4 h-4" aria-hidden="true" />
               Disconnect Wallet
             </button>
           </div>

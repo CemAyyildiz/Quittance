@@ -13,9 +13,10 @@ import PaymentReceipt from '@/components/PaymentReceipt';
 import AssetLogo from '@/components/AssetLogo';
 import { formatAmount, formatDate, copyToClipboard } from '@/lib/utils';
 import { useCountdown } from '@/lib/useCountdown';
-import { Copy, ExternalLink, Loader2, Check, FileText, Mail } from 'lucide-react';
+import { Copy, ExternalLink, Loader2, Check, FileText, Mail, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 import { openInvoicePDF, shareInvoiceByEmail } from '@/lib/export';
+import { extractHorizonCode, mapHorizonError } from '@/lib/horizonErrorMap';
 
 export default function PaymentPage() {
   const params = useParams();
@@ -24,13 +25,16 @@ export default function PaymentPage() {
   const [invoice, setInvoice] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [paymentInfo, setPaymentInfo] = useState<any>(null);
+  const [paymentInfoLoading, setPaymentInfoLoading] = useState(true);
+  const [paymentInfoError, setPaymentInfoError] = useState<string | null>(null);
   const [polling, setPolling] = useState(true);
   const verifiedRef = useRef(false);
   const [userWallet, setUserWallet] = useState<string | null>(null);
   const timeRemaining = useCountdown(invoice?.status === 'PENDING' ? invoice.expiresAt : null);
 
   useEffect(() => {
-    loadInvoice();
+    void loadInvoice();
+    void loadPaymentInfo();
   }, [id]);
 
   // Auto-refresh for pending invoices
@@ -59,16 +63,26 @@ export default function PaymentPage() {
 
   const loadInvoice = async () => {
     try {
-      const [invoiceResult, paymentResult] = await Promise.all([
-        invoiceApi.getById(id),
-        invoiceApi.getPaymentInfo(id),
-      ]);
+      const invoiceResult = await invoiceApi.getById(id);
       setInvoice(invoiceResult.data);
-      setPaymentInfo(paymentResult.data);
     } catch (error: any) {
       toast.error('Failed to load invoice');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadPaymentInfo = async () => {
+    setPaymentInfoLoading(true);
+    setPaymentInfoError(null);
+    try {
+      const paymentResult = await invoiceApi.getPaymentInfo(id);
+      setPaymentInfo(paymentResult.data);
+    } catch (error: any) {
+      setPaymentInfo(null);
+      setPaymentInfoError('Payment QR is unavailable right now.');
+    } finally {
+      setPaymentInfoLoading(false);
     }
   };
 
@@ -77,7 +91,16 @@ export default function PaymentPage() {
     setPolling(true);
     setTimeout(async () => {
       await loadInvoice();
+      await loadPaymentInfo();
     }, 2000);
+  };
+
+  const handlePaymentError = (error: unknown) => {
+    const code = extractHorizonCode(error);
+    const resolved = mapHorizonError(
+      code ?? (error as { message?: unknown })?.message,
+    );
+    toast.error('Payment failed', { description: resolved.message });
   };
 
   const copyInfo = async (text: string, label: string) => {
@@ -109,9 +132,13 @@ export default function PaymentPage() {
         <div className="orb orb-1"></div>
         <div className="orb orb-2"></div>
         <div className="orb orb-3"></div>
-        <div className="relative">
-          <div className="absolute inset-0 bg-gradient-to-r from-cyan-400 to-blue-500 rounded-full blur-2xl opacity-30"></div>
-          <Loader2 className="w-16 h-16 animate-spin text-cyan-400 relative z-10" />
+        <div className="relative" role="status">
+          <div className="absolute inset-0 bg-gradient-to-r from-cyan-400 to-blue-500 rounded-full blur-2xl opacity-30" aria-hidden="true"></div>
+          <Loader2
+            className="w-16 h-16 animate-spin text-cyan-400 relative z-10"
+            aria-label="Loading payment details"
+          />
+          <span className="sr-only">Loading payment details</span>
         </div>
       </div>
     );
@@ -164,7 +191,7 @@ export default function PaymentPage() {
           <div className="inline-block mb-4 px-6 py-2 bg-gradient-to-r from-cyan-400/20 to-blue-500/20 backdrop-blur-md rounded-full border border-white/30">
             <span className="text-white text-sm font-semibold tracking-wide">Secure Payment</span>
           </div>
-          <h1 className="text-4xl sm:text-5xl font-bold text-white mb-3">Complete Payment</h1>
+          <h1 className="text-3xl sm:text-5xl font-bold text-white mb-2 sm:mb-3">Complete Payment</h1>
           <p className="text-xl text-white/90">Pay with your Stellar wallet</p>
         </div>
 
@@ -181,7 +208,7 @@ export default function PaymentPage() {
                     <AssetLogo code={invoice.assetCode} size={50} showName={false} priority={true} />
                   </div>
                   <div>
-                    <p className="text-5xl sm:text-6xl font-bold bg-gradient-to-r from-cyan-600 to-blue-600 bg-clip-text text-transparent">
+                    <p className="text-4xl sm:text-6xl font-bold bg-gradient-to-r from-cyan-600 to-blue-600 bg-clip-text text-transparent break-all">
                       {formatAmount(invoice.amount, 7)}
                     </p>
                     <p className="text-xl font-bold text-cyan-600 mt-2">
@@ -195,24 +222,6 @@ export default function PaymentPage() {
                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                   <p className="text-sm text-gray-600 mb-1">Payment For</p>
                   <p className="text-gray-800 font-medium">{invoice.description}</p>
-                </div>
-              )}
-
-              {(invoice.sellerName || invoice.sellerEmail) && (
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-2">
-                  <p className="text-sm text-blue-600 font-semibold">Seller Information</p>
-                  {invoice.sellerName && (
-                    <div>
-                      <p className="text-xs text-blue-500">Name</p>
-                      <p className="text-sm text-blue-800">{invoice.sellerName}</p>
-                    </div>
-                  )}
-                  {invoice.sellerEmail && (
-                    <div>
-                      <p className="text-xs text-blue-500">Email</p>
-                      <p className="text-sm text-blue-800">{invoice.sellerEmail}</p>
-                    </div>
-                  )}
                 </div>
               )}
 
@@ -274,8 +283,9 @@ export default function PaymentPage() {
                 <button
                   onClick={handleDownloadPDF}
                   className="btn btn-primary flex-1 flex items-center justify-center gap-2"
+                  aria-label="Download Proof"
                 >
-                  <FileText className="w-4 h-4" />
+                  <FileText className="w-4 h-4" aria-hidden="true" />
                   Download Proof
                 </button>
                 {invoice.customerEmail && (
@@ -283,8 +293,9 @@ export default function PaymentPage() {
                     onClick={handleEmailShare}
                     className="btn btn-outline flex items-center justify-center gap-2 px-4"
                     title="Email Proof"
+                    aria-label="Email payment proof"
                   >
-                    <Mail className="w-4 h-4" />
+                    <Mail className="w-4 h-4" aria-hidden="true" />
                   </button>
                 )}
               </div>
@@ -303,8 +314,9 @@ export default function PaymentPage() {
                     <button
                       onClick={() => copyInfo(invoice.sellerPublicKey, 'Address')}
                       className="p-2 hover:bg-gray-200 rounded transition"
+                      aria-label="Copy address"
                     >
-                      <Copy className="w-4 h-4" />
+                      <Copy className="w-4 h-4" aria-hidden="true" />
                     </button>
                   </div>
                 </div>
@@ -318,8 +330,9 @@ export default function PaymentPage() {
                     <button
                       onClick={() => copyInfo(invoice.memo, 'Memo')}
                       className="p-2 hover:bg-gray-200 rounded transition"
+                      aria-label="Copy memo"
                     >
-                      <Copy className="w-4 h-4" />
+                      <Copy className="w-4 h-4" aria-hidden="true" />
                     </button>
                   </div>
                 </div>
@@ -333,8 +346,9 @@ export default function PaymentPage() {
                     <button
                       onClick={() => copyInfo(invoice.amount.toString(), 'Amount')}
                       className="p-2 hover:bg-gray-200 rounded transition"
+                      aria-label="Copy amount"
                     >
-                      <Copy className="w-4 h-4" />
+                      <Copy className="w-4 h-4" aria-hidden="true" />
                     </button>
                   </div>
                 </div>
@@ -350,7 +364,7 @@ export default function PaymentPage() {
             {invoice.status === 'EXPIRED' && (
               <div className="card text-center py-8">
                 <div className="inline-flex items-center justify-center w-20 h-20 bg-red-100 rounded-full mb-4">
-                  <svg className="w-12 h-12 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-12 h-12 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                   </svg>
                 </div>
@@ -363,7 +377,29 @@ export default function PaymentPage() {
               <>
                 <div className="card">
                   <h3 className="text-lg font-semibold text-center mb-4">Scan QR Code</h3>
-                  {paymentInfo && (
+                  {paymentInfoLoading ? (
+                    <div className="min-h-48 flex flex-col items-center justify-center gap-3 text-gray-600" role="status">
+                      <Loader2
+                        className="w-8 h-8 animate-spin text-cyan-500"
+                        aria-label="Loading payment QR"
+                      />
+                      <p className="text-sm">Loading payment QR…</p>
+                    </div>
+                  ) : paymentInfoError || !paymentInfo ? (
+                    <div className="min-h-48 flex flex-col items-center justify-center gap-4 rounded-lg border border-amber-200 bg-amber-50 p-5 text-center">
+                      <p className="text-sm text-amber-800">
+                        {paymentInfoError || 'Payment QR is not available for this invoice.'}
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => void loadPaymentInfo()}
+                        className="btn btn-outline inline-flex items-center gap-2"
+                      >
+                        <RefreshCw className="w-4 h-4" aria-hidden="true" />
+                        Retry QR
+                      </button>
+                    </div>
+                  ) : (
                     <PaymentQrCodes
                       paymentUrl={paymentInfo.paymentUrl}
                       stellarPaymentUri={
@@ -384,7 +420,7 @@ export default function PaymentPage() {
                 <div className="card">
                   <h3 className="text-xl font-semibold text-center mb-4">Pay with Wallet</h3>
 
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+                  <div className="hidden sm:block bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
                     <p className="text-sm text-blue-800 font-semibold mb-2">How to Pay:</p>
                     <ol className="text-sm text-blue-700 space-y-1.5 list-decimal list-inside">
                       <li>Connect your Freighter wallet</li>
@@ -405,6 +441,7 @@ export default function PaymentPage() {
                     assetIssuer={invoice.assetIssuer}
                     invoiceId={invoice.id}
                     onSuccess={handlePaymentSuccess}
+                    onError={handlePaymentError}
                   />
 
                   <div className="mt-6 pt-4 border-t text-center">
