@@ -1,16 +1,19 @@
+[workspace]
+
 [package]
-name = "network_passphrase"
-version = "0.1.0"
-edition = "2021"
-description = "Soroban helper for validating Stellar network passphrases"
-license = "MIT"
+name        = "network-passphrase"
+version     = "0.1.0"
+edition     = "2021"
+description = "Soroban contract: expose Stellar testnet and public network passphrase constants via read-only functions."
+license     = "MIT"
+publish     = false
 
 [lib]
-crate-type = ["rlib"]
+crate-type = ["cdylib"]
 path = "src/lib.rs"
 
 [dependencies]
-soroban-sdk = "=22.0.0"
+soroban-sdk = "25.0.0"
 
 [dev-dependencies]
-soroban-sdk = "=22.0.0"
+soroban-sdk = { version = "25.0.0", features = ["testutils"] }

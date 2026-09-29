@@ -34,7 +34,7 @@ describe('parseEnvBool', () => {
     });
   });
 
-  describe('undefined / missing', () => {
+  describe('undefined / missing / null', () => {
     it('returns false by default when undefined', () => {
       expect(parseEnvBool(undefined)).toBe(false);
     });
@@ -42,10 +42,24 @@ describe('parseEnvBool', () => {
     it('respects custom default when undefined', () => {
       expect(parseEnvBool(undefined, true)).toBe(true);
     });
+
+    it('treats null like undefined and returns the default', () => {
+      expect(parseEnvBool(null)).toBe(false);
+      expect(parseEnvBool(null, true)).toBe(true);
+    });
+  });
+
+  describe('empty string', () => {
+    it('falls back to the default for blank input', () => {
+      expect(parseEnvBool('')).toBe(false);
+      expect(parseEnvBool('', true)).toBe(true);
+      expect(parseEnvBool('   ')).toBe(false);
+      expect(parseEnvBool('   ', true)).toBe(true);
+    });
   });
 
   describe('unrecognised values', () => {
-    it.each([['maybe'], ['2'], ['truthy'], [''], ['null']])(
+    it.each([['maybe'], ['2'], ['truthy'], ['null']])(
       'returns default for %s',
       (input) => {
         expect(parseEnvBool(input)).toBe(false);

@@ -476,6 +476,57 @@ mod tests {
         assert_eq!(ProofMeta::unpack(&bytes).unwrap(), meta);
     }
 
+    // ----- maximum packed size boundary (issue #381) -----------------------
+    //
+    // `round_trip_max_len_asset_code` and `round_trip_max_len_memo` each
+    // push exactly one field to its maximum independently, but neither
+    // combines both at once -- so neither ever actually produces the true
+    // maximum packed size documented at the top of this file (91 bytes).
+    // These two tests pin that combined worst case directly.
+
+    /// A 12-byte asset code (`MAX_ASSET_CODE_LEN`) together with a 28-byte
+    /// memo (`MAX_MEMO_LEN`) must pack to exactly 91 bytes and round-trip.
+    #[test]
+    fn pack_max_size_code_and_memo_is_91_bytes_and_round_trips() {
+        let meta = ProofMeta {
+            asset_code: "A".repeat(MAX_ASSET_CODE_LEN),
+            memo: Some("x".repeat(MAX_MEMO_LEN)),
+            ..sample_xlm()
+        };
+        let bytes = meta.pack().expect("pack must succeed at the maximum size");
+        assert_eq!(
+            bytes.len(),
+            91,
+            "16 (amount) + 1 (code_len) + {MAX_ASSET_CODE_LEN} (code) + 1 (memo_flag) \
+             + 1 (memo_len) + {MAX_MEMO_LEN} (memo) + 32 (tx_hash) must equal 91"
+        );
+        assert_eq!(
+            ProofMeta::unpack(&bytes).expect("unpack must succeed"),
+            meta
+        );
+    }
+
+    /// A buffer one byte short of the maximum 91-byte packed size must be
+    /// rejected as truncated, not silently accepted with a corrupted
+    /// `tx_hash`.
+    #[test]
+    fn unpack_rejects_one_byte_short_of_max_size() {
+        let meta = ProofMeta {
+            asset_code: "A".repeat(MAX_ASSET_CODE_LEN),
+            memo: Some("x".repeat(MAX_MEMO_LEN)),
+            ..sample_xlm()
+        };
+        let bytes = meta.pack().unwrap();
+        assert_eq!(bytes.len(), 91);
+
+        let one_byte_short = &bytes[..bytes.len() - 1];
+        assert_eq!(one_byte_short.len(), 90);
+        assert_eq!(
+            ProofMeta::unpack(one_byte_short),
+            Err(ProofMetaError::Truncated)
+        );
+    }
+
     #[test]
     fn round_trip_various_asset_codes() {
         for code in ["XLM", "USDC", "BTC", "ETH", "EURT", "JPYC", "ABCD12345678"] {

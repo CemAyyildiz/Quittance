@@ -32,6 +32,7 @@ All contributors must follow these rules before opening a pull request.
 ### Ownership
 
 - [ ] One issue per contributor — no shared file ownership within a single PR
+- [ ] Each Wave issue owns a single file; do not bundle multiple issues into one PR
 - [ ] Additive or new-file changes preferred over editing existing files
 
 ### Hot-file conflict rule

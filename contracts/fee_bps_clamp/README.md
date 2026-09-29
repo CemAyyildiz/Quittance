@@ -26,11 +26,12 @@ This crate is intentionally tiny and dependency-free:
 | `MAX_BPS`            | `const i32`     | Maximum valid value — `10_000` (100%).                                  |
 | `clamp_bps(bps)`     | `fn(i32) -> i32`| Clamps into `0..=10_000`. Below floors to `0`, above ceils to `10_000`. |
 | `is_valid_bps(bps)`  | `fn(i32) -> bool`| `true` when `bps` is already inside `0..=10_000`.                       |
+| `bps_to_whole_percent(bps)` | `fn(i32) -> i32` | Clamps via `clamp_bps`, then converts to a whole-number percent (`clamped / 100`). |
 
 ## Examples
 
 ```rust
-use quittance_fee_bps_clamp::{clamp_bps, is_valid_bps, MAX_BPS};
+use quittance_fee_bps_clamp::{bps_to_whole_percent, clamp_bps, is_valid_bps, MAX_BPS};
 
 // Negative input floors to 0.
 assert_eq!(clamp_bps(-1), 0);
@@ -45,6 +46,11 @@ assert_eq!(clamp_bps(i32::MAX), 10_000);
 // Prefer rejecting out-of-range values instead of clamping? Ask first.
 assert!(is_valid_bps(250));
 assert!(!is_valid_bps(10_001));
+
+// Whole-number percent: clamps first, then divides by 100 (truncating).
+assert_eq!(bps_to_whole_percent(250), 2);
+assert_eq!(bps_to_whole_percent(10_000), 100);
+assert_eq!(bps_to_whole_percent(50_000), 100); // out-of-range, clamped first
 ```
 
 ## Scope and non-goals

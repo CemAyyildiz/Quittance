@@ -21,6 +21,42 @@ describe('mapHorizonError — happy path', () => {
     expect(result.message).toContain('sequence number');
   });
 
+  it('maps the missing transaction-level error for duplicate signatures', () => {
+    const result = mapHorizonError('tx_bad_auth_extra');
+    expect(result.known).toBe(true);
+    expect(result.code).toBe('tx_bad_auth_extra');
+    expect(result.message).toBe(
+      'The transaction carried more signatures than it needed.',
+    );
+  });
+
+  it('maps the missing operation-level destination error', () => {
+    const result = mapHorizonError('op_no_destination');
+    expect(result.known).toBe(true);
+    expect(result.code).toBe('op_no_destination');
+    expect(result.message).toBe(
+      'The destination account does not exist on the network.',
+    );
+  });
+
+  it('maps the missing operation-level low-reserve error', () => {
+    const result = mapHorizonError('op_low_reserve');
+    expect(result.known).toBe(true);
+    expect(result.code).toBe('op_low_reserve');
+    expect(result.message).toBe(
+      'The account would drop below the minimum reserve required by the network.',
+    );
+  });
+
+  it('maps the missing operation-level malformed payment error', () => {
+    const result = mapHorizonError('op_malformed');
+    expect(result.known).toBe(true);
+    expect(result.code).toBe('op_malformed');
+    expect(result.message).toBe(
+      'The payment was malformed. Please check the address, asset, and amount.',
+    );
+  });
+
   it('is case-insensitive and trims surrounding whitespace', () => {
     const result = mapHorizonError('  TX_BAD_SEQ ');
     expect(result.known).toBe(true);
@@ -106,6 +142,22 @@ describe('extractHorizonCode', () => {
       response: { data: { extras: { result_codes: { transaction: 'tx_bad_seq' } } } },
     };
     expect(extractHorizonCode(error)).toBe('tx_bad_seq');
+  });
+
+  it('extracts operation code from nested axios response.data.extras.result_codes', () => {
+    const error = {
+      response: {
+        data: {
+          extras: {
+            result_codes: {
+              operations: ['op_no_trust'],
+              transaction: 'tx_failed',
+            },
+          },
+        },
+      },
+    };
+    expect(extractHorizonCode(error)).toBe('op_no_trust');
   });
 
   it('returns null when no code can be found', () => {

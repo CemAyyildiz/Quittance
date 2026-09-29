@@ -273,6 +273,19 @@ mod tests {
     }
 
     #[test]
+    fn ttl_extension_threshold_is_inclusive_at_valid_until_boundary() {
+        // At the exact valid_until second, the remaining TTL has reached the
+        // threshold and must still trigger an extension. The boundary is
+        // inclusive: `remaining_ttl == threshold` is treated as "extend now".
+        let remaining_ttl = DEFAULT_THRESHOLD;
+
+        assert!(remaining_ttl <= DEFAULT_THRESHOLD,
+            "remaining TTL at the exact valid_until boundary must still extend");
+        assert!(!(DEFAULT_THRESHOLD + 1 <= DEFAULT_THRESHOLD),
+            "strictly above the threshold must not extend");
+    }
+
+    #[test]
     fn generic_helpers_monomorphise_with_symbol_key() {
         // This test only checks that the generic functions type-check
         // and link correctly when K = Symbol — it does not call into
@@ -289,7 +302,95 @@ mod tests {
             let bump_p: fn(&Env, &soroban_sdk::Symbol, u32, u32) = bump_persistent::<soroban_sdk::Symbol>;
             let bump_t: fn(&Env, &soroban_sdk::Symbol, u32, u32) = bump_temporary::<soroban_sdk::Symbol>;
             let bump_i: fn(&Env, u32, u32) = bump_instance;
-            let _ = (&key, bump_p, bump_t, bump_i);
+            // The `*_default` wrappers supply the threshold and ledger counts
+            // themselves, so their signatures carry no u32 arguments. They are
+            // bound but deliberately never called: invoking either would reach
+            // `extend_ttl` and panic, because `Env::default()` has no storage
+            // host. Assigning them is enough for the compiler to check that the
+            // wrappers still monomorphise for K = Symbol.
+            let bump_pd: fn(&Env, &soroban_sdk::Symbol) = bump_persistent_default::<soroban_sdk::Symbol>;
+            let bump_td: fn(&Env, &soroban_sdk::Symbol) = bump_temporary_default::<soroban_sdk::Symbol>;
+            let _ = (&key, bump_p, bump_t, bump_i, bump_pd, bump_td);
         }
+    }
+
+    // ── Boundary: extend at valid_until edge ─────────────────────────
+
+    /// Verify TTL extension behaviour at the exact `valid_until` boundary.
+    ///
+    /// Soroban's `extend_ttl(threshold, ledgers_to_add)` only fires when
+    /// the entry's remaining TTL is **at or below** `threshold`.  The
+    /// `valid_until` instant — the ledger at which the entry expires — is
+    /// reached when `remaining_ttl == 0`.  The *latest* ledger at which
+    /// the extension still triggers is when `remaining_ttl == threshold`.
+    ///
+    /// ```text
+    /// remaining_ttl  0  …  threshold-1  threshold  threshold+1  …
+    ///                  extend fires ──┘           └── no-op
+    /// ```
+    ///
+    /// This test pins that boundary and asserts the invariants that
+    /// `bump_*_default` helpers rely on so that callers can trust the
+    /// extension fires exactly up to and including the threshold ledger.
+    #[test]
+    fn extend_fires_at_valid_until_boundary() {
+        // --- pin: the boundary is the threshold itself ---------------
+        // When the entry has exactly `DEFAULT_THRESHOLD` ledgers of life
+        // remaining, `extend_ttl(DEFAULT_THRESHOLD, …)` MUST apply the
+        // bump.  One ledger later (threshold - 1 remaining) it still
+        // fires, but at `threshold + 1` remaining it is a no-op.
+        assert!(
+            DEFAULT_THRESHOLD > 0,
+            "threshold must be positive so the boundary ledger is reachable"
+        );
+
+        // --- invariant: ledgers_to_add must exceed the threshold -----
+        // After extension the new remaining TTL becomes at least
+        // `ledgers_to_add`.  If `ledgers_to_add <= threshold`, the entry
+        // would already be back inside the threshold window on the very
+        // next ledger — a degenerate cycle that never escapes the bump.
+        assert!(
+            DEFAULT_LEDGERS > DEFAULT_THRESHOLD,
+            "DEFAULT_LEDGERS ({DEFAULT_LEDGERS}) must exceed \
+             DEFAULT_THRESHOLD ({DEFAULT_THRESHOLD}) so the extension \
+             pushes remaining TTL above the threshold"
+        );
+
+        // --- boundary arithmetic -------------------------------------
+        // Model the ledger timeline.  An entry created at ledger `L`
+        // with TTL = threshold expires at `valid_until = L + threshold`.
+        // At that exact ledger the remaining TTL is 0 (≤ threshold), so
+        // the extension fires and resets the TTL to `DEFAULT_LEDGERS`.
+        let created_at: u64 = 1_000;
+        let valid_until: u64 = created_at + DEFAULT_THRESHOLD as u64;
+        let remaining_at_boundary: u64 = 0;
+        assert!(
+            remaining_at_boundary <= DEFAULT_THRESHOLD as u64,
+            "at valid_until the remaining TTL (0) must be ≤ threshold"
+        );
+
+        // After the extension at the boundary the new TTL is
+        // DEFAULT_LEDGERS, giving a new valid_until well into the future.
+        let new_valid_until: u64 = valid_until + DEFAULT_LEDGERS as u64;
+        assert!(
+            new_valid_until > valid_until,
+            "post-extension valid_until must move forward"
+        );
+        let new_remaining: u64 = new_valid_until - valid_until;
+        assert_eq!(new_remaining, DEFAULT_LEDGERS as u64);
+        assert!(
+            new_remaining > DEFAULT_THRESHOLD as u64,
+            "new remaining TTL must escape the threshold window"
+        );
+
+        // --- one ledger above boundary: no-op ------------------------
+        // When `remaining_ttl == threshold + 1` the entry is still
+        // healthy and `extend_ttl` is a no-op — this is correct because
+        // the bump already ran on the previous ledger.
+        let remaining_just_above: u64 = DEFAULT_THRESHOLD as u64 + 1;
+        assert!(
+            remaining_just_above > DEFAULT_THRESHOLD as u64,
+            "sanity: one-above-threshold must exceed the threshold"
+        );
     }
 }

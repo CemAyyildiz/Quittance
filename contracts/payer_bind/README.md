@@ -25,6 +25,29 @@ designated payer may settle — pass `Some(&caller)`).
 | `check_payer(provided: Option<&Address>, bound: &Address) -> Result<(), PayerError>` | Central validation — see table above. |
 | `PayerError::PayerMismatch`                       | Only error variant; signals a payer mismatch.    |
 
+## Usage
+
+```rust
+use payer_bind::{check_payer, PayerError};
+use soroban_sdk::Address;
+
+// `bound` is the payer address recorded as the binding for this invoice.
+
+// An open invoice: no payer restriction, so `None` is always allowed.
+fn pay_open_invoice(bound: &Address) -> Result<(), PayerError> {
+    check_payer(None, bound)
+}
+
+// A bound invoice: the caller-supplied address must match `bound`.
+fn pay_bound_invoice(caller: &Address, bound: &Address) -> Result<(), PayerError> {
+    check_payer(Some(caller), bound)
+}
+```
+
+Wire the `Result` straight into a contract's own error type with `?` or
+`map_err`; `check_payer` never panics, so the caller always gets a value
+to branch on.
+
 ## Non-goals
 
 - No storage, no contract instance, no Soroban `#[contract]`.

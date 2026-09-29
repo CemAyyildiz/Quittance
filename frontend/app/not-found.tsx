@@ -28,9 +28,14 @@ export default function NotFound() {
             The link may be incorrect or the page may have moved. Return to Quittance to
             create or manage your invoices.
           </p>
-          <Link href="/" className="btn btn-primary mt-10 px-7 py-3">
-            Go to home
-          </Link>
+          <div className="mt-10 flex flex-wrap gap-3">
+            <Link href="/" className="btn btn-primary px-7 py-3">
+              Go to home
+            </Link>
+            <Link href="/dashboard" className="btn btn-outline px-7 py-3">
+              Go to dashboard
+            </Link>
+          </div>
         </div>
       </section>
     </main>

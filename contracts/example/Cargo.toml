@@ -1,0 +1,9 @@
+[package]
+name = "quittance-contracts-example"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+description = "Workspace smoke-test crate for the Quittance contracts workspace."
+
+[dependencies]
