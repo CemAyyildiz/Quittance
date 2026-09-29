@@ -1,59 +1,80 @@
 import { generatePaymentQR, buildStellarPaymentUri, generateStellarPaymentQR } from '../qrcode';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+
+const { toDataURLMock } = vi.hoisted(() => ({
+  toDataURLMock: vi.fn<(text: string, options?: unknown) => Promise<string>>(),
+}));
+
+vi.mock('qrcode', () => ({
+  default: { toDataURL: toDataURLMock },
+}));
+
+const PNG_DATA_URL =
+  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+
+const DESTINATION = 'GDGCCZ6X7X5KG6V3H6LWZ5EVIMICS2QEQPIBS3Z4JVKKR256RUV5DZT';
+const ASSET_ISSUER = 'GDTNXRMY2DYAXUCWGPKPPPNSRTCJDYPWWWQAXQVP7AV7KBYZXQ2QYJJY';
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  toDataURLMock.mockResolvedValue(PNG_DATA_URL);
+});
 
 describe('generatePaymentQR', () => {
   it('should generate QR code with correct PNG options', async () => {
     const paymentUrl = 'https://example.com/pay/123';
     const qrDataUrl = await generatePaymentQR(paymentUrl);
 
-    // Should return a data URL
-    expect(qrDataUrl).toBeTruthy();
-    expect(qrDataUrl).toStartWith('data:image/png;base64,');
+    // Should return a PNG data URL
+    expect(qrDataUrl).toMatch(/^data:image\/png;base64,/);
+
+    // Lock the options passed to QRCode.toDataURL
+    expect(toDataURLMock).toHaveBeenCalledWith(
+      paymentUrl,
+      expect.objectContaining({ errorCorrectionLevel: 'M', width: 300, margin: 2 }),
+    );
   });
 
   it('should throw error with failure message when QR generation fails', async () => {
-    // Mock QRCode.toDataURL to throw an error
-    const originalToDataURL = require('qrcode').default.toDataURL;
-    // @ts-expect-error - we're mocking for test
-    require('qrcode').default.toDataURL = jest.fn().mockRejectedValue(new Error('Generation failed'));
+    toDataURLMock.mockRejectedValueOnce(new Error('Generation failed'));
 
     await expect(generatePaymentQR('https://example.com'))
       .rejects
       .toThrow('Failed to generate QR code');
-
-    // Restore original function
-    // @ts-expect-error - we're mocking for test
-    require('qrcode').default.toDataURL = originalToDataURL;
   });
 });
 
 describe('buildStellarPaymentUri', () => {
   it('should handle empty memo correctly', () => {
     const uri = buildStellarPaymentUri(
-      'GDGCCZ6X7X5KG6V3H6LWZ5EVIMICS2QEQPIBSG3Z4JVKKR256RUV5DZT',
+      DESTINATION,
       '100',
       'XLM',
       '', // empty memo
-      'GDTNXRMY2DYAXUCWGPKPPPNSRTCJDYPWWWQAXQVP7AV7KBYZXQ2QYJJY'
+      ASSET_ISSUER
     );
 
-    expect(uri).toContain('destination=GDGCCZ6X7X5KG6V3H6LWZ5EVIMICS2QEQPIBS3Z4JVKKR256RUV5DZT');
+    expect(uri).toContain(`destination=${DESTINATION}`);
     expect(uri).toContain('amount=100');
-    expect(uri).toContain('asset_code=XLM');
-    expect(uri).toContain('asset_issuer=GDTNXRMY2DYAXUCWGPKPPPNSRTCJDYPWWWQAXQVP7AV7KBYZXQ2QYJJY');
-    // Should not include memo parameter when memo is empty
-    expect(uri).not.toContain('&memo=');
+    // XLM payments carry no asset params, and an empty memo must not add
+    // either a memo or a memo_type parameter to the payload.
+    expect(uri).not.toContain('asset_code=');
+    expect(uri).not.toContain('asset_issuer=');
+    expect(uri).not.toContain('memo=');
+    expect(uri).not.toContain('memo_type=');
+    expect(uri).toBe(`web+stellar:pay?destination=${DESTINATION}&amount=100`);
   });
 
   it('should include memo when provided', () => {
     const uri = buildStellarPaymentUri(
-      'GDGCCZ6X7X5KG6V3H6LWZ5EVIMICS2QEQPIBS3Z4JVKKR256RUV5DZT',
+      DESTINATION,
       '50',
       'XLM',
       'Test memo',
-      'GDTNXRMY2DYAXUCWGPKPPPNSRTCJDYPWWWQAXQVP7AV7KBYZXQ2QYJJY'
+      ASSET_ISSUER
     );
 
-    expect(uri).toContain('memo=Test+memo');
+    expect(uri).toContain('memo=Test%20memo');
     expect(uri).toContain('memo_type=MEMO_TEXT');
   });
 });
@@ -61,20 +82,23 @@ describe('buildStellarPaymentUri', () => {
 describe('generateStellarPaymentQR', () => {
   it('should generate Stellar payment QR with correct options', async () => {
     const qrDataUrl = await generateStellarPaymentQR(
-      'GDGCCZ6X7X5KG6V3H6LWZ5EVIMICS2QEQPIBS3Z4JVKKR256RUV5DZT',
+      DESTINATION,
       '100',
       'XLM',
       'Test memo',
-      'GDTNXRMY2DYAXUCWGPKPPPNSRTCJDYPWWWQAXQVP7AV7KBYZXQ2QYJJY'
+      ASSET_ISSUER
     );
 
-    // Should return a data URL
-    expect(qrDataUrl).toBeTruthy();
-    expect(qrDataUrl).toStartWith('data:image/png;base64,');
+    // Should return a PNG data URL
+    expect(qrDataUrl).toMatch(/^data:image\/png;base64,/);
+
+    // Lock the options passed to QRCode.toDataURL
+    expect(toDataURLMock).toHaveBeenCalledWith(
+      buildStellarPaymentUri(DESTINATION, '100', 'XLM', 'Test memo', ASSET_ISSUER),
+      { errorCorrectionLevel: 'H', width: 400, margin: 1 },
+    );
   });
 });
-import { describe, it, expect } from 'vitest';
-import { buildStellarPaymentUri } from '../qrcode';
 
 describe('buildStellarPaymentUri', () => {
   const DEST = 'GA5ZSEJ62SP2X5TSEJD7H4K7RWHPGZKFJXKKB2MM54FHT3MS5LZ4CODE';
