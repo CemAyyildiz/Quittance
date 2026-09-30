@@ -281,5 +281,21 @@ mod tests {
     fn is_known_passphrase_rejects_typo() {
         assert!(!is_known_passphrase("Public Global Stellar Network ; September 2016"));
     }
-}
 
+    // ----- Futurenet tests (added for issue #636) ----------------------
+
+    #[test]
+    fn is_known_passphrase_rejects_futurenet() {
+        assert!(!is_known_passphrase("Test SDF Future Network ; October 2022"));
+    }
+
+    #[test]
+    fn is_testnet_passphrase_rejects_futurenet() {
+        assert!(!is_testnet_passphrase("Test SDF Future Network ; October 2022"));
+    }
+
+    #[test]
+    fn is_public_passphrase_rejects_futurenet() {
+        assert!(!is_public_passphrase("Test SDF Future Network ; October 2022"));
+    }
+}
