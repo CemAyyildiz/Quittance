@@ -8,7 +8,7 @@ import { horizonStatus, HorizonErrorLike } from './horizonStatus';
 // ---------------------------------------------------------------------------
 // 1. Edge cases — null, undefined, plain strings
 // ---------------------------------------------------------------------------
-describe('horizonStatus — edge cases', () {
+describe('horizonStatus — edge cases', () => {
   it('returns a fallback for null', () => {
     expect(horizonStatus(null)).toBe('An unknown error occurred.');
   });
@@ -37,7 +37,7 @@ describe('horizonStatus — edge cases', () {
 // ---------------------------------------------------------------------------
 // 2. HTTP status codes
 // ---------------------------------------------------------------------------
-describe('horizonStatus — HTTP status codes', () {
+describe('horizonStatus — HTTP status codes', () => {
   it('maps 400 to a readable message', () => {
     const err: HorizonErrorLike = { status: 400 };
     const msg = horizonStatus(err);
@@ -103,7 +103,7 @@ describe('horizonStatus — HTTP status codes', () {
 // ---------------------------------------------------------------------------
 // 3. Transaction result codes
 // ---------------------------------------------------------------------------
-describe('horizonStatus — transaction result codes', () {
+describe('horizonStatus — transaction result codes', () => {
   it('maps tx_bad_auth', () => {
     const err: HorizonErrorLike = {
       extras: { result_codes: { transaction: 'tx_bad_auth' } },
@@ -193,7 +193,7 @@ describe('horizonStatus — transaction result codes', () {
 // ---------------------------------------------------------------------------
 // 4. Operation result codes
 // ---------------------------------------------------------------------------
-describe('horizonStatus — operation result codes', () {
+describe('horizonStatus — operation result codes', () => {
   it('maps op_no_trust', () => {
     const err: HorizonErrorLike = {
       extras: { result_codes: { operations: ['op_no_trust'] } },
@@ -316,7 +316,7 @@ describe('horizonStatus — operation result codes', () {
 // ---------------------------------------------------------------------------
 // 5. Nested Axios / Horizon SDK shape (response.data.extras)
 // ---------------------------------------------------------------------------
-describe('horizonStatus — nested response shapes', () {
+describe('horizonStatus — nested response shapes', () => {
   it('reads op result codes from response.data.extras (Axios shape)', () => {
     const err: HorizonErrorLike = {
       response: {
@@ -443,7 +443,7 @@ describe('horizonStatus — nested response shapes', () {
 // ---------------------------------------------------------------------------
 // 6. title / detail from Horizon error response
 // ---------------------------------------------------------------------------
-describe('horizonStatus — title and detail messages', () {
+describe('horizonStatus — title and detail messages', () => {
   it('prefers title when no HTTP status or result codes match', () => {
     const err: HorizonErrorLike = { title: 'Transaction Failed' };
     expect(horizonStatus(err)).toBe('Transaction Failed');
@@ -470,7 +470,7 @@ describe('horizonStatus — title and detail messages', () {
 // ---------------------------------------------------------------------------
 // 7. Fallback to error.message
 // ---------------------------------------------------------------------------
-describe('horizonStatus — fallback to message', () {
+describe('horizonStatus — fallback to message', () => {
   it('falls back to error.message when nothing else matches', () => {
     const err: HorizonErrorLike = { message: 'Network Error' };
     expect(horizonStatus(err)).toBe('Network Error');
@@ -496,7 +496,7 @@ describe('horizonStatus — fallback to message', () {
 // ---------------------------------------------------------------------------
 // 8. Combined scenarios (realistic Horizon error shapes)
 // ---------------------------------------------------------------------------
-describe('horizonStatus — real-world Horizon error shapes', () {
+describe('horizonStatus — real-world Horizon error shapes', () => {
   it('handles a full Axios Horizon 400 with underfunded op (realistic USDC payment failure)', () => {
     const err: HorizonErrorLike = {
       message: 'Request failed with status code 400',
