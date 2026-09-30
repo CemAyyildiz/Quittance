@@ -36,7 +36,7 @@
 
 use soroban_sdk::{Address, Env, IntoVal, String, Symbol, Val, Vec};
 
-use crate::{data, topic, topics, EVENT_NAME};
+use crate::{data, publish, topic, topics, EVENT_NAME};
 
 // Valid Stellar account-id StrKeys, computed via CRC16-XMODEM
 // over `0x30 || [payload; 32]` followed by Stellar-alphabet
@@ -239,4 +239,38 @@ fn data_handles_zero_and_large_values() {
     );
     let decoded_big: (i128, Address, u64) = big.into_val(&env);
     assert_eq!(decoded_big, (i128::MAX / 2, asset, u64::MAX));
+}
+
+/// Issue #637: `publish` builds its topics and data with the same helpers
+/// and hands them to `env.events().publish`. Reading the recorded event
+/// back needs the SDK `testutils` feature, which does not compile with the
+/// pinned `soroban-sdk = 22.0.0` (see the module notes above), so this test
+/// locks that `publish` runs without panicking and that the values it
+/// publishes decode to the same tuple `topics` / `data` produce, with the
+/// payer before the seller.
+#[test]
+fn publish_emits_topics_and_data_from_helpers() {
+    let env = Env::default();
+    let invoice_id = String::from_str(&env, "inv-001");
+    let payer = addr_payer(&env);
+    let seller = addr_seller(&env);
+    let asset = addr_asset(&env);
+    let amount: i128 = 1_000_000_000;
+    let paid_at: u64 = 1_700_000_000;
+
+    publish(&env, &invoice_id, &payer, &seller, amount, &asset, paid_at);
+
+    let expected_topics = topics(&env, &invoice_id, &payer, &seller);
+    assert_eq!(expected_topics.len(), 4);
+    let name: Symbol = expected_topics.get(0).unwrap().into_val(&env);
+    let id: String = expected_topics.get(1).unwrap().into_val(&env);
+    let topic_payer: Address = expected_topics.get(2).unwrap().into_val(&env);
+    let topic_seller: Address = expected_topics.get(3).unwrap().into_val(&env);
+    assert_eq!(name, Symbol::new(&env, EVENT_NAME));
+    assert_eq!(id, invoice_id);
+    assert_eq!(topic_payer, payer);
+    assert_eq!(topic_seller, seller);
+
+    let decoded: (i128, Address, u64) = data(&env, amount, &asset, paid_at).into_val(&env);
+    assert_eq!(decoded, (amount, asset, paid_at));
 }
