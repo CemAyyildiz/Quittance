@@ -1,3 +1,4 @@
+import assert from 'node:assert/strict';
 import { describe, it, expect } from 'vitest';
 import { parseAmount } from './amountParse';
 
@@ -64,6 +65,16 @@ describe('parseAmount', () => {
 
   it('returns undefined for amount with both comma and dot as decimal (invalid)', () => {
     expect(parseAmount('1,234.56,78')).toBeUndefined();
+  });
+
+  it('returns undefined for a leading plus', () => {
+    expect(parseAmount('+12.5')).toBeUndefined();
+    expect(parseAmount('+1,234.50')).toBeUndefined();
+  });
+
+  it('still parses unsigned amounts', () => {
+    expect(parseAmount('12.5')).toBe('12.5');
+    expect(parseAmount('1,234.50')).toBe('1234.50');
   });
 });
 
