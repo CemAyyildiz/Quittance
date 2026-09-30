@@ -42,6 +42,16 @@ describe('isValidStellarPublicKey', () => {
     expect(isValidStellarPublicKey(VALID_KEY.toLowerCase())).toBe(false);
   });
 
+  it('accepts a valid key with a leading or trailing space', () => {
+    expect(isValidStellarPublicKey(` ${VALID_KEY}`)).toBe(true);
+    expect(isValidStellarPublicKey(`${VALID_KEY} `)).toBe(true);
+  });
+
+  it('rejects a space in the middle of the key', () => {
+    const middle = `${VALID_KEY.slice(0, 10)} ${VALID_KEY.slice(10)}`;
+    expect(isValidStellarPublicKey(middle)).toBe(false);
+  });
+
   it('returns false when key contains invalid characters (e.g. 0, 1, 8, 9, lowercase, symbols)', () => {
     expect(isValidStellarPublicKey('G' + '0'.padEnd(55, 'Q'))).toBe(false);
     expect(isValidStellarPublicKey('G' + '1'.padEnd(55, 'Q'))).toBe(false);
