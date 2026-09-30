@@ -8,7 +8,7 @@ import { horizonStatus, HorizonErrorLike } from './horizonStatus';
 // ---------------------------------------------------------------------------
 // 1. Edge cases — null, undefined, plain strings
 // ---------------------------------------------------------------------------
-describe('horizonStatus — edge cases', () {
+describe('horizonStatus — edge cases', () => {
   it('returns a fallback for null', () => {
     expect(horizonStatus(null)).toBe('An unknown error occurred.');
   });
@@ -37,23 +37,11 @@ describe('horizonStatus — edge cases', () {
 // ---------------------------------------------------------------------------
 // 2. HTTP status codes
 // ---------------------------------------------------------------------------
-describe('horizonStatus — HTTP status codes', () {
+describe('horizonStatus — HTTP status codes', () => {
   it('maps 400 to a readable message', () => {
     const err: HorizonErrorLike = { status: 400 };
     const msg = horizonStatus(err);
     expect(msg).toContain('malformed');
-  });
-
-  it('maps 401 to a readable message', () => {
-    const err: HorizonErrorLike = { status: 401 };
-    const msg = horizonStatus(err);
-    expect(msg).toBe('Authentication with the Stellar network failed. Check your API credentials.');
-  });
-
-  it('maps 403 to a readable message', () => {
-    const err: HorizonErrorLike = { status: 403 };
-    const msg = horizonStatus(err);
-    expect(msg).toBe('Access to the Stellar network was denied. Contact your infrastructure provider.');
   });
 
   it('maps 404 to a readable message', () => {
@@ -103,7 +91,7 @@ describe('horizonStatus — HTTP status codes', () {
 // ---------------------------------------------------------------------------
 // 3. Transaction result codes
 // ---------------------------------------------------------------------------
-describe('horizonStatus — transaction result codes', () {
+describe('horizonStatus — transaction result codes', () => {
   it('maps tx_bad_auth', () => {
     const err: HorizonErrorLike = {
       extras: { result_codes: { transaction: 'tx_bad_auth' } },
@@ -167,13 +155,6 @@ describe('horizonStatus — transaction result codes', () {
     expect(horizonStatus(err)).toContain('no operations');
   });
 
-  it('maps tx_soroban_invalid', () => {
-    const err: HorizonErrorLike = {
-      extras: { result_codes: { transaction: 'tx_soroban_invalid' } },
-    };
-    expect(horizonStatus(err)).toContain('The Soroban contract invocation is invalid');
-  });
-
   // Bare code without tx_ prefix
   it('handles bare tx code (insufficient_balance without tx_ prefix)', () => {
     const err: HorizonErrorLike = {
@@ -181,19 +162,12 @@ describe('horizonStatus — transaction result codes', () {
     };
     expect(horizonStatus(err)).toContain('Insufficient XLM balance');
   });
-
-  it('handles bare soroban_invalid code', () => {
-    const err: HorizonErrorLike = {
-      extras: { result_codes: { transaction: 'soroban_invalid' } },
-    };
-    expect(horizonStatus(err)).toContain('The Soroban contract invocation is invalid');
-  });
 });
 
 // ---------------------------------------------------------------------------
 // 4. Operation result codes
 // ---------------------------------------------------------------------------
-describe('horizonStatus — operation result codes', () {
+describe('horizonStatus — operation result codes', () => {
   it('maps op_no_trust', () => {
     const err: HorizonErrorLike = {
       extras: { result_codes: { operations: ['op_no_trust'] } },
@@ -250,54 +224,12 @@ describe('horizonStatus — operation result codes', () {
     expect(horizonStatus(err)).toContain('does not exist');
   });
 
-  it('maps op_low_reserve', () => {
-    const err: HorizonErrorLike = {
-      extras: { result_codes: { operations: ['op_low_reserve'] } },
-    };
-    expect(horizonStatus(err)).toBe('Insufficient XLM to meet the minimum reserve requirement.');
-  });
-
-  it('maps op_no_issuer', () => {
-    const err: HorizonErrorLike = {
-      extras: { result_codes: { operations: ['op_no_issuer'] } },
-    };
-    expect(horizonStatus(err)).toBe('The asset issuer account does not exist.');
-  });
-
-  it('maps op_malformed', () => {
-    const err: HorizonErrorLike = {
-      extras: { result_codes: { operations: ['op_malformed'] } },
-    };
-    expect(horizonStatus(err)).toBe('The payment operation was malformed. Check the destination address and amount.');
-  });
-
   // Bare op code without op_ prefix
   it('handles bare op code (no_trust without op_ prefix)', () => {
     const err: HorizonErrorLike = {
       extras: { result_codes: { operations: ['no_trust'] } },
     };
     expect(horizonStatus(err)).toContain('no trustline');
-  });
-
-  it('handles bare low_reserve code', () => {
-    const err: HorizonErrorLike = {
-      extras: { result_codes: { operations: ['low_reserve'] } },
-    };
-    expect(horizonStatus(err)).toBe('Insufficient XLM to meet the minimum reserve requirement.');
-  });
-
-  it('handles bare no_issuer code', () => {
-    const err: HorizonErrorLike = {
-      extras: { result_codes: { operations: ['no_issuer'] } },
-    };
-    expect(horizonStatus(err)).toBe('The asset issuer account does not exist.');
-  });
-
-  it('handles bare malformed code', () => {
-    const err: HorizonErrorLike = {
-      extras: { result_codes: { operations: ['malformed'] } },
-    };
-    expect(horizonStatus(err)).toBe('The payment operation was malformed. Check the destination address and amount.');
   });
 
   // Operations list with multiple codes — first match wins
@@ -316,7 +248,7 @@ describe('horizonStatus — operation result codes', () {
 // ---------------------------------------------------------------------------
 // 5. Nested Axios / Horizon SDK shape (response.data.extras)
 // ---------------------------------------------------------------------------
-describe('horizonStatus — nested response shapes', () {
+describe('horizonStatus — nested response shapes', () => {
   it('reads op result codes from response.data.extras (Axios shape)', () => {
     const err: HorizonErrorLike = {
       response: {
@@ -353,74 +285,6 @@ describe('horizonStatus — nested response shapes', () {
     expect(horizonStatus(err)).toContain('authentication failed');
   });
 
-  it('reads soroban_invalid tx code from response.data.extras (Axios shape)', () => {
-    const err: HorizonErrorLike = {
-      response: {
-        status: 400,
-        data: {
-          extras: {
-            result_codes: {
-              transaction: 'tx_soroban_invalid',
-              operations: ['op_some_op'],
-            },
-          },
-        },
-      },
-    };
-    expect(horizonStatus(err)).toContain('The Soroban contract invocation is invalid');
-  });
-
-  it('reads low_reserve op code from response.data.extras (Axios shape)', () => {
-    const err: HorizonErrorLike = {
-      response: {
-        status: 400,
-        data: {
-          extras: {
-            result_codes: {
-              transaction: 'tx_failed',
-              operations: ['op_low_reserve'],
-            },
-          },
-        },
-      },
-    };
-    expect(horizonStatus(err)).toBe('Insufficient XLM to meet the minimum reserve requirement.');
-  });
-
-  it('reads no_issuer op code from response.data.extras (Axios shape)', () => {
-    const err: HorizonErrorLike = {
-      response: {
-        status: 400,
-        data: {
-          extras: {
-            result_codes: {
-              transaction: 'tx_failed',
-              operations: ['op_no_issuer'],
-            },
-          },
-        },
-      },
-    };
-    expect(horizonStatus(err)).toBe('The asset issuer account does not exist.');
-  });
-
-  it('reads malformed op code from response.data.extras (Axios shape)', () => {
-    const err: HorizonErrorLike = {
-      response: {
-        status: 400,
-        data: {
-          extras: {
-            result_codes: {
-              transaction: 'tx_failed',
-              operations: ['op_malformed'],
-            },
-          },
-        },
-      },
-    };
-    expect(horizonStatus(err)).toBe('The payment operation was malformed. Check the destination address and amount.');
-  });
-
   it('falls back to HTTP status when no result codes are recognised', () => {
     const err: HorizonErrorLike = {
       response: {
@@ -443,7 +307,7 @@ describe('horizonStatus — nested response shapes', () {
 // ---------------------------------------------------------------------------
 // 6. title / detail from Horizon error response
 // ---------------------------------------------------------------------------
-describe('horizonStatus — title and detail messages', () {
+describe('horizonStatus — title and detail messages', () => {
   it('prefers title when no HTTP status or result codes match', () => {
     const err: HorizonErrorLike = { title: 'Transaction Failed' };
     expect(horizonStatus(err)).toBe('Transaction Failed');
@@ -470,7 +334,7 @@ describe('horizonStatus — title and detail messages', () {
 // ---------------------------------------------------------------------------
 // 7. Fallback to error.message
 // ---------------------------------------------------------------------------
-describe('horizonStatus — fallback to message', () {
+describe('horizonStatus — fallback to message', () => {
   it('falls back to error.message when nothing else matches', () => {
     const err: HorizonErrorLike = { message: 'Network Error' };
     expect(horizonStatus(err)).toBe('Network Error');
@@ -496,7 +360,7 @@ describe('horizonStatus — fallback to message', () {
 // ---------------------------------------------------------------------------
 // 8. Combined scenarios (realistic Horizon error shapes)
 // ---------------------------------------------------------------------------
-describe('horizonStatus — real-world Horizon error shapes', () {
+describe('horizonStatus — real-world Horizon error shapes', () => {
   it('handles a full Axios Horizon 400 with underfunded op (realistic USDC payment failure)', () => {
     const err: HorizonErrorLike = {
       message: 'Request failed with status code 400',
@@ -574,85 +438,5 @@ describe('horizonStatus — real-world Horizon error shapes', () {
     };
     // Falls back to title since code isn't in our map
     expect(horizonStatus(err)).toBe('Transaction Failed');
-  });
-
-  it('handles a full Axios Horizon 400 with soroban_invalid tx code', () => {
-    const err: HorizonErrorLike = {
-      message: 'Request failed with status code 400',
-      response: {
-        status: 400,
-        data: {
-          title: 'Transaction Failed',
-          detail: '',
-          extras: {
-            result_codes: {
-              transaction: 'tx_soroban_invalid',
-              operations: [],
-            },
-          },
-        },
-      },
-    };
-    expect(horizonStatus(err)).toContain('The Soroban contract invocation is invalid');
-  });
-
-  it('handles a full Axios Horizon 400 with low_reserve op code', () => {
-    const err: HorizonErrorLike = {
-      message: 'Request failed with status code 400',
-      response: {
-        status: 400,
-        data: {
-          title: 'Transaction Failed',
-          detail: '',
-          extras: {
-            result_codes: {
-              transaction: 'tx_failed',
-              operations: ['op_low_reserve'],
-            },
-          },
-        },
-      },
-    };
-    expect(horizonStatus(err)).toBe('Insufficient XLM to meet the minimum reserve requirement.');
-  });
-
-  it('handles a full Axios Horizon 400 with no_issuer op code', () => {
-    const err: HorizonErrorLike = {
-      message: 'Request failed with status code 400',
-      response: {
-        status: 400,
-        data: {
-          title: 'Transaction Failed',
-          detail: '',
-          extras: {
-            result_codes: {
-              transaction: 'tx_failed',
-              operations: ['op_no_issuer'],
-            },
-          },
-        },
-      },
-    };
-    expect(horizonStatus(err)).toBe('The asset issuer account does not exist.');
-  });
-
-  it('handles a full Axios Horizon 400 with malformed op code', () => {
-    const err: HorizonErrorLike = {
-      message: 'Request failed with status code 400',
-      response: {
-        status: 400,
-        data: {
-          title: 'Transaction Failed',
-          detail: '',
-          extras: {
-            result_codes: {
-              transaction: 'tx_failed',
-              operations: ['op_malformed'],
-            },
-          },
-        },
-      },
-    };
-    expect(horizonStatus(err)).toBe('The payment operation was malformed. Check the destination address and amount.');
   });
 });

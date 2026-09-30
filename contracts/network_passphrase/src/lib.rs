@@ -67,8 +67,83 @@ pub enum Network {
 }
 
 
+/// Returns `true` when `passphrase` is exactly the Stellar Testnet passphrase.
+pub fn is_testnet_passphrase(passphrase: &str) -> bool {
+    passphrase == TESTNET_PASSPHRASE
+}
 
+/// Returns `true` when `passphrase` is exactly the Stellar Public network passphrase.
+pub fn is_public_passphrase(passphrase: &str) -> bool {
+    passphrase == PUBLIC_PASSPHRASE
+}
 
+/// Returns `true` when `passphrase` is one of the supported canonical
+/// Stellar network passphrases.
+///
+/// Futurenet and other custom passphrases are intentionally not recognized.
+pub fn is_known_passphrase(passphrase: &str) -> bool {
+    is_testnet_passphrase(passphrase) || is_public_passphrase(passphrase)
+}
+
+/// Soroban contract that exposes the standard Stellar network
+/// passphrases as read-only contract functions.
+///
+/// This contract has no storage writes and no side effects — every
+/// function returns a string that is a compile-time constant.
+#[contract]
+pub struct NetworkPassphrase;
+
+#[contractimpl]
+impl NetworkPassphrase {
+    /// Return the canonical testnet passphrase.
+    ///
+    /// ## Example
+    ///
+    /// ```ignore
+    /// let testnet: soroban_sdk::String = client.testnet_passphrase();
+    /// assert_eq!(testnet.to_string(), "Test SDF Network ; September 2015");
+    /// ```
+    pub fn testnet_passphrase(env: &Env) -> String {
+        String::from_str(env, TESTNET_PASSPHRASE)
+    }
+
+    /// Return the canonical public/mainnet passphrase.
+    ///
+    /// ## Example
+    ///
+    /// ```ignore
+    /// let public: soroban_sdk::String = client.public_passphrase();
+    /// assert_eq!(public.to_string(), "Public Global Stellar Network ; September 2015");
+    /// ```
+    pub fn public_passphrase(env: &Env) -> String {
+        String::from_str(env, PUBLIC_PASSPHRASE)
+    }
+
+    /// Select and return a passphrase by network variant.
+    ///
+    /// This is a single-entry-point alternative to the two dedicated
+    /// functions above. It accepts a [`Network`] enum value and
+    /// returns the corresponding passphrase string.
+    ///
+    /// ## Example
+    ///
+    /// ```ignore
+    /// use network_passphrase::Network;
+    ///
+    /// let testnet: soroban_sdk::String = client.passphrase(&Network::Testnet);
+    /// let public: soroban_sdk::String = client.passphrase(&Network::Public);
+    /// ```
+    pub fn passphrase(env: &Env, network: &Network) -> String {
+        match network {
+            Network::Testnet => String::from_str(env, TESTNET_PASSPHRASE),
+            Network::Public => String::from_str(env, PUBLIC_PASSPHRASE),
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Tests
+// ---------------------------------------------------------------------------
 
 #[cfg(test)]
 mod tests {
