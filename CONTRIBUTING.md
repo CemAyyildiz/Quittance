@@ -37,17 +37,7 @@ All contributors must follow these rules before opening a pull request.
 
 ### Hot-file conflict rule
 
-Do **not** edit these files — they have open PRs or active work:
-
-| File | Reason |
-|------|--------|
-| `frontend/app/pay/[id]/page.tsx` | Open PRs #11, #29 |
-| `frontend/lib/export.ts` | Open PRs #23, #28 |
-| `frontend/components/PaymentReceipt.tsx` | Open PR #24 |
-| `frontend/components/TransactionHistory.tsx` | Open PR #25 |
-| `frontend/components/PaymentButton.tsx` | Open PR #12 |
-| `frontend/components/InvoiceForm.tsx` | Open PR #12 |
-| `frontend/lib/stellar.ts` | Open PR #12 |
+Edit only the file named in the issue. Do not change any other file.
 
 ### Commit discipline
 
