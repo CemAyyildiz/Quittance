@@ -1,0 +1,33 @@
+# PR artifact guard
+#
+# Scans every PR's diff for file patterns associated with supply-chain
+# payloads hidden inside otherwise unrelated/"feature" pull requests:
+#   - .vscode/ files (e.g. tasks.json with "runOn": "folderOpen")
+#   - new font/binary-looking files (.woff2, .eot, .ttf, .node, .wasm, ...)
+#   - committed dist/ build output
+#   - added/changed npm lifecycle scripts (preinstall/postinstall/prepare/...)
+#
+# A match does not prove malice, but it needs a human look before merging.
+# See scripts/check-pr-artifacts.sh for the actual checks.
+
+name: PR Artifact Guard
+
+on:
+  pull_request:
+
+jobs:
+  guard:
+    name: Scan diff for suspicious artifacts
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run artifact guard
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: bash scripts/check-pr-artifacts.sh "$BASE_SHA" "$HEAD_SHA"
