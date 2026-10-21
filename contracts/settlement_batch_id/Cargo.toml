@@ -1,0 +1,21 @@
+[workspace]
+
+[package]
+name        = "settlement-batch-id"
+version     = "0.1.0"
+edition     = "2021"
+description = "Standalone Soroban contract: groups invoice ids into settlement batches with a maximum batch size."
+license     = "MIT"
+publish     = false
+readme      = "README.md"
+
+[lib]
+name       = "settlement_batch_id"
+path       = "src/lib.rs"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+soroban-sdk = "25.0.0"
+
+[dev-dependencies]
+soroban-sdk = { version = "25.0.0", features = ["testutils"] }
