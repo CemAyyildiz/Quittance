@@ -1,0 +1,20 @@
+[workspace]
+
+[package]
+name        = "quittance-recurring-schedule"
+version     = "0.1.0"
+edition     = "2021"
+description = "Pure helper: next due timestamp for a recurring invoice given an anchor and an interval."
+license     = "MIT"
+publish     = false
+
+# Dependency-free on purpose. A future Soroban contract can call the same
+# u64 rules without pulling in the SDK here. The empty `[workspace]` table
+# keeps this crate standalone: it is not a member of `contracts/Cargo.toml`.
+
+[lib]
+name       = "recurring_schedule"
+crate-type = ["rlib"]
+path       = "src/lib.rs"
+
+[dependencies]
