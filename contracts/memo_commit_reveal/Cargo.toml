@@ -1,0 +1,36 @@
+[workspace]
+
+[package]
+name = "memo-commit-reveal"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.74"
+description = "Soroban contract implementing the commit-reveal pattern for payment memo hashes."
+license = "MIT"
+readme = "README.md"
+keywords = ["stellar", "soroban", "commit-reveal", "memo", "quittance"]
+categories = ["cryptography"]
+publish = false
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+path = "src/lib.rs"
+
+[dependencies]
+soroban-sdk = "25.0.0"
+# `default-features = false` keeps the crate `no_std`, so the same digest
+# helper can be compiled into the wasm contract and into off-chain tooling.
+sha2 = { version = "0.10", default-features = false }
+
+[dev-dependencies]
+soroban-sdk = { version = "25.0.0", features = ["testutils"] }
+
+[profile.release]
+opt-level = "z"
+overflow-checks = true
+debug = 0
+strip = "symbols"
+debug-assertions = false
+panic = "abort"
+codegen-units = 1
+lto = true
