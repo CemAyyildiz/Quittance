@@ -1,0 +1,21 @@
+[workspace]
+
+[package]
+name        = "invoice-currency-lock"
+version     = "0.1.0"
+edition     = "2021"
+description = "Standalone Soroban contract: locks an invoice to a single asset code and rejects later currency changes."
+license     = "MIT"
+publish     = false
+readme      = "README.md"
+
+[lib]
+name       = "invoice_currency_lock"
+path       = "src/lib.rs"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+soroban-sdk = "25.0.0"
+
+[dev-dependencies]
+soroban-sdk = { version = "25.0.0", features = ["testutils"] }
