@@ -1,0 +1,24 @@
+[package]
+name = "quittance-late-fee-calculator"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.74"
+description = "Pure helper: late fee for an overdue invoice, capped at a configurable maximum percentage."
+license = "MIT"
+readme = "README.md"
+keywords = ["stellar", "quittance", "invoice", "fee"]
+categories = ["algorithms"]
+publish = false
+
+# This crate is intentionally dependency-free so it can be reused both inside
+# future Soroban contracts and in off-chain workers with no extra compile cost.
+# It mirrors the standalone layout of `contracts/fee_bps_clamp/`.
+
+[lib]
+name = "quittance_late_fee_calculator"
+path = "src/lib.rs"
+crate-type = ["rlib"]
+
+# Stand alone: don't inherit the `contracts/Cargo.toml` workspace, since this
+# crate isn't listed in its `members`.
+[workspace]
