@@ -1,0 +1,21 @@
+[workspace]
+
+[package]
+name        = "receipt-counter-per-seller"
+version     = "0.1.0"
+edition     = "2021"
+description = "Standalone Soroban contract: independent per-seller incrementing receipt counter, decoupled from any global counter."
+license     = "MIT"
+publish     = false
+readme      = "README.md"
+
+[lib]
+name       = "receipt_counter_per_seller"
+path       = "src/lib.rs"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+soroban-sdk = "25.0.0"
+
+[dev-dependencies]
+soroban-sdk = { version = "25.0.0", features = ["testutils"] }
