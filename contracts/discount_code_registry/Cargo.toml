@@ -1,0 +1,19 @@
+[workspace]
+
+[package]
+name = "discount-code-registry"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.74"
+description = "Admin-managed discount code registry with an expiry ledger and a usage cap."
+license = "MIT"
+readme = "README.md"
+keywords = ["stellar", "soroban", "discount", "registry", "quittance"]
+categories = ["finance"]
+publish = false
+
+[lib]
+name = "discount_code_registry"
+path = "src/lib.rs"
+
+[dependencies]
