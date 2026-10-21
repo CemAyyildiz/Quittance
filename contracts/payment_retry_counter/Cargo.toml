@@ -1,0 +1,28 @@
+[workspace]
+
+[package]
+name = "payment-retry-counter"
+version = "0.1.0"
+edition = "2021"
+description = "Standalone Soroban counter for payment retry attempts"
+license = "MIT"
+readme = "README.md"
+publish = false
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+soroban-sdk = "25.0.0"
+
+[dev-dependencies]
+soroban-sdk = { version = "25.0.0", features = ["testutils"] }
+
+[profile.release]
+opt-level = "z"
+overflow-checks = true
+debug = 0
+strip = "symbols"
+panic = "abort"
+codegen-units = 1
+lto = true
