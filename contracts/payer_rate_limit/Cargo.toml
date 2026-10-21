@@ -1,0 +1,15 @@
+[workspace]
+
+[package]
+name        = "payer-rate-limit"
+version     = "0.1.0"
+edition     = "2021"
+description = "Limits the number of payment attempts a single payer can make within a ledger window."
+license     = "MIT"
+publish     = false
+
+[lib]
+crate-type = ["rlib"]
+path = "src/lib.rs"
+
+[dependencies]
