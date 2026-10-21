@@ -1,0 +1,19 @@
+[workspace]
+
+[package]
+name = "invoice-sequence-counter"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.74"
+description = "Per-seller invoice sequence counter. Issues monotonic sequence numbers and detects collisions and out-of-order submissions."
+license = "MIT"
+readme = "README.md"
+keywords = ["stellar", "soroban", "invoice", "sequence", "quittance"]
+categories = ["finance"]
+publish = false
+
+[lib]
+name = "invoice_sequence_counter"
+path = "src/lib.rs"
+
+[dependencies]
