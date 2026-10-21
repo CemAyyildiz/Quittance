@@ -1,0 +1,30 @@
+[workspace]
+
+[package]
+name = "multi-sig-approval-counter"
+version = "0.1.0"
+edition = "2021"
+description = "M-of-N distinct-address approval counter for Soroban actions."
+license = "MIT"
+publish = false
+readme = "README.md"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+path = "src/lib.rs"
+
+[dependencies]
+soroban-sdk = "25.0.0"
+
+[dev-dependencies]
+soroban-sdk = { version = "25.0.0", features = ["testutils"] }
+
+[profile.release]
+opt-level = "z"
+overflow-checks = true
+debug = 0
+strip = "symbols"
+debug-assertions = false
+panic = "abort"
+codegen-units = 1
+lto = true
