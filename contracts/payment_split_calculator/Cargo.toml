@@ -1,0 +1,22 @@
+[workspace]
+
+[package]
+name = "payment-split-calculator"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.74"
+description = "Standalone Soroban contract that splits a payment amount across recipients by basis-point shares."
+license = "MIT"
+readme = "README.md"
+publish = false
+
+[lib]
+name = "payment_split_calculator"
+path = "src/lib.rs"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+soroban-sdk = "25.0.0"
+
+[dev-dependencies]
+soroban-sdk = { version = "25.0.0", features = ["testutils"] }
