@@ -6,7 +6,7 @@ info:
     Invoice-and-proof backend for the Quittance payment proof platform.
     Runs in-memory with Horizon-backed on-chain verification.
 
-    **Base URL:** `http://localhost:3001`
+    *Base URL:** `http://localhost:3001`
     **Mode:** MVP (in-memory storage, no database)
   version: 1.0.0
   contact:
