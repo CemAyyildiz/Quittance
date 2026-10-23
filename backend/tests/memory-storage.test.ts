@@ -1,5 +1,5 @@
-// Smoke tests for the in-memory invoice storage used by the MVP backend.
-// Runs via Vitest (`npm test` in the backend).
+//Smoke tests for the in-memory invoice storage used by the MVP backend.
+//Runs via Vitest (`npm test` in the backend).
 import { beforeEach, describe, it, expect } from 'vitest';
 
 import memoryStorage from '../src/storage/memory-storage';

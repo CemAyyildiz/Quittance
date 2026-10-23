@@ -1,6 +1,6 @@
-# PR: Add `conversion-hint-store` crate — Non-authoritative conversion hint store
+#PR: Add `conversion-hint-store` crate — Non-authoritative conversion hint store
 
-## Summary
+# # Summary
 
 Add a new, fully standalone Rust crate at `contracts/conversion_hint_store/` implementing validation logic for a non-authoritative currency conversion hint store.
 
