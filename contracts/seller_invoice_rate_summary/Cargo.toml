@@ -1,0 +1,33 @@
+[workspace]
+
+[package]
+name = "seller-invoice-rate-summary"
+version = "0.1.0"
+edition = "2021"
+description = "Soroban contract reporting a rolling summary of how many invoices were created within a recent ledger window."
+license = "MIT"
+readme = "README.md"
+keywords = ["stellar", "soroban", "rate", "window", "quittance"]
+categories = ["finance"]
+publish = false
+
+[lib]
+name = "seller_invoice_rate_summary"
+path = "src/lib.rs"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+soroban-sdk = "25.0.0"
+
+[dev-dependencies]
+soroban-sdk = { version = "25.0.0", features = ["testutils"] }
+
+[profile.release]
+opt-level = "z"
+overflow-checks = true
+debug = 0
+strip = "symbols"
+debug-assertions = false
+panic = "abort"
+codegen-units = 1
+lto = true
