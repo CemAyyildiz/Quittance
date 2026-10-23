@@ -1,6 +1,6 @@
-# Contributing to Quittance
+# ontributing to Quittance
 
-Thanks for your interest in contributing! Quittance helps freelancers create invoices, accept payments on Stellar, and generate payment proof.
+Thanks for your interest in contributing Quittance helps freelancers create invoices, accept payments on Stellar, and generate payment proof.
 
 ## Repository
 
