@@ -1,0 +1,23 @@
+[workspace]
+
+[package]
+name = "refund-reason-code"
+version = "0.1.0"
+edition = "2021"
+description = "Standalone Soroban contract: an immutable, fixed-enum refund reason code recorded per refund id."
+license = "MIT"
+readme = "README.md"
+keywords = ["stellar", "soroban", "refund", "quittance"]
+categories = ["finance"]
+publish = false
+
+[lib]
+name = "refund_reason_code"
+path = "src/lib.rs"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+soroban-sdk = "25.0.0"
+
+[dev-dependencies]
+soroban-sdk = { version = "25.0.0", features = ["testutils"] }

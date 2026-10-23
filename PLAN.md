@@ -8,7 +8,7 @@ This document is not a menu of options. Positioning, scope, and ship order are f
 
 ---
 
-## Documentation surface
+# Documentation surface
 
 Keep the repo lean:
 
