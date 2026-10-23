@@ -1,0 +1,23 @@
+[workspace]
+
+[package]
+name = "invoice-category-registry"
+version = "0.1.0"
+edition = "2021"
+description = "Standalone Soroban contract: a bounded invoice category registry with seller tagging."
+license = "MIT"
+readme = "README.md"
+keywords = ["stellar", "soroban", "invoice", "registry", "quittance"]
+categories = ["finance"]
+publish = false
+
+[lib]
+name = "invoice_category_registry"
+path = "src/lib.rs"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+soroban-sdk = "25.0.0"
+
+[dev-dependencies]
+soroban-sdk = { version = "25.0.0", features = ["testutils"] }
