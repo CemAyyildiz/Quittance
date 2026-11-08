@@ -1,0 +1,21 @@
+[workspace]
+
+[package]
+name        = "payment-memo-length-guard"
+version     = "0.1.0"
+edition     = "2021"
+description = "Standalone Soroban contract: Stellar memo byte-length validator per MemoType."
+license     = "MIT"
+publish     = false
+readme      = "README.md"
+
+[lib]
+name       = "payment_memo_length_guard"
+path       = "src/lib.rs"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+soroban-sdk = "25.0.0"
+
+[dev-dependencies]
+soroban-sdk = { version = "25.0.0", features = ["testutils"] }
