@@ -1,0 +1,21 @@
+[workspace]
+
+[package]
+name        = "invoice-draft-flag"
+version     = "0.1.0"
+edition     = "2021"
+description = "Standalone Soroban contract: one-way draft-to-published invoice flag."
+license     = "MIT"
+publish     = false
+readme      = "README.md"
+
+[lib]
+name       = "invoice_draft_flag"
+path       = "src/lib.rs"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+soroban-sdk = "25.0.0"
+
+[dev-dependencies]
+soroban-sdk = { version = "25.0.0", features = ["testutils"] }
