@@ -1,0 +1,34 @@
+[workspace]
+
+[package]
+name = "payment-amount-tolerance"
+version = "0.1.0"
+edition = "2021"
+description = "Soroban contract checking whether a received payment is within a rounding tolerance of expected amount."
+license = "MIT"
+readme = "README.md"
+keywords = ["stellar", "soroban", "payment", "tolerance", "quittance"]
+categories = ["finance"]
+publish = false
+
+[lib]
+name = "payment_amount_tolerance"
+path = "src/lib.rs"
+crate-type = ["rlib", "cdylib"]
+doctest = false
+
+[dependencies]
+soroban-sdk = "25.0.0"
+
+[dev-dependencies]
+soroban-sdk = { version = "25.0.0", features = ["testutils"] }
+
+[profile.release]
+opt-level = "z"
+overflow-checks = true
+debug = 0
+strip = "symbols"
+debug-assertions = false
+panic = "abort"
+codegen-units = 1
+lto = true
