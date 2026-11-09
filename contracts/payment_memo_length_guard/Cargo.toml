@@ -1,0 +1,34 @@
+[workspace]
+
+[package]
+name = "payment-memo-length-guard"
+version = "0.1.0"
+edition = "2021"
+description = "Soroban contract enforcing Stellar memo byte-length limits by memo type."
+license = "MIT"
+readme = "README.md"
+keywords = ["stellar", "soroban", "invoice", "quittance"]
+categories = ["finance"]
+publish = false
+
+[lib]
+name = "payment_memo_length_guard"
+path = "src/lib.rs"
+crate-type = ["rlib", "cdylib"]
+doctest = false
+
+[dependencies]
+soroban-sdk = "25.0.0"
+
+[dev-dependencies]
+soroban-sdk = { version = "25.0.0", features = ["testutils"] }
+
+[profile.release]
+opt-level = "z"
+overflow-checks = true
+debug = 0
+strip = "symbols"
+debug-assertions = false
+panic = "abort"
+codegen-units = 1
+lto = true
