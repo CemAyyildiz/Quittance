@@ -1,0 +1,34 @@
+[workspace]
+
+[package]
+name = "seller-cooldown-after-dispute"
+version = "0.1.0"
+edition = "2021"
+description = "Soroban contract enforcing a ledger-based invoice-creation cooldown after a seller dispute."
+license = "MIT"
+readme = "README.md"
+keywords = ["stellar", "soroban", "dispute", "cooldown", "quittance"]
+categories = ["finance"]
+publish = false
+
+[lib]
+name = "seller_cooldown_after_dispute"
+path = "src/lib.rs"
+crate-type = ["rlib", "cdylib"]
+doctest = false
+
+[dependencies]
+soroban-sdk = "25.0.0"
+
+[dev-dependencies]
+soroban-sdk = { version = "25.0.0", features = ["testutils"] }
+
+[profile.release]
+opt-level = "z"
+overflow-checks = true
+debug = 0
+strip = "symbols"
+debug-assertions = false
+panic = "abort"
+codegen-units = 1
+lto = true
