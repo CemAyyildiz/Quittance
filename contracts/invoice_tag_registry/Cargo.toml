@@ -4,7 +4,7 @@
 name = "invoice-tag-registry"
 version = "0.1.0"
 edition = "2021"
-description = "Attach a short, deduplicated tag list to an invoice id."
+description = "Free-form bounded invoice tag registry for merchant invoice organization."
 license = "MIT"
 publish = false
 readme = "README.md"

@@ -1,10 +1,19 @@
-use soroban_sdk::{contracttype, Symbol};
+use soroban_sdk::{contracterror, contracttype, Symbol};
 
-/// At most four tags can be attached to one invoice.
-pub const MAX_TAGS: u32 = 4;
+pub const MAX_TAGS_PER_INVOICE: u32 = 8;
+
+#[contracterror]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[repr(u32)]
+pub enum TagError {
+    TagLimitExceeded = 1,
+    DuplicateTag = 2,
+    TagNotFound = 3,
+    NoTagsFound = 4,
+}
 
 #[contracttype]
-#[derive(Clone)]
-pub(crate) enum DataKey {
-    Tags(Symbol),
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum DataKey {
+    InvoiceTags(Symbol),
 }

@@ -1,35 +1,41 @@
-# invoice-tag-registry
+# Quittance - Invoice Tag Registry Contract
 
-Attaches up to four unique short tags to an invoice id.
+Standalone Soroban contract crate implementing a free-form invoice tag registry.
 
-Tags are Soroban symbols, so they are already limited to 32 characters from
-the symbol alphabet. A repeated tag is ignored. A fifth tag is ignored. Each
-invoice has its own list, kept in insertion order.
+## Concept
 
-This crate is standalone. It is not a member of the contracts workspace and it
-is not called by the Quittance frontend or backend.
+Enables attaching a small, bounded number of short string tags (Symbol) to an invoice ID for merchant organization, enforcing a maximum tag count per invoice and preventing duplicate tags.
 
-## Public API
+## Public Interface
 
-```text
-add_tag(env, invoice_id: Symbol, tag: Symbol) -> bool
-tags_of(env, invoice_id: Symbol) -> Vec<Symbol>
+```rust
+pub fn add_tag(
+    env: Env,
+    invoice_id: Symbol,
+    tag: Symbol,
+) -> Result<(), TagError>;
+
+pub fn tags_for(
+    env: Env,
+    invoice_id: Symbol,
+) -> Vec<Symbol>;
+
+pub fn remove_tag(
+    env: Env,
+    invoice_id: Symbol,
+    tag: Symbol,
+) -> Result<(), TagError>;
+
+pub fn clear_tags(
+    env: Env,
+    invoice_id: Symbol,
+) -> Result<(), TagError>;
 ```
 
-`add_tag` returns true only when the tag was stored. `tags_of` returns an
-empty vector when the invoice has no tags.
-
-## Build and test
-
-From the repository root:
+## Building and Testing
 
 ```bash
-cargo test --manifest-path contracts/invoice_tag_registry/Cargo.toml
-cargo clippy --manifest-path contracts/invoice_tag_registry/Cargo.toml --all-targets -- -D warnings
-```
-
-A release build:
-
-```bash
-cargo build --release --manifest-path contracts/invoice_tag_registry/Cargo.toml
+cargo build --target wasm32-unknown-unknown --release
+cargo test
+cargo clippy --all-targets -- -D warnings
 ```

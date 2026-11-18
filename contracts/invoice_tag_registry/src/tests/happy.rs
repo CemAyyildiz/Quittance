@@ -1,20 +1,25 @@
-use super::{client, sym};
-
-use soroban_sdk::Env;
+use crate::{InvoiceTagRegistry, InvoiceTagRegistryClient};
+use soroban_sdk::{symbol_short, Env};
 
 #[test]
-fn stores_unique_tags_in_order() {
+fn test_add_and_retrieve_tags() {
     let env = Env::default();
-    let api = client(&env);
-    let invoice = sym(&env, "inv_1");
-    let paid = sym(&env, "paid");
-    let retail = sym(&env, "retail");
+    env.mock_all_auths();
 
-    assert!(api.add_tag(&invoice, &paid));
-    assert!(api.add_tag(&invoice, &retail));
+    let contract_id = env.register(InvoiceTagRegistry, ());
+    let client = InvoiceTagRegistryClient::new(&env, &contract_id);
 
-    let tags = api.tags_of(&invoice);
-    assert_eq!(tags.len(), 2);
-    assert_eq!(tags.get(0), Some(paid));
-    assert_eq!(tags.get(1), Some(retail));
+    let inv = symbol_short!("inv_101");
+    let tag_retail = symbol_short!("retail");
+    let tag_paid = symbol_short!("paid");
+
+    assert!(client.tags_for(&inv).is_empty());
+
+    client.add_tag(&inv, &tag_retail);
+    client.add_tag(&inv, &tag_paid);
+
+    let list = client.tags_for(&inv);
+    assert_eq!(list.len(), 2);
+    assert_eq!(list.get(0).unwrap(), tag_retail);
+    assert_eq!(list.get(1).unwrap(), tag_paid);
 }
