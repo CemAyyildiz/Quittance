@@ -1,8 +1,20 @@
 /**
- * Opt-in in-memory rate-limit stub middleware.
+ * In-memory rate-limit stub middleware.
+ *
+ * ## Per-IP limit (opt-in)
  *
  * Enabled only when `RATE_LIMIT_ENABLED=true` (default: off).
  * Uses a simple per-IP+path sliding-window counter stored in memory.
+ *
+ * ## Per-seller / per-invoice limits (on by default for MVP)
+ *
+ * - Create (`sellerCreateRateLimit`): keyed by seller public key.
+ * - Verify (`invoiceVerifyRateLimit`): keyed by invoice id.
+ *
+ * Env overrides (shared by both seller/invoice limiters):
+ * - `SELLER_RATE_LIMIT_WINDOW_MS` (default: 60000)
+ * - `SELLER_RATE_LIMIT_MAX` (default: 60)
+ * - `SELLER_RATE_LIMIT_ENABLED=false` disables them (default: on)
  *
  * Out of scope: Redis/Bull, production WAF.
  *
@@ -22,6 +34,7 @@
  */
 
 import { Request, Response, NextFunction } from 'express';
+import { isValidPublicKey } from '../utils/public-key-guard';
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
@@ -30,7 +43,7 @@ interface RateLimitEntry {
   resetAt: number;
 }
 
-interface RateLimitOptions {
+export interface RateLimitOptions {
   /** Sliding window duration in milliseconds (default: 60_000 = 1 min). */
   windowMs?: number;
   /** Maximum requests allowed per window (default: 60). */
@@ -40,6 +53,11 @@ interface RateLimitOptions {
 // ── In-memory store ─────────────────────────────────────────────────────────
 
 const store = new Map<string, RateLimitEntry>();
+
+/** Clears all rate-limit counters (for tests). */
+export function clearRateLimitStore(): void {
+  store.clear();
+}
 
 /** Periodic cleanup of expired entries so the store doesn't leak memory. */
 const CLEANUP_INTERVAL_MS = 60_000; // every 60 s
@@ -51,6 +69,67 @@ setInterval(() => {
     }
   }
 }, CLEANUP_INTERVAL_MS).unref(); // .unref() so the timer doesn't prevent process exit
+
+// ── Shared consume helper ───────────────────────────────────────────────────
+
+/**
+ * Increments the counter for `clientKey`. Returns true when the request is
+ * allowed, false when it was rejected with 429.
+ */
+function consumeRateLimit(
+  clientKey: string,
+  windowMs: number,
+  maxRequests: number,
+  res: Response,
+): boolean {
+  const now = Date.now();
+  let entry = store.get(clientKey);
+
+  if (!entry || now > entry.resetAt) {
+    const resetAt = now + windowMs;
+    store.set(clientKey, { count: 1, resetAt });
+    setHeaders(res, maxRequests, maxRequests - 1, resetAt);
+    return true;
+  }
+
+  entry.count++;
+
+  if (entry.count > maxRequests) {
+    const retryAfter = Math.ceil((entry.resetAt - now) / 1000);
+    console.warn(
+      `[rate-limit] ${clientKey} exceeded limit (${entry.count}/${maxRequests})`,
+    );
+
+    res.set('Retry-After', String(retryAfter));
+    setHeaders(res, maxRequests, 0, entry.resetAt);
+
+    res.status(429).json({
+      success: false,
+      error: 'Too many requests. Please try again later.',
+      retryAfter,
+    });
+    return false;
+  }
+
+  setHeaders(res, maxRequests, maxRequests - entry.count, entry.resetAt);
+  return true;
+}
+
+function resolveSellerLimitOptions(options: RateLimitOptions = {}): {
+  windowMs: number;
+  maxRequests: number;
+} {
+  const windowMs =
+    options.windowMs ??
+    Number(process.env.SELLER_RATE_LIMIT_WINDOW_MS || 60_000);
+  const maxRequests =
+    options.maxRequests ?? Number(process.env.SELLER_RATE_LIMIT_MAX || 60);
+  return { windowMs, maxRequests };
+}
+
+function sellerLimitsEnabled(): boolean {
+  return process.env.SELLER_RATE_LIMIT_ENABLED !== 'false';
+}
 
 // ── Middleware factory ───────────────────────────────────────────────────────
 
@@ -67,38 +146,10 @@ export function rateLimitStub(options: RateLimitOptions = {}) {
   return (req: Request, res: Response, next: NextFunction): void => {
     const clientKey =
       (req.ip ?? req.socket.remoteAddress ?? 'unknown') + '|' + req.path;
-    const now = Date.now();
 
-    let entry = store.get(clientKey);
-
-    if (!entry || now > entry.resetAt) {
-      // Start a fresh window
-      const resetAt = now + windowMs;
-      store.set(clientKey, { count: 1, resetAt });
-      setHeaders(res, maxRequests, maxRequests - 1, resetAt);
-      return next();
-    }
-
-    entry.count++;
-
-    if (entry.count > maxRequests) {
-      const retryAfter = Math.ceil((entry.resetAt - now) / 1000);
-      console.warn(
-        `[rate-limit] ${clientKey} exceeded limit (${entry.count}/${maxRequests})`,
-      );
-
-      res.set('Retry-After', String(retryAfter));
-      setHeaders(res, maxRequests, 0, entry.resetAt);
-
-      res.status(429).json({
-        success: false,
-        error: 'Too many requests. Please try again later.',
-        retryAfter,
-      });
+    if (!consumeRateLimit(clientKey, windowMs, maxRequests, res)) {
       return;
     }
-
-    setHeaders(res, maxRequests, maxRequests - entry.count, entry.resetAt);
     next();
   };
 }
@@ -119,6 +170,62 @@ export function rateLimitIfEnabled(options?: RateLimitOptions) {
 
   console.log('[rate-limit] Rate limiting enabled (in-memory stub)');
   return rateLimitStub(options);
+}
+
+/**
+ * Rate-limits invoice create per seller public key.
+ *
+ * On by default for the MVP server. Missing/invalid seller keys return 400
+ * (not 429) and do not consume the seller quota.
+ */
+export function sellerCreateRateLimit(options: RateLimitOptions = {}) {
+  return (req: Request, res: Response, next: NextFunction): void => {
+    if (!sellerLimitsEnabled()) {
+      next();
+      return;
+    }
+
+    const sellerKey = req.body?.sellerPublicKey;
+    if (!isValidPublicKey(sellerKey)) {
+      res.status(400).json({
+        success: false,
+        error: 'sellerPublicKey is required and must be a valid Stellar public key',
+      });
+      return;
+    }
+
+    const { windowMs, maxRequests } = resolveSellerLimitOptions(options);
+    const clientKey = `seller-create|${sellerKey}`;
+
+    if (!consumeRateLimit(clientKey, windowMs, maxRequests, res)) {
+      return;
+    }
+    next();
+  };
+}
+
+/**
+ * Rate-limits payment verify per invoice id.
+ *
+ * On by default for the MVP server. A limited call returns 429 with
+ * Retry-After and never reaches Horizon.
+ */
+export function invoiceVerifyRateLimit(options: RateLimitOptions = {}) {
+  return (req: Request, res: Response, next: NextFunction): void => {
+    if (!sellerLimitsEnabled()) {
+      next();
+      return;
+    }
+
+    const invoiceId = req.params.id ?? 'unknown';
+    const { windowMs, maxRequests } = resolveSellerLimitOptions(options);
+    const clientKey = `invoice-verify|${invoiceId}`;
+
+    if (!consumeRateLimit(clientKey, windowMs, maxRequests, res)) {
+      return;
+    }
+    next();
+  };
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
