@@ -315,6 +315,20 @@ app.post('/api/invoices/:id/verify', async (req: Request, res: Response) => {
       });
     }
 
+    // A hash that already settled another invoice cannot settle this one, no
+    // matter that the memo and amount match. Checked after the already-paid
+    // guard so retrying this invoice is not reported as a reuse, and before
+    // Horizon so a known hash never costs a round trip. The response names the
+    // problem only: no other invoice (or its customer email) is returned.
+    const invoiceWithSameHash = await invoiceService.getInvoiceByTxHash(txHash);
+    if (invoiceWithSameHash && invoiceWithSameHash.id !== invoice.id) {
+      return res.status(400).json({
+        success: false,
+        code: VerifyErrorCode.TX_HASH_ALREADY_USED,
+        error: VerifyErrorMessages[VerifyErrorCode.TX_HASH_ALREADY_USED],
+      });
+    }
+
     // Expiry is decided before Horizon is contacted: a stale invoice is not
     // settleable no matter what the chain says, and there is no reason to
     // spend a Horizon round trip finding that out.

@@ -42,6 +42,11 @@ export enum VerifyErrorCode {
   INVOICE_NOT_FOUND = 'INVOICE_NOT_FOUND',
   /** The matched transaction contained no payment operation. */
   NO_PAYMENT_OPERATION = 'NO_PAYMENT_OPERATION',
+  /**
+   * The transaction hash is already stored on a different invoice, so it
+   * cannot settle this one.
+   */
+  TX_HASH_ALREADY_USED = 'TX_HASH_ALREADY_USED',
   /** The transaction memo does not match the invoice memo. */
   MEMO_MISMATCH = 'MEMO_MISMATCH',
   /** The transferred amount does not match the invoice amount. */
@@ -95,6 +100,8 @@ export const VerifyErrorMessages: Readonly<Record<VerifyErrorCode, string>> = Ob
   [VerifyErrorCode.TX_HASH_REQUIRED]: 'Transaction hash is required',
   [VerifyErrorCode.INVOICE_NOT_FOUND]: 'Invoice not found',
   [VerifyErrorCode.NO_PAYMENT_OPERATION]: 'No payment operation found',
+  [VerifyErrorCode.TX_HASH_ALREADY_USED]:
+    'This transaction hash has already been used.',
   [VerifyErrorCode.MEMO_MISMATCH]: 'Memo mismatch',
   [VerifyErrorCode.AMOUNT_MISMATCH]: 'Amount mismatch',
   [VerifyErrorCode.DESTINATION_MISMATCH]:
