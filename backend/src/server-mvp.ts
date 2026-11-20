@@ -17,6 +17,7 @@ import {
   startExpirySweep,
 } from './utils/invoice-expiry';
 import { paymentAssetMatchesInvoice } from './utils/verify-invoice-payment';
+import { isSmtpConfigured, sendEmail, generateInvoiceEmail } from './utils/smtp';
 
 // Load environment variables
 dotenv.config();
@@ -53,6 +54,7 @@ app.get('/', (req: Request, res: Response) => {
     status: 'running',
     mode: 'in-memory',
     documentation: '/api/health',
+    smtp: isSmtpConfigured(),
   });
 });
 
@@ -67,6 +69,7 @@ app.get('/api/health', (req: Request, res: Response) => {
     service: 'Quittance API',
     mode: 'MVP - In-Memory Storage (Dynamic Seller)',
     message: 'Each user uses their own wallet for payments',
+    smtp: isSmtpConfigured(),
   });
 });
 
@@ -277,6 +280,59 @@ app.post('/api/invoices/:id/cancel', async (req: Request, res: Response) => {
     res.status(400).json({
       success: false,
       error: error.message || 'Failed to cancel invoice',
+    });
+  }
+});
+
+// Send invoice via email (SMTP)
+app.post('/api/invoices/:id/send', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const invoice = await invoiceService.getInvoiceById(id);
+
+    if (!invoice) {
+      return res.status(404).json({
+        success: false,
+        error: 'Invoice not found',
+      });
+    }
+
+    if (!invoice.customerEmail) {
+      return res.status(400).json({
+        success: false,
+        error: 'Customer email is required',
+      });
+    }
+
+    if (!isSmtpConfigured()) {
+      return res.status(400).json({
+        success: false,
+        error: 'SMTP is not configured on the server',
+      });
+    }
+
+    const paymentUrl = `${FRONTEND_URL}/pay/${invoice.id}`;
+    const emailContent = generateInvoiceEmail(
+      invoice.id,
+      invoice.amount,
+      invoice.assetCode,
+      invoice.memo,
+      paymentUrl,
+      invoice.customerName
+    );
+    emailContent.to = invoice.customerEmail;
+
+    await sendEmail(emailContent);
+
+    res.json({
+      success: true,
+      message: 'Invoice sent successfully',
+    });
+  } catch (error: any) {
+    console.error('Send invoice error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to send invoice',
     });
   }
 });
