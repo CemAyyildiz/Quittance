@@ -3,7 +3,7 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import { requestId } from './middleware/request-id';
 import { createInvoiceSchema } from './utils/validation';
-import invoiceService from './services/invoice-memory.service';
+import { getStorage } from './storage/storage-factory';
 import { generatePaymentQR, generateStellarPaymentQR, buildStellarPaymentUri } from './utils/qrcode';
 import stellarService from './services/stellar.service';
 import { rateLimitIfEnabled } from './middleware/rate-limit-stub';
@@ -17,6 +17,7 @@ import {
   startExpirySweep,
 } from './utils/invoice-expiry';
 import { paymentAssetMatchesInvoice } from './utils/verify-invoice-payment';
+import { generateInvoiceMemo } from './utils/memo';
 
 // Load environment variables
 dotenv.config();
@@ -25,6 +26,17 @@ const app: Application = express();
 const PORT = process.env.PORT || 3001;
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3000';
 const ALLOW_SIMULATE = process.env.ALLOW_SIMULATE === 'true';
+
+// Storage instance (initialized on first request or startup)
+let storage: Awaited<ReturnType<typeof getStorage>> | null = null;
+
+// Initialize storage
+async function initStorage() {
+  if (!storage) {
+    storage = await getStorage();
+  }
+  return storage;
+}
 
 // Middleware
 app.use(cors({
@@ -73,8 +85,28 @@ app.get('/api/health', (req: Request, res: Response) => {
 // Create invoice
 app.post('/api/invoices', async (req: Request, res: Response) => {
   try {
+    const st = await initStorage();
     const validatedData = createInvoiceSchema.parse(req.body);
-    const invoice = await invoiceService.createInvoice(validatedData);
+    
+    if (!validatedData.sellerPublicKey) {
+      throw new Error('Seller public key is required');
+    }
+
+    const memo = generateInvoiceMemo();
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + (validatedData.expiresInDays || 7));
+
+    const invoice = await st.createInvoice({
+      sellerPublicKey: validatedData.sellerPublicKey,
+      amount: validatedData.amount,
+      assetCode: validatedData.assetCode || 'XLM',
+      assetIssuer: validatedData.assetIssuer,
+      memo,
+      description: validatedData.description,
+      customerName: validatedData.customerName,
+      customerEmail: validatedData.customerEmail,
+      expiresAt,
+    });
 
     const paymentUrl = `${FRONTEND_URL}/pay/${invoice.id}`;
     const qrCodeDataUrl = await generatePaymentQR(paymentUrl);
@@ -118,7 +150,8 @@ app.post('/api/invoices', async (req: Request, res: Response) => {
 // Get stats (scoped to seller)
 app.get('/api/invoices/stats', async (req: Request, res: Response) => {
   try {
-    await runExpirySweep(invoiceService);
+    const st = await initStorage();
+    await st.markExpiredInvoices();
 
     const { sellerPublicKey } = req.query;
 
@@ -129,11 +162,11 @@ app.get('/api/invoices/stats', async (req: Request, res: Response) => {
       });
     }
 
-    const stats = await invoiceService.getInvoiceStats(sellerPublicKey as string);
+    const stats = await st.getStats(sellerPublicKey as string);
 
     res.json({
       success: true,
-      data: stats,
+      data: [stats],
     });
   } catch (error: any) {
     console.error('Get stats error:', error);
@@ -147,12 +180,13 @@ app.get('/api/invoices/stats', async (req: Request, res: Response) => {
 // Get invoice by ID
 app.get('/api/invoices/:id', async (req: Request, res: Response) => {
   try {
+    const st = await initStorage();
     // Swept on read as well as on the timer, so a lookup one second after
     // expiry cannot report a stale PENDING while waiting for the next sweep.
-    await runExpirySweep(invoiceService);
+    await st.markExpiredInvoices();
 
     const { id } = req.params;
-    const invoice = await invoiceService.getInvoiceById(id);
+    const invoice = await st.getInvoiceById(id);
 
     if (!invoice) {
       return res.status(404).json({
@@ -177,7 +211,8 @@ app.get('/api/invoices/:id', async (req: Request, res: Response) => {
 // Get all invoices (scoped by sellerPublicKey when provided)
 app.get('/api/invoices', async (req: Request, res: Response) => {
   try {
-    await runExpirySweep(invoiceService);
+    const st = await initStorage();
+    await st.markExpiredInvoices();
 
     const { status, limit = 50, offset = 0, sellerPublicKey } = req.query;
 
@@ -188,19 +223,22 @@ app.get('/api/invoices', async (req: Request, res: Response) => {
       });
     }
 
-    const invoices = await invoiceService.getInvoicesBySeller(
-      sellerPublicKey as string,
-      status as string | undefined,
-      parseInt(limit as string),
-      parseInt(offset as string)
-    );
+    let invoices = await st.getAllInvoices(status ? { status: status as string } : undefined);
+    
+    if (sellerPublicKey) {
+      invoices = invoices.filter((inv) => inv.sellerPublicKey === sellerPublicKey);
+    }
+
+    const limitNum = parseInt(limit as string);
+    const offsetNum = parseInt(offset as string);
+    const paginatedInvoices = invoices.slice(offsetNum, offsetNum + limitNum);
 
     res.json({
       success: true,
-      data: invoices.map(toInvoiceDTO),
+      data: paginatedInvoices.map(toInvoiceDTO),
       pagination: {
-        limit: parseInt(limit as string),
-        offset: parseInt(offset as string),
+        limit: limitNum,
+        offset: offsetNum,
         total: invoices.length,
       },
     });
@@ -216,8 +254,9 @@ app.get('/api/invoices', async (req: Request, res: Response) => {
 // Get payment info
 app.get('/api/invoices/:id/payment-info', async (req: Request, res: Response) => {
   try {
+    const st = await initStorage();
     const { id } = req.params;
-    const invoice = await invoiceService.getInvoiceById(id);
+    const invoice = await st.getInvoiceById(id);
 
     if (!invoice) {
       return res.status(404).json({
@@ -265,12 +304,19 @@ app.get('/api/invoices/:id/payment-info', async (req: Request, res: Response) =>
 // Cancel invoice
 app.post('/api/invoices/:id/cancel', async (req: Request, res: Response) => {
   try {
+    const st = await initStorage();
     const { id } = req.params;
-    const invoice = await invoiceService.cancelInvoice(id);
+    const invoice = await st.getInvoiceById(id);
+
+    if (!invoice || invoice.status !== 'PENDING') {
+      throw new Error('Invoice not found or already processed');
+    }
+
+    const updatedInvoice = await st.updateInvoice(id, { status: 'CANCELLED' });
 
     res.json({
       success: true,
-      data: toInvoiceDTO(invoice),
+      data: toInvoiceDTO(updatedInvoice!),
     });
   } catch (error: any) {
     console.error('Cancel invoice error:', error);
@@ -284,7 +330,8 @@ app.post('/api/invoices/:id/cancel', async (req: Request, res: Response) => {
 // Verify payment against Horizon (memo + amount + destination)
 app.post('/api/invoices/:id/verify', async (req: Request, res: Response) => {
   try {
-    await runExpirySweep(invoiceService);
+    const st = await initStorage();
+    await st.markExpiredInvoices();
 
     const { id } = req.params;
     const { txHash } = req.body;
@@ -297,7 +344,7 @@ app.post('/api/invoices/:id/verify', async (req: Request, res: Response) => {
       });
     }
 
-    const invoice = await invoiceService.getInvoiceById(id);
+    const invoice = await st.getInvoiceById(id);
 
     if (!invoice) {
       return res.status(404).json({
@@ -386,7 +433,7 @@ app.post('/api/invoices/:id/verify', async (req: Request, res: Response) => {
       });
     }
 
-    const updatedInvoice = await invoiceService.markAsPaid(
+    const updatedInvoice = await st.markAsPaid(
       id,
       txHash,
       paymentOp.from
@@ -394,7 +441,7 @@ app.post('/api/invoices/:id/verify', async (req: Request, res: Response) => {
 
     res.json({
       success: true,
-      data: toInvoiceDTO(updatedInvoice),
+      data: toInvoiceDTO(updatedInvoice!),
       message: 'Payment verified on Stellar',
     });
   } catch (error: any) {
@@ -417,8 +464,9 @@ app.post('/api/invoices/:id/simulate-payment', async (req: Request, res: Respons
       });
     }
 
+    const st = await initStorage();
     const { id } = req.params;
-    const invoice = await invoiceService.getInvoiceById(id);
+    const invoice = await st.getInvoiceById(id);
 
     if (!invoice) {
       return res.status(404).json({
@@ -444,11 +492,11 @@ app.post('/api/invoices/:id/simulate-payment', async (req: Request, res: Respons
     const mockTxHash = `MOCK_TX_${Date.now().toString(36).toUpperCase()}_${Math.random().toString(36).substr(2, 8).toUpperCase()}`;
     const mockPayerKey = 'GXXXSIMULATEDPAYERXXXXXXXXXXXXXXXXXXXXXXXXXXXXX';
 
-    const updatedInvoice = await invoiceService.markAsPaid(id, mockTxHash, mockPayerKey);
+    const updatedInvoice = await st.markAsPaid(id, mockTxHash, mockPayerKey);
 
     res.json({
       success: true,
-      data: toInvoiceDTO(updatedInvoice),
+      data: toInvoiceDTO(updatedInvoice!),
       message: 'Payment simulated successfully',
     });
   } catch (error: any) {
@@ -499,18 +547,33 @@ app.use((req: Request, res: Response) => {
 // Listening (and the sweep timer) are skipped under test so the module can be
 // imported by supertest without binding a port or leaving a timer running.
 if (process.env.NODE_ENV !== 'test') {
-  startExpirySweep(invoiceService);
+  // Initialize storage and start expiry sweep
+  initStorage().then(st => {
+    // Start expiry sweep timer
+    setInterval(async () => {
+      try {
+        await st.markExpiredInvoices();
+      } catch (error) {
+        console.error('Expiry sweep error:', error);
+      }
+    }, 60000); // Run every 60 seconds
 
-  app.listen(PORT, () => {
-    console.log('\n🚀 Quittance Backend (MVP Mode)');
-    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-    console.log(`✅ Server running on port ${PORT}`);
-    console.log(`📍 API: http://localhost:${PORT}/api`);
-    console.log(`🏥 Health: http://localhost:${PORT}/api/health`);
-    console.log(`💾 Storage: In-Memory (No Database)`);
-    console.log(`💰 Dynamic Seller: Each user uses their own wallet!`);
-    console.log(`🌐 Frontend: ${FRONTEND_URL}`);
-    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
+    const storageMode = process.env.DATABASE_URL ? 'Postgres' : 'In-Memory (No Database)';
+    
+    app.listen(PORT, () => {
+      console.log('\n🚀 Quittance Backend (MVP Mode)');
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      console.log(`✅ Server running on port ${PORT}`);
+      console.log(`📍 API: http://localhost:${PORT}/api`);
+      console.log(`🏥 Health: http://localhost:${PORT}/api/health`);
+      console.log(`💾 Storage: ${storageMode}`);
+      console.log(`💰 Dynamic Seller: Each user uses their own wallet!`);
+      console.log(`🌐 Frontend: ${FRONTEND_URL}`);
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
+    });
+  }).catch(error => {
+    console.error('❌ Failed to initialize storage:', error.message);
+    process.exit(1);
   });
 }
 
