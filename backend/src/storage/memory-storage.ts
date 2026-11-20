@@ -17,6 +17,10 @@ interface Invoice {
   createdAt: Date;
   paidAt?: Date;
   expiresAt: Date;
+  /** Expiry at creation (or before the one allowed extension). */
+  originalExpiresAt: Date;
+  /** True after the seller has used the one allowed extension. */
+  expiryExtended: boolean;
 }
 
 class MemoryStorage {
@@ -25,6 +29,7 @@ class MemoryStorage {
 
   // Create invoice
   createInvoice(data: Partial<Invoice>): Invoice {
+    const expiresAt = data.expiresAt || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
     const invoice: Invoice = {
       id: data.id || uuidv4(),
       sellerPublicKey: data.sellerPublicKey!,
@@ -37,7 +42,9 @@ class MemoryStorage {
       customerEmail: data.customerEmail,
       status: 'PENDING',
       createdAt: new Date(),
-      expiresAt: data.expiresAt || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+      expiresAt,
+      originalExpiresAt: data.originalExpiresAt || expiresAt,
+      expiryExtended: data.expiryExtended ?? false,
     };
 
     this.invoices.set(invoice.id, invoice);

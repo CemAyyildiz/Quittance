@@ -235,6 +235,24 @@ export default function InvoiceDetailPage() {
                   </div>
                 )}
 
+                {invoice.expiryExtended ? (
+                  <>
+                    <div className="border-b pb-4">
+                      <p className="text-sm text-gray-600 mb-1">Original Expiry</p>
+                      <p className="text-gray-900">{formatDate(invoice.originalExpiresAt)}</p>
+                    </div>
+                    <div className="border-b pb-4">
+                      <p className="text-sm text-gray-600 mb-1">Extended Expiry</p>
+                      <p className="text-gray-900 font-semibold">{formatDate(invoice.expiresAt)}</p>
+                    </div>
+                  </>
+                ) : (
+                  <div className="border-b pb-4">
+                    <p className="text-sm text-gray-600 mb-1">Expires At</p>
+                    <p className="text-gray-900">{formatDate(invoice.expiresAt)}</p>
+                  </div>
+                )}
+
                 {invoice.paidAt && (
                   <div className="border-b pb-4">
                     <p className="text-sm text-gray-600 mb-1">Paid At</p>

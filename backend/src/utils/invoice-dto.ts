@@ -14,6 +14,8 @@ export interface InvoiceDTO {
   createdAt: string;
   paidAt?: string;
   expiresAt: string;
+  originalExpiresAt: string;
+  expiryExtended: boolean;
 }
 
 export function toInvoiceDTO(invoice: {
@@ -32,7 +34,10 @@ export function toInvoiceDTO(invoice: {
   createdAt: Date;
   paidAt?: Date;
   expiresAt: Date;
+  originalExpiresAt?: Date;
+  expiryExtended?: boolean;
 }): InvoiceDTO {
+  const originalExpiresAt = invoice.originalExpiresAt ?? invoice.expiresAt;
   return {
     id: invoice.id,
     sellerPublicKey: invoice.sellerPublicKey,
@@ -49,5 +54,7 @@ export function toInvoiceDTO(invoice: {
     createdAt: invoice.createdAt.toISOString(),
     paidAt: invoice.paidAt?.toISOString(),
     expiresAt: invoice.expiresAt.toISOString(),
+    originalExpiresAt: originalExpiresAt.toISOString(),
+    expiryExtended: invoice.expiryExtended ?? false,
   };
 }
