@@ -259,6 +259,17 @@ export default function PaymentPage() {
                 </div>
               </div>
 
+              {userWallet && userWallet === invoice.sellerPublicKey && (
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-4" role="alert">
+                  <p className="text-sm font-semibold text-amber-900 mb-1">
+                    Seller wallet connected
+                  </p>
+                  <p className="text-sm text-amber-800">
+                    The seller cannot settle their own invoice. Share this payment link with your client.
+                  </p>
+                </div>
+              )}
+
               {invoice.status === 'PENDING' && (
                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                   <p className="text-sm text-blue-800 font-semibold mb-1">Expires In</p>

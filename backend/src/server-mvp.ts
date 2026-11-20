@@ -16,7 +16,10 @@ import {
   runExpirySweep,
   startExpirySweep,
 } from './utils/invoice-expiry';
-import { paymentAssetMatchesInvoice } from './utils/verify-invoice-payment';
+import {
+  isSelfPayment,
+  paymentAssetMatchesInvoice,
+} from './utils/verify-invoice-payment';
 
 // Load environment variables
 dotenv.config();
@@ -336,6 +339,22 @@ app.post('/api/invoices/:id/verify', async (req: Request, res: Response) => {
         success: false,
         code: VerifyErrorCode.NO_PAYMENT_OPERATION,
         error: VerifyErrorMessages[VerifyErrorCode.NO_PAYMENT_OPERATION],
+      });
+    }
+
+    // A seller can otherwise pay their own invoice and produce a proof that a
+    // client paid. The memo and amount match, so this is the only check that
+    // catches it. Horizon reports the inner transaction source for a fee-bump,
+    // so a fee-bumped self-payment is still rejected.
+    const paymentSource = paymentOp.source_account ?? paymentOp.from;
+    if (
+      isSelfPayment(transaction.source_account, invoice.sellerPublicKey) ||
+      isSelfPayment(paymentSource, invoice.sellerPublicKey)
+    ) {
+      return res.status(400).json({
+        success: false,
+        code: VerifyErrorCode.SELF_PAYMENT,
+        error: VerifyErrorMessages[VerifyErrorCode.SELF_PAYMENT],
       });
     }
 
