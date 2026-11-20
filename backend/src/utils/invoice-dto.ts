@@ -1,3 +1,20 @@
+import type { StatusEvent, StatusEventStatus } from '../storage/memory-storage';
+
+/** JSON shape of one append-only status history row. */
+export interface StatusHistoryEntryDTO {
+  status: StatusEventStatus;
+  at: string;
+  txHash?: string;
+}
+
+export function toStatusHistoryDTO(event: StatusEvent): StatusHistoryEntryDTO {
+  return {
+    status: event.status,
+    at: event.at.toISOString(),
+    ...(event.txHash ? { txHash: event.txHash } : {}),
+  };
+}
+
 export interface InvoiceDTO {
   id: string;
   sellerPublicKey: string;
@@ -14,6 +31,7 @@ export interface InvoiceDTO {
   createdAt: string;
   paidAt?: string;
   expiresAt: string;
+  anchoringTxHash?: string;
 }
 
 export function toInvoiceDTO(invoice: {
@@ -32,6 +50,7 @@ export function toInvoiceDTO(invoice: {
   createdAt: Date;
   paidAt?: Date;
   expiresAt: Date;
+  anchoringTxHash?: string;
 }): InvoiceDTO {
   return {
     id: invoice.id,
@@ -49,5 +68,6 @@ export function toInvoiceDTO(invoice: {
     createdAt: invoice.createdAt.toISOString(),
     paidAt: invoice.paidAt?.toISOString(),
     expiresAt: invoice.expiresAt.toISOString(),
+    ...(invoice.anchoringTxHash ? { anchoringTxHash: invoice.anchoringTxHash } : {}),
   };
 }

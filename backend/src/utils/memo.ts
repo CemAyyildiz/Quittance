@@ -1,4 +1,10 @@
-import { nanoid } from 'nanoid';
+import { customAlphabet } from 'nanoid';
+
+// Restrict generated IDs to the same A-Z0-9 alphabet `isValidMemo` accepts.
+// The default nanoid alphabet contains `-` and `_`, which made generated memos
+// intermittently fail validation when a random dash landed in the suffix.
+const alphanumeric = customAlphabet('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ', 8);
+const shortReference = customAlphabet('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ', 10);
 
 /**
  * Generate a unique memo for invoice
@@ -6,7 +12,7 @@ import { nanoid } from 'nanoid';
  */
 export const generateInvoiceMemo = (): string => {
   const timestamp = Date.now().toString(36).toUpperCase();
-  const random = nanoid(8).toUpperCase();
+  const random = alphanumeric();
   return `INV-${timestamp}-${random}`;
 };
 
@@ -21,7 +27,7 @@ export const isValidMemo = (memo: string): boolean => {
  * Generate short payment reference
  */
 export const generateShortReference = (): string => {
-  return nanoid(10).toUpperCase();
+  return shortReference();
 };
 
 export default {

@@ -1,7 +1,25 @@
 // In-memory storage - Database yerine MVP için
 import { v4 as uuidv4 } from 'uuid';
 
-interface Invoice {
+export type InvoiceStatus = 'PENDING' | 'PAID' | 'EXPIRED' | 'CANCELLED';
+
+/** Lifecycle events recorded in the append-only status history. */
+export type StatusEventStatus =
+  | 'CREATED'
+  | 'EXTENDED'
+  | 'VOIDED'
+  | 'PARTIALLY_PAID'
+  | 'PAID'
+  | 'REFUNDED'
+  | 'EXPIRED';
+
+export interface StatusEvent {
+  status: StatusEventStatus;
+  at: Date;
+  txHash?: string;
+}
+
+export interface Invoice {
   id: string;
   sellerPublicKey: string;
   amount: number;
@@ -11,17 +29,35 @@ interface Invoice {
   description?: string;
   customerName?: string;
   customerEmail?: string;
-  status: 'PENDING' | 'PAID' | 'EXPIRED' | 'CANCELLED';
+  status: InvoiceStatus;
   paymentTxHash?: string;
+  paymentLedger?: number;
   payerPublicKey?: string;
   createdAt: Date;
   paidAt?: Date;
   expiresAt: Date;
+  /** Hash of the transaction that anchored the proof digest on chain. */
+  anchoringTxHash?: string;
+}
+
+/** Current invoice status -> the history event a transition produces. */
+function statusEventFor(status: InvoiceStatus): StatusEventStatus {
+  switch (status) {
+    case 'CANCELLED':
+      return 'VOIDED';
+    case 'PAID':
+      return 'PAID';
+    case 'EXPIRED':
+      return 'EXPIRED';
+    default:
+      return 'CREATED';
+  }
 }
 
 class MemoryStorage {
   private invoices: Map<string, Invoice> = new Map();
   private invoicesByMemo: Map<string, string> = new Map(); // memo -> invoice id
+  private statusHistory: Map<string, StatusEvent[]> = new Map();
 
   // Create invoice
   createInvoice(data: Partial<Invoice>): Invoice {
@@ -42,6 +78,7 @@ class MemoryStorage {
 
     this.invoices.set(invoice.id, invoice);
     this.invoicesByMemo.set(invoice.memo, invoice.id);
+    this.appendStatusEvent(invoice.id, 'CREATED');
 
     console.log('✅ Invoice created in memory:', invoice.id);
     return invoice;
@@ -58,6 +95,48 @@ class MemoryStorage {
     return id ? this.invoices.get(id) : undefined;
   }
 
+  /**
+   * Append a lifecycle event. Identical transitions issued in the same
+   * request (same status, same transaction hash, effectively the same
+   * instant) collapse into one row instead of producing duplicates.
+   */
+  appendStatusEvent(
+    invoiceId: string,
+    status: StatusEventStatus,
+    txHash?: string,
+    at: Date = new Date(),
+  ): StatusEvent | undefined {
+    if (!this.invoices.has(invoiceId)) return undefined;
+
+    const events = this.statusHistory.get(invoiceId) ?? [];
+    const last = events[events.length - 1];
+    if (
+      last &&
+      last.status === status &&
+      (last.txHash ?? undefined) === (txHash ?? undefined) &&
+      Math.abs(at.getTime() - last.at.getTime()) < 100
+    ) {
+      return last;
+    }
+
+    const event: StatusEvent = {
+      status,
+      at,
+      ...(txHash ? { txHash } : {}),
+    };
+    events.push(event);
+    this.statusHistory.set(invoiceId, events);
+    return event;
+  }
+
+  /** All events for an invoice, oldest first. Never includes customer PII. */
+  getStatusHistory(invoiceId: string): StatusEvent[] {
+    const events = this.statusHistory.get(invoiceId) ?? [];
+    return events
+      .map((event) => ({ ...event, at: new Date(event.at) }))
+      .sort((a, b) => a.at.getTime() - b.at.getTime());
+  }
+
   // Update invoice
   updateInvoice(id: string, updates: Partial<Invoice>): Invoice | undefined {
     const invoice = this.invoices.get(id);
@@ -66,16 +145,26 @@ class MemoryStorage {
     const updated = { ...invoice, ...updates };
     this.invoices.set(id, updated);
 
+    if (updates.status && updates.status !== invoice.status) {
+      this.appendStatusEvent(id, statusEventFor(updates.status), updates.paymentTxHash);
+    }
+
     console.log('✅ Invoice updated:', id);
     return updated;
   }
 
   // Mark as paid
-  markAsPaid(id: string, txHash: string, payerPublicKey: string): Invoice | undefined {
+  markAsPaid(
+    id: string,
+    txHash: string,
+    payerPublicKey: string,
+    paymentLedger?: number,
+  ): Invoice | undefined {
     return this.updateInvoice(id, {
       status: 'PAID',
       paymentTxHash: txHash,
       payerPublicKey,
+      paymentLedger,
       paidAt: new Date(),
     });
   }
@@ -117,6 +206,7 @@ class MemoryStorage {
     this.invoices.forEach((invoice) => {
       if (invoice.status === 'PENDING' && invoice.expiresAt < now) {
         invoice.status = 'EXPIRED';
+        this.appendStatusEvent(invoice.id, 'EXPIRED');
         count++;
       }
     });
@@ -132,6 +222,7 @@ class MemoryStorage {
   clear() {
     this.invoices.clear();
     this.invoicesByMemo.clear();
+    this.statusHistory.clear();
     console.log('🗑️ Memory storage cleared');
   }
 

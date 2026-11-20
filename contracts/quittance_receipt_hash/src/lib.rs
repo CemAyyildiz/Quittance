@@ -10,11 +10,13 @@
 #![deny(missing_docs)]
 #![forbid(unsafe_code)]
 
+mod anchor;
 mod domain;
 mod encoding;
 mod hash;
 mod receipt;
 
+pub use crate::anchor::{AnchorError, AnchorStore, ReceiptAnchor, DIGEST_LEN};
 pub use crate::domain::DomainSeparator;
 pub use crate::hash::{ReceiptHash, compute, compute_hex};
 pub use crate::receipt::{Asset, BuildError, ReceiptFields, ReceiptFieldsBuilder};
