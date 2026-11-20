@@ -10,9 +10,11 @@ import PaymentStatus from '@/components/PaymentStatus';
 import WalletConnect from '@/components/WalletConnect';
 import UserProfile from '@/components/UserProfile';
 import PaymentReceipt from '@/components/PaymentReceipt';
+import StatusHistory, { type StatusHistoryRow } from '@/components/StatusHistory';
 import AssetLogo from '@/components/AssetLogo';
 import { formatAmount, formatDate, copyToClipboard } from '@/lib/utils';
 import { openInvoicePDF } from '@/lib/export';
+import { submitAnchorTransaction } from '@/lib/anchor';
 import { useCountdown } from '@/lib/useCountdown';
 import { ArrowLeft, Share2, Loader2, Download } from 'lucide-react';
 import { toast } from 'sonner';
@@ -26,11 +28,37 @@ export default function InvoiceDetailPage() {
   const [paymentInfo, setPaymentInfo] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [userWallet, setUserWallet] = useState<string | null>(null);
+  const [statusHistory, setStatusHistory] = useState<StatusHistoryRow[]>([]);
+  const [anchoring, setAnchoring] = useState(false);
   const timeRemaining = useCountdown(invoice?.status === 'PENDING' ? invoice.expiresAt : null);
+  const isSeller =
+    Boolean(userWallet) &&
+    Boolean(invoice) &&
+    userWallet!.toLowerCase() === String(invoice?.sellerPublicKey ?? '').toLowerCase();
 
   useEffect(() => {
     loadInvoice();
   }, [id]);
+
+  // History is seller-only. The payer's /pay/[id] page never requests it.
+  useEffect(() => {
+    if (!isSeller || !userWallet) {
+      setStatusHistory([]);
+      return;
+    }
+    let cancelled = false;
+    invoiceApi
+      .getHistory(id, userWallet)
+      .then((result) => {
+        if (!cancelled) setStatusHistory(result.data ?? []);
+      })
+      .catch(() => {
+        if (!cancelled) setStatusHistory([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [id, isSeller, userWallet]);
 
   const loadInvoice = async () => {
     try {
@@ -75,6 +103,38 @@ export default function InvoiceDetailPage() {
   const handleDownloadProof = () => {
     openInvoicePDF(invoice);
     toast.success('Opening payment proof');
+  };
+
+  const handleAnchorProof = async () => {
+    if (!isSeller || !userWallet || anchoring) return;
+    setAnchoring(true);
+    try {
+      // The digest is canonical and comes from the API; a mismatched value is
+      // rejected server-side before any wallet signature is requested.
+      const proof = await invoiceApi.getProofDigest(id, userWallet);
+      // Re-check the digest server-side before touching the wallet: a
+      // mismatched digest is rejected here, before any signature exists.
+      const prepared = await invoiceApi.prepareAnchorProof(id, proof.data.digest, userWallet);
+      const { digest, contractId } = prepared.data ?? {};
+      if (!contractId) {
+        toast.error('Receipt anchoring contract is not configured yet');
+        return;
+      }
+
+      const txHash = await submitAnchorTransaction(contractId, invoice.id, digest);
+      const result = await invoiceApi.anchorProof(id, {
+        digest,
+        txHash,
+        sellerPublicKey: userWallet,
+      });
+      if (result.data) setInvoice(result.data);
+      toast.success('Payment proof anchored on chain');
+    } catch (error: any) {
+      console.error(error);
+      toast.error(error?.response?.data?.error || 'Could not anchor the payment proof');
+    } finally {
+      setAnchoring(false);
+    }
   };
 
   if (loading) {
@@ -195,6 +255,32 @@ export default function InvoiceDetailPage() {
                   </button>
                 )}
 
+                {invoice.status === 'PAID' && isSeller && !invoice.anchoringTxHash && (
+                  <button
+                    type="button"
+                    onClick={handleAnchorProof}
+                    disabled={anchoring}
+                    className="btn btn-outline w-full flex items-center justify-center gap-2"
+                    aria-label="Anchor Proof"
+                  >
+                    {anchoring ? (
+                      <>
+                        <Loader2 className="w-5 h-5 animate-spin" aria-hidden="true" />
+                        Anchoring...
+                      </>
+                    ) : (
+                      'Anchor Proof On Chain'
+                    )}
+                  </button>
+                )}
+
+                {invoice.anchoringTxHash && (
+                  <div className="border-b pb-4">
+                    <p className="text-sm text-gray-600 mb-1">Proof anchored on chain</p>
+                    <p className="font-mono text-sm text-gray-900 break-all">{invoice.anchoringTxHash}</p>
+                  </div>
+                )}
+
                 {invoice.description && (
                   <div className="border-b pb-4">
                     <p className="text-sm text-gray-600 mb-1">Description</p>
@@ -252,6 +338,8 @@ export default function InvoiceDetailPage() {
               {invoice.status === 'PAID' && (
                 <PaymentReceipt invoice={invoice} />
               )}
+
+              {isSeller && <StatusHistory entries={statusHistory} />}
 
               {invoice.status === 'PENDING' && paymentInfo && (
                 <div className="card">

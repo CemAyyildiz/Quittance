@@ -24,6 +24,8 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
   const [customerName, setCustomerName] = useState('');
   const [customerEmail, setCustomerEmail] = useState('');
   const [trustlineWarning, setTrustlineWarning] = useState<string | null>(null);
+  const [serverWarning, setServerWarning] = useState<string | null>(null);
+  const [acknowledgedWarning, setAcknowledgedWarning] = useState(false);
   const [amountError, setAmountError] = useState('');
   const [emailError, setEmailError] = useState('');
 
@@ -31,6 +33,8 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
 
   useEffect(() => {
     setTrustlineWarning(null);
+    setServerWarning(null);
+    setAcknowledgedWarning(false);
     const asset = getAssetByCode(assetCode);
     if (!userWallet || !asset?.issuer) return;
     let cancelled = false;
@@ -99,6 +103,8 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
         description: description || undefined,
         customerName: customerName.trim() || undefined,
         customerEmail: customerEmail.trim() || undefined,
+        // Only sent once the seller has ticked the acknowledgement box below.
+        acknowledgeNoTrustline: acknowledgedWarning,
       });
 
       toast.success('Invoice created');
@@ -110,8 +116,18 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
       setCustomerEmail('');
       setAmountError('');
       setEmailError('');
+      setServerWarning(null);
+      setAcknowledgedWarning(false);
     } catch (error: any) {
-      toast.error(error.response?.data?.error || 'Failed to create invoice');
+      const data = error.response?.data;
+      if (error.response?.status === 409 && data?.code === 'SELLER_TRUSTLINE_WARNING') {
+        // The server checked Horizon and refused to create anything until the
+        // seller explicitly acknowledges the missing trustline.
+        setServerWarning(data.warning || data.error);
+      } else {
+        setServerWarning(null);
+      }
+      toast.error(data?.error || 'Failed to create invoice');
     } finally {
       setLoading(false);
     }
@@ -166,6 +182,24 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
             {trustlineWarning && (
               <p className="text-amber-600 font-semibold mt-1">{trustlineWarning}</p>
             )}
+          </div>
+        )}
+        {serverWarning && (
+          <div
+            className="mt-3 rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900"
+            role="alert"
+          >
+            <p className="font-semibold">Seller account is not ready to receive {assetCode}</p>
+            <p className="mt-1 break-all">{serverWarning}</p>
+            <label className="mt-2 flex items-start gap-2 font-medium">
+              <input
+                type="checkbox"
+                checked={acknowledgedWarning}
+                onChange={(e) => setAcknowledgedWarning(e.target.checked)}
+                aria-label={`I understand the seller has no ${assetCode} trustline`}
+              />
+              <span>I understand and want to create the invoice anyway (or add the trustline first).</span>
+            </label>
           </div>
         )}
       </div>

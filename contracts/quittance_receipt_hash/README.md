@@ -171,6 +171,22 @@ The integration tests in `tests/` cover:
 - **Edge cases** - native vs non-native asset, `None` vs `Some("")` memo,
   empty vs present invoice id, all-optional-fields-missing.
 
+## On-chain anchoring
+
+The same crate also defines the single record a Soroban contract writes for a
+paid invoice (`src/anchor.rs`): the invoice id plus the canonical 32-byte
+digest. A Soroban deployment exposes:
+
+```text
+anchor(env, invoice_id: String, digest: Bytes) -> Result<(), Error>
+```
+
+The seller's address authorizes that host-function call — the backend never
+holds a signing key. The contract rejects an unpaid invoice, a mismatched
+digest, and a second anchor for the same invoice. The backend recomputes the
+digest before the wallet is asked to sign and stores the anchoring transaction
+hash on the invoice; the payer's proof page is unaffected.
+
 ## Out of scope (this PR)
 
 - Wiring into the Next.js or Express MVP demos.
