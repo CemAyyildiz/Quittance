@@ -1,7 +1,16 @@
 'use client';
 
 import { useState } from 'react';
-import { sendPayment, checkWalletConnection, requestWalletAccess } from '@/lib/stellar';
+import {
+  sendPayment,
+  checkWalletConnection,
+  requestWalletAccess,
+  getUserPublicKey,
+  getAccountBalance,
+  hasEnoughXlmForFee,
+  isTestnetNetwork,
+  requestFriendbotFunding,
+} from '@/lib/stellar';
 import { toast } from 'sonner';
 import { Wallet, Loader2 } from 'lucide-react';
 import { invoiceApi } from '@/lib/api';
@@ -36,11 +45,42 @@ export default function PaymentButton({
   onError,
 }: PaymentButtonProps) {
   const [loading, setLoading] = useState(false);
+  const [offerFunding, setOfferFunding] = useState(false);
+  const [funding, setFunding] = useState(false);
+  const [fundingError, setFundingError] = useState<string | null>(null);
 
   const issuer = assetIssuer || getAssetByCode(assetCode)?.issuer;
 
-  const handlePayment = async () => {
+  /**
+   * A fresh testnet account with no XLM cannot pay the network fee; that is a
+   * funding problem, not an invoice bug. Only native XLM is checked here, so a
+   * USDC trustline/balance problem keeps its existing guidance.
+   */
+  const needsTestnetFunding = async (): Promise<boolean> => {
+    if (!isTestnetNetwork()) {
+      return false;
+    }
+
+    try {
+      const publicKey = await getUserPublicKey();
+      if (!publicKey) {
+        return false;
+      }
+
+      const balances = await getAccountBalance(publicKey);
+      const xlmBalance = balances.find((balance) => balance.assetCode === 'XLM')?.balance;
+      return !hasEnoughXlmForFee(xlmBalance);
+    } catch (error) {
+      // A balance lookup must never block the payment attempt itself.
+      console.error('Could not check XLM balance:', error);
+      return false;
+    }
+  };
+
+  const pay = async (checkFeeBalance: boolean) => {
     setLoading(true);
+    setOfferFunding(false);
+    setFundingError(null);
     try {
       const connected = await checkWalletConnection();
       if (!connected) {
@@ -49,6 +89,11 @@ export default function PaymentButton({
           toast.error('Access denied');
           return;
         }
+      }
+
+      if (checkFeeBalance && (await needsTestnetFunding())) {
+        setOfferFunding(true);
+        return;
       }
 
       toast.loading('Confirm in wallet...', { id: PAY_TOAST_ID });
@@ -94,6 +139,31 @@ export default function PaymentButton({
     }
   };
 
+  const handlePayment = () => {
+    void pay(true);
+  };
+
+  const handleFriendbotFunding = async () => {
+    setFunding(true);
+    setFundingError(null);
+    try {
+      const publicKey = await getUserPublicKey();
+      if (!publicKey) {
+        throw new Error('Could not get user public key');
+      }
+
+      await requestFriendbotFunding(publicKey);
+      setOfferFunding(false);
+      // Skip the balance check on the retry: Horizon may lag behind Friendbot.
+      await pay(false);
+    } catch (error) {
+      console.error('Friendbot funding error:', error);
+      setFundingError('Friendbot could not fund this account. Try again in a moment.');
+    } finally {
+      setFunding(false);
+    }
+  };
+
   return (
     <div>
       {assetCode !== 'XLM' && issuer && (
@@ -105,6 +175,35 @@ export default function PaymentButton({
             Your Freighter wallet needs a {assetCode} trustline to issuer {issuer} and at
             least {amount} {assetCode}. Without it the payment cannot go through.
           </p>
+        </div>
+      )}
+      {isTestnetNetwork() && offerFunding && (
+        <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-4" role="status">
+          <p className="text-sm text-amber-800 mb-3">
+            This account has no XLM to pay the network fee. Request test XLM from
+            Friendbot, then the payment will retry.
+          </p>
+          <button
+            type="button"
+            onClick={handleFriendbotFunding}
+            disabled={funding}
+            aria-busy={funding}
+            className="btn btn-outline w-full flex items-center justify-center gap-2"
+          >
+            {funding ? (
+              <>
+                <Loader2 aria-hidden="true" className="w-4 h-4 animate-spin" />
+                Requesting test XLM...
+              </>
+            ) : (
+              'Get test XLM from Friendbot'
+            )}
+          </button>
+          {fundingError && (
+            <p role="alert" className="text-sm text-red-700 mt-3">
+              {fundingError}
+            </p>
+          )}
         </div>
       )}
       <button
