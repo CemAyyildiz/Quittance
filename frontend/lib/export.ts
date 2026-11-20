@@ -505,6 +505,9 @@ export function downloadInvoiceCSV(invoices: Invoice[], filename?: string) {
 export function generateInvoicePDF(invoice: Invoice): string {
   const network = process.env.NEXT_PUBLIC_STELLAR_NETWORK === 'TESTNET' ? 'Testnet' : 'Mainnet';
   const isPaid = invoice.status === 'PAID';
+  
+  // Get Stellar Expert link for paid invoices
+  const explorerLink = isPaid ? getStellarExpertTransactionUrl(invoice.paymentTxHash, network as 'Testnet' | 'Mainnet') : undefined;
 
   return `
 <!DOCTYPE html>
@@ -641,16 +644,23 @@ export function generateInvoicePDF(invoice: Invoice): string {
       font-size: 10px; 
     }
     .blockchain-info { 
-      background: #fef3c7; 
-      padding: 10px; 
+      background: #d1fae5; 
+      padding: 15px; 
       border-radius: 6px; 
       margin-bottom: 15px; 
-      border-left: 3px solid #f59e0b; 
+      border-left: 3px solid #059669; 
     }
     .blockchain-info p {
+      font-size: 11px;
+      color: #065f46;
+      line-height: 1.5;
+      margin-bottom: 5px;
+    }
+    .blockchain-info a {
+      color: #0284c7;
+      text-decoration: none;
+      word-break: break-all;
       font-size: 10px;
-      color: #92400e;
-      line-height: 1.4;
     }
     @media print {
       .no-print { display: none; }
@@ -706,62 +716,97 @@ export function generateInvoicePDF(invoice: Invoice): string {
   <div class="amount-section">
     <div class="amount-label">Amount ${isPaid ? 'Paid' : 'Due'}</div>
     <div class="amount-value">${escapePrintHtml(invoice.amount)}</div>
-    <div class="amount-asset">${escapePrintHtml(invoice.assetCode)}</div>
+    <div class="amount-asset">${escapePrintHtml(invoice.assetCode)}${invoice.assetIssuer && invoice.assetCode !== 'XLM' ? ' (Non-Native)' : ''}</div>
   </div>
 
   ${invoice.description ? `<div class="info-section" style="margin-bottom: 20px;"><h3>Description</h3><p style="color: #1f2937; line-height: 1.6;">${escapePrintHtml(invoice.description)}</p></div>` : ''}
 
   <table class="details-table">
-    <tr><td>Invoice ID</td><td style="font-family: monospace; font-size: 12px;">${escapePrintHtml(invoice.id)}</td></tr>
-    <tr><td>Memo</td><td style="font-family: monospace;">${escapePrintHtml(invoice.memo)}</td></tr>
-    <tr><td>Seller Address</td><td style="font-family: monospace; font-size: 11px; word-break: break-all;">${escapePrintHtml(invoice.sellerPublicKey)}</td></tr>
+    <tr><td>Invoice ID</td><td style="font-family: monospace; font-size: 11px; word-break: break-all;">${escapePrintHtml(invoice.id)}</td></tr>
+    <tr><td>Memo</td><td style="font-family: monospace; font-size: 11px;">${escapePrintHtml(invoice.memo)}</td></tr>
+    <tr><td>Asset Code</td><td style="font-family: monospace; font-size: 11px;">${escapePrintHtml(invoice.assetCode)}</td></tr>
+    ${invoice.assetIssuer && invoice.assetCode !== 'XLM' ? `<tr><td>Asset Issuer</td><td style="font-family: monospace; font-size: 10px; word-break: break-all;">${escapePrintHtml(invoice.assetIssuer)}</td></tr>` : ''}
+    <tr><td>Seller Address</td><td style="font-family: monospace; font-size: 10px; word-break: break-all;">${escapePrintHtml(invoice.sellerPublicKey)}</td></tr>
     ${isPaid && invoice.paymentTxHash ? `
-    <tr><td>Transaction Hash</td><td style="font-family: monospace; font-size: 11px; word-break: break-all;">${escapePrintHtml(invoice.paymentTxHash)}</td></tr>
-    <tr><td>Payer Address</td><td style="font-family: monospace; font-size: 11px; word-break: break-all;">${invoice.payerPublicKey || 'N/A'}</td></tr>
-    ${invoice.payerName ? `<tr><td>Payer Name</td><td>${escapePrintHtml(invoice.payerName)}</td></tr>` : ''}
-    ${invoice.payerEmail ? `<tr><td>Payer Email</td><td>${escapePrintHtml(invoice.payerEmail)}</td></tr>` : ''}` : ''}
-    <tr><td>Network</td><td>${network}</td></tr>
+    <tr><td>Transaction Hash</td><td style="font-family: monospace; font-size: 10px; word-break: break-all;">${escapePrintHtml(invoice.paymentTxHash)}</td></tr>
+    ${invoice.payerPublicKey ? `<tr><td>Payer Address</td><td style="font-family: monospace; font-size: 10px; word-break: break-all;">${escapePrintHtml(invoice.payerPublicKey)}</td></tr>` : ''}
+    ${invoice.payerName ? `<tr><td>Payer Name</td><td style="font-size: 11px;">${escapePrintHtml(invoice.payerName)}</td></tr>` : ''}
+    ${invoice.payerEmail ? `<tr><td>Payer Email</td><td style="font-size: 11px;">${escapePrintHtml(invoice.payerEmail)}</td></tr>` : ''}` : ''}
+    <tr><td>Network</td><td style="font-size: 11px;">${network}</td></tr>
   </table>
 
-  ${isPaid ? `<div class="blockchain-info"><p><strong>Payment Verified</strong></p><p>This payment has been verified and recorded on the Stellar blockchain.</p></div>` : ''}
+  ${isPaid && explorerLink ? `<div class="blockchain-info"><p><strong>✓ Payment Verified on Stellar Blockchain</strong></p><p>View transaction on Stellar Expert:</p><p><a href="${explorerLink}" style="color: #0284c7; text-decoration: none; word-break: break-all; font-size: 10px;">${explorerLink}</a></p></div>` : ''}
 
   <div class="footer">
     <p><strong>Quittance</strong> - Stellar Payment Platform</p>
     <p>Generated on ${format(new Date(), 'PPpp')}</p>
-    <p style="margin-top: 10px;">This is an automatically generated invoice.</p>
+    <p style="margin-top: 10px;">This ${isPaid ? 'payment proof' : 'invoice'} is ${isPaid ? 'verified on' : 'payable via'} the Stellar blockchain.</p>
   </div>
 
-  <div class="no-print" style="position: fixed; top: 10px; right: 10px; background: #06b6d4; color: white; padding: 15px; border-radius: 8px; z-index: 1000; max-width: 300px; font-family: Arial, sans-serif;">
-    <h3 style="margin: 0 0 10px 0; font-size: 14px;">To save as PDF:</h3>
-    <ol style="margin: 0; padding-left: 20px; font-size: 12px;">
-      <li>Press Ctrl+P (Windows) or Cmd+P (Mac)</li>
-      <li>Choose “Save as PDF” as the destination</li>
-      <li>Click "Print"</li>
-    </ol>
-    <button onclick="window.print()" style="background: white; color: #06b6d4; border: none; padding: 8px 16px; border-radius: 4px; margin-top: 10px; cursor: pointer; font-weight: bold; font-size: 12px;">
-      Save as PDF
-    </button>
-  </div>
+</body>
+</html>`;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 </body>
 </html>`;
 }
 
-export function openInvoicePDF(invoice: Invoice) {
+/**
+ * Download invoice as PDF file
+ * Uses html2pdf.js to generate PDF from HTML content
+ */
+export async function openInvoicePDF(invoice: Invoice): Promise<void> {
+  // Only generate PDF for paid invoices
+  if (invoice.status !== 'PAID') {
+    throw new Error('PDF proof is only available for paid invoices');
+  }
+
   const pdfContent = generateInvoicePDF(invoice);
   
-  // Open in new window for PDF printing
-  const printWindow = window.open('', '_blank', 'width=800,height=600');
-  if (printWindow) {
-    printWindow.document.write(pdfContent);
-    printWindow.document.close();
+  // Create a temporary container for the HTML content
+  const container = document.createElement('div');
+  container.innerHTML = pdfContent;
+  container.style.position = 'absolute';
+  container.style.left = '-9999px';
+  container.style.width = '800px';
+  document.body.appendChild(container);
+
+  try {
+    // Dynamically import html2pdf.js to avoid SSR issues
+    const html2pdf = (await import('html2pdf.js')).default;
     
-    // Auto-trigger print dialog after content loads
-    printWindow.onload = () => {
-      setTimeout(() => {
-        printWindow.print();
-      }, 500);
+    // Generate filename with invoice ID
+    const filename = `invoice-proof-${invoice.id.substring(0, 8)}.pdf`;
+    
+    // Configure PDF options
+    const options = {
+      margin: 0.5,
+      filename,
+      image: { type: 'jpeg', quality: 0.98 },
+      html2canvas: { scale: 2, useCORS: true },
+      jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' }
     };
+
+    // Generate and download PDF
+    await html2pdf().set(options).from(container).save();
+  } finally {
+    // Clean up temporary container
+    document.body.removeChild(container);
   }
 }
 
