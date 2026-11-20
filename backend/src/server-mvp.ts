@@ -281,6 +281,45 @@ app.post('/api/invoices/:id/cancel', async (req: Request, res: Response) => {
   }
 });
 
+// Extend invoice expiry once (owning seller only; pending or expired unpaid)
+app.post('/api/invoices/:id/extend-expiry', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { sellerPublicKey, expiresAt } = req.body ?? {};
+
+    if (!sellerPublicKey || typeof sellerPublicKey !== 'string') {
+      return res.status(400).json({
+        success: false,
+        code: 'SELLER_REQUIRED',
+        error: 'sellerPublicKey is required',
+      });
+    }
+
+    if (!expiresAt) {
+      return res.status(400).json({
+        success: false,
+        code: 'INVALID_EXPIRY',
+        error: 'expiresAt is required',
+      });
+    }
+
+    const invoice = await invoiceService.extendExpiry(id, sellerPublicKey, expiresAt);
+
+    res.json({
+      success: true,
+      data: toInvoiceDTO(invoice),
+    });
+  } catch (error: any) {
+    console.error('Extend invoice expiry error:', error);
+    const status = typeof error.status === 'number' ? error.status : 400;
+    res.status(status).json({
+      success: false,
+      code: error.code,
+      error: error.message || 'Failed to extend invoice expiry',
+    });
+  }
+});
+
 // Verify payment against Horizon (memo + amount + destination)
 app.post('/api/invoices/:id/verify', async (req: Request, res: Response) => {
   try {
