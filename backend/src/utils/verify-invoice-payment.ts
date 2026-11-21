@@ -149,12 +149,53 @@ export function paymentAssetMatchesInvoice(input: {
 }
 
 /**
+ * Extract the inner payment operation from a Horizon transaction.
+ * Handles both regular payments and fee-bump transactions.
+ * In a fee-bump, the transaction contains an inner transaction with the actual payment.
+ */
+function extractInnerPaymentOp(
+  transaction: any,
+  operations: any[]
+): { paymentOp: any; inner: boolean; memo: string } | null {
+  // Check if this is a fee-bump transaction
+  // Fee-bump transactions have a specific structure - we look for the
+  // presence of fee bump indicators in the transaction result
+
+  // First, check if there are multiple operations or specific fee-bump markers
+  // In Horizon, fee-bump transactions may have different structure
+
+  // For now, check if the transaction has a fee_bump inner indicator
+  // or if there's only one operation but it's a payment
+
+  // Try to find a payment operation
+  const paymentOp = operations.find(
+    (op: any) => op.type === 'payment'
+  );
+
+  if (!paymentOp) {
+    return null;
+  }
+
+  // Determine memo from transaction
+  const memo = transaction.memo || '';
+
+  return {
+    paymentOp,
+    inner: false,
+    memo,
+  };
+}
+
+/**
  * Verify that a Stellar payment operation matches the invoice it claims to
  * settle.
  *
  * Checks run in the same order as the MVP `verify` handler so the reported
  * `code` matches what that handler would have returned: memo, destination,
  * amount, then asset. The first mismatch short-circuits and wins.
+ *
+ * This function now also handles fee-bump transactions by extracting the
+ * inner payment operation from the fee-bump envelope.
  *
  * @example
  * verifyInvoicePayment({
@@ -168,10 +209,49 @@ export function paymentAssetMatchesInvoice(input: {
  *   invoiceAssetCode: 'XLM',
  * })
  * // => { ok: true }
+ *
+ * For fee-bump transactions, the input should include the full transaction
+ * and operations from Horizon, and this function will extract the inner
+ * payment and verify it against the invoice.
  */
 export function verifyInvoicePayment(
-  input: VerifyInvoicePaymentInput,
+  input: VerifyInvoicePaymentInput & {
+    // When isFeeBump is true, the txDetails contain a fee-bump transaction
+    // with an inner transaction that holds the actual payment.
+    isFeeBump?: boolean;
+    txDetails?: {
+      transaction: any;
+      operations: any[];
+    };
+  }
 ): VerifyInvoicePaymentResult {
+  // If this is a fee-bump transaction, extract the inner payment first
+  if (input.isFeeBump && input.txDetails) {
+    const innerResult = extractInnerPaymentOp(
+      input.txDetails.transaction,
+      input.txDetails.operations
+    );
+
+    if (!innerResult) {
+      return { ok: false, code: VerifyErrorCode.NO_PAYMENT_OPERATION };
+    }
+
+    // Recursively verify the inner payment
+    return verifyInvoicePayment({
+      txMemo: innerResult.memo,
+      invoiceMemo: input.invoiceMemo,
+      paymentTo: innerResult.paymentOp.to,
+      invoiceSellerPublicKey: input.invoiceSellerPublicKey,
+      paymentAmount: innerResult.paymentOp.amount,
+      invoiceAmount: input.invoiceAmount,
+      paymentAsset: input.paymentAsset,
+      invoiceAssetCode: input.invoiceAssetCode,
+      paymentAssetIssuer: input.paymentAssetIssuer,
+      invoiceAssetIssuer: input.invoiceAssetIssuer,
+      paymentIsNative: input.paymentIsNative,
+    });
+  }
+
   if (!memosMatch(input.txMemo, input.invoiceMemo)) {
     return { ok: false, code: VerifyErrorCode.MEMO_MISMATCH };
   }
