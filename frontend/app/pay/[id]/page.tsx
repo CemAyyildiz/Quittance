@@ -18,6 +18,17 @@ import { toast } from 'sonner';
 import { openInvoicePDF, shareInvoiceByEmail } from '@/lib/export';
 import { extractHorizonCode, mapHorizonError } from '@/lib/horizonErrorMap';
 
+// Map verify error codes to field names for manual hash verification
+const mapVerifyErrorCodeToField = (code: string | null): 'memo' | 'amount' | 'destination' | 'asset' | null => {
+  if (!code) return null;
+  const lower = code.toLowerCase();
+  if (lower.includes('memo')) return 'memo';
+  if (lower.includes('amount') || lower.includes('value')) return 'amount';
+  if (lower.includes('destination') || lower.includes('source') || lower.includes('to')) return 'destination';
+  if (lower.includes('asset') || lower.includes('code')) return 'asset';
+  return null;
+};
+
 export default function PaymentPage() {
   const params = useParams();
   const id = params.id as string;
@@ -86,6 +97,15 @@ export default function PaymentPage() {
     }
   };
 
+  const [manualTxHash, setManualTxHash] = useState<string>('');
+  const [manualVerifyError, setManualVerifyError] = useState<{
+    memo?: string;
+    amount?: string;
+    destination?: string;
+    asset?: string;
+  } | null>(null);
+  const [manualVerifyLoading, setManualVerifyLoading] = useState(false);
+
   const handlePaymentSuccess = async (txHash: string) => {
     verifiedRef.current = true;
     setPolling(true);
@@ -93,6 +113,42 @@ export default function PaymentPage() {
       await loadInvoice();
       await loadPaymentInfo();
     }, 2000);
+  };
+
+  const handleManualVerify = async () => {
+    if (!manualTxHash) {
+      setManualVerifyError(null);
+      return;
+    }
+    setManualVerifyLoading(true);
+    setManualVerifyError(null);
+    try {
+      const result = await invoiceApi.verify(invoice.id, manualTxHash);
+      if (result.success && result.data.status === 'PAID') {
+        toast.success('Payment verified!');
+        setManualTxHash('');
+        setManualVerifyError(null);
+        setPolling(true);
+        setTimeout(async () => {
+          await loadInvoice();
+          await loadPaymentInfo();
+        }, 2000);
+      } else {
+        // Display per-field errors using verify error codes
+        const field = mapVerifyErrorCodeToField(result.data?.code || '');
+        setManualVerifyError(field ? { [field]: true } : null);
+      }
+    } catch (error: any) {
+      setManualVerifyError({
+        memo: null,
+        amount: null,
+        destination: null,
+        asset: null,
+      });
+      console.error('Manual verify error:', error);
+    } finally {
+      setManualVerifyLoading(false);
+    }
   };
 
   const handlePaymentError = (error: unknown) => {
@@ -299,6 +355,37 @@ export default function PaymentPage() {
                   </button>
                 )}
               </div>
+
+            {/* Manual verification error display */}
+            {manualVerifyError && (
+              <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
+                <p className="text-sm font-medium text-red-700 mb-1">
+                  Verification failed - {Object.keys(manualVerifyError).map((key) => {
+                    const fieldNames: Record<string, string> = {
+                      memo: 'memo',
+                      amount: 'amount',
+                      destination: 'destination',
+                      asset: 'asset',
+                    };
+                    return fieldNames[key] || key;
+                  }).join(' or ')} did not match the invoice requirements.
+                </p>
+                <p className="text-xs text-gray-500">
+                  Please check that the memo, amount, destination address, and asset match
+                  the invoice details, then try again.
+                </p>
+              </div>
+            )}
+
+            {invoice.status === 'PAID' && manualVerifyError && (
+              <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
+                <p className="text-sm font-medium text-green-700 mb-1">
+                  Payment verified! Your proof is ready for download.
+                </p>
+              </div>
+            )}
+
+
             )}
 
             {invoice.status === 'PENDING' && (
@@ -377,6 +464,89 @@ export default function PaymentPage() {
               <>
                 <div className="card">
                   <h3 className="text-lg font-semibold text-center mb-4">Scan QR Code</h3>
+                  {paymentInfoLoading ? (
+                    <div className="min-h-48 flex flex-col items-center justify-center gap-3 text-gray-600" role="status">
+                      <Loader2
+                        className="w-8 h-8 animate-spin text-cyan-500"
+                        aria-label="Loading payment QR"
+                      />
+                      <p className="text-sm">Loading payment QR…</p>
+                    </div>
+                  ) : paymentInfoError || !paymentInfo ? (
+                    <div className="min-h-48 flex flex-col items-center justify-center gap-4 rounded-lg border border-amber-200 bg-amber-50 p-5 text-center">
+                      <p className="text-sm text-amber-800">
+                        {paymentInfoError || 'Payment QR is not available for this invoice.'}
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => void loadPaymentInfo()}
+                        className="btn btn-outline inline-flex items-center gap-2"
+                      >
+                        <RefreshCw className="w-4 h-4" aria-hidden="true" />
+                        Retry QR
+                      </button>
+                    </div>
+                  ) : (
+                    <PaymentQrCodes
+                      paymentUrl={paymentInfo.paymentUrl}
+                      stellarPaymentUri={
+                        paymentInfo.stellarPaymentUri ??
+                        buildStellarPaymentUri(
+                          invoice.sellerPublicKey,
+                          invoice.amount.toString(),
+                          invoice.assetCode,
+                          invoice.memo,
+                          invoice.assetIssuer
+                        )
+                      }
+                      size={220}
+                    />
+                  )}
+
+                  <div className="mt-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                    <h4 className="font-semibold text-gray-700 mb-2">Pay manually (no Freighter)</h4>
+                    <p className="text-xs text-gray-500 mb-3">
+                      If your wallet (Lobstr, Solar, etc.) doesn't support the SEP-0007 payment URI,
+                      you can pay manually on Stellar. Enter the transaction hash below to verify
+                      your payment and get your proof.
+                    </p>
+                    <div className="space-y-3">
+                      <div>
+                        <label className="block text-sm text-gray-600 mb-1">Transaction Hash</label>
+                        <input
+                          type="text"
+                          value={manualTxHash}
+                          onChange={(e) => setManualTxHash(e.target.value)}
+                          maxLength="64"
+                          className={`input w-full rounded border px-3 py-2 ${
+                            manualVerifyLoading ? 'opacity-50 cursor-not-allowed' : ''
+                          }`}
+                          disabled={manualVerifyLoading}
+                          placeholder="Paste 64-char transaction hash"
+                        />
+                      </div>
+                      {manualVerifyLoading && (
+                        <div className="text-center text-xs text-gray-500">
+                          Verifying...
+                        </div>
+                      )}
+                      <button
+                        onClick={handleManualVerify}
+                        disabled={manualVerifyLoading || !manualTxHash}
+                        className="btn btn-primary w-full py-2 rounded"
+                      >
+                        {manualVerifyLoading ? (
+                          <>
+                            <Loader2 aria-hidden="true" className="w-4 h-4 animate-spin" />
+                            Verifying...
+                          </>
+                        ) : (
+                          'Verify Transaction Hash'
+                        )
+                      </button>
+                    </div>
+                  </div>
+                </div>
                   {paymentInfoLoading ? (
                     <div className="min-h-48 flex flex-col items-center justify-center gap-3 text-gray-600" role="status">
                       <Loader2
