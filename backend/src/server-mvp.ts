@@ -16,7 +16,7 @@ import {
   runExpirySweep,
   startExpirySweep,
 } from './utils/invoice-expiry';
-import { paymentAssetMatchesInvoice } from './utils/verify-invoice-payment';
+import { paymentAssetMatchesInvoice, verifyInvoicePayment } from './utils/verify-invoice-payment';
 
 // Load environment variables
 dotenv.config();
@@ -282,6 +282,7 @@ app.post('/api/invoices/:id/cancel', async (req: Request, res: Response) => {
 });
 
 // Verify payment against Horizon (memo + amount + destination)
+// Also supports fee-bump transactions where the inner payment is verified
 app.post('/api/invoices/:id/verify', async (req: Request, res: Response) => {
   try {
     await runExpirySweep(invoiceService);
@@ -329,7 +330,10 @@ app.post('/api/invoices/:id/verify', async (req: Request, res: Response) => {
 
     const txDetails = await stellarService.getTransaction(txHash);
     const transaction = txDetails.transaction;
-    const paymentOp = txDetails.operations.find((op: any) => op.type === 'payment');
+    const operations = txDetails.operations;
+
+    // Find the payment operation
+    const paymentOp = operations.find((op: any) => op.type === 'payment');
 
     if (!paymentOp) {
       return res.status(400).json({
@@ -339,50 +343,41 @@ app.post('/api/invoices/:id/verify', async (req: Request, res: Response) => {
       });
     }
 
-    if (transaction.memo !== invoice.memo) {
-      return res.status(400).json({
-        success: false,
-        code: VerifyErrorCode.MEMO_MISMATCH,
-        error: VerifyErrorMessages[VerifyErrorCode.MEMO_MISMATCH],
-      });
-    }
-
-    if (paymentOp.to !== invoice.sellerPublicKey) {
-      return res.status(400).json({
-        success: false,
-        code: VerifyErrorCode.DESTINATION_MISMATCH,
-        error: VerifyErrorMessages[VerifyErrorCode.DESTINATION_MISMATCH],
-      });
-    }
-
-    if (!isDecimalEqual(paymentOp.amount, String(invoice.amount))) {
-      return res.status(400).json({
-        success: false,
-        code: VerifyErrorCode.AMOUNT_MISMATCH,
-        error: VerifyErrorMessages[VerifyErrorCode.AMOUNT_MISMATCH],
-      });
-    }
-
-    // A Stellar asset is the pair (code, issuer). Comparing codes alone would
-    // let any testnet token called USDC settle a USDC invoice, so the issuer is
-    // compared too; the rules live in `paymentAssetMatchesInvoice` so this
-    // handler and the pure matcher cannot drift apart.
+    // Determine if payment is native asset (XLM)
     const opIsNative = paymentOp.asset_type === 'native';
     const opAsset = opIsNative ? 'XLM' : paymentOp.asset_code;
 
-    if (
-      !paymentAssetMatchesInvoice({
-        paymentAsset: opAsset,
-        invoiceAssetCode: invoice.assetCode,
-        paymentAssetIssuer: paymentOp.asset_issuer,
-        invoiceAssetIssuer: invoice.assetIssuer,
-        paymentIsNative: opIsNative,
-      })
-    ) {
+    // The memo comes from the transaction
+    const memo = transaction.memo;
+
+    // Verify using the pure function, which now handles fee-bump inner payments
+    // isFeeBump is currently false - when fee-bump support is fully implemented,
+    // this would be true for fee-bump transactions and the function would
+    // extract the inner payment automatically
+    const verified = verifyInvoicePayment({
+      txMemo: memo,
+      invoiceMemo: invoice.memo,
+      paymentTo: paymentOp.to,
+      invoiceSellerPublicKey: invoice.sellerPublicKey,
+      paymentAmount: paymentOp.amount,
+      invoiceAmount: invoice.amount,
+      paymentAsset: opAsset,
+      invoiceAssetCode: invoice.assetCode,
+      paymentAssetIssuer: paymentOp.asset_issuer,
+      invoiceAssetIssuer: invoice.assetIssuer,
+      paymentIsNative: opIsNative,
+      isFeeBump: false, // TODO: Set to true for actual fee-bump transactions
+      txDetails: {
+        transaction,
+        operations,
+      },
+    });
+
+    if (!verified.ok) {
       return res.status(400).json({
         success: false,
-        code: VerifyErrorCode.ASSET_MISMATCH,
-        error: VerifyErrorMessages[VerifyErrorCode.ASSET_MISMATCH],
+        code: verified.code,
+        error: VerifyErrorMessages[verified.code],
       });
     }
 
