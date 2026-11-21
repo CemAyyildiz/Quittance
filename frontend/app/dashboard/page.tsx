@@ -93,8 +93,19 @@ export default function DashboardPage() {
       toast.error('No invoices to export');
       return;
     }
-    downloadInvoiceCSV(filteredInvoices as any);
-    toast.success(`Exported ${filteredInvoices.length} invoices to CSV`);
+
+    // Determine which export to do based on current filter
+    const isPaidView = filter === 'paid' || filter === 'all';
+    
+    if (isPaidView && filter !== 'all') {
+      // Paid export: only paid invoices, different filename
+      downloadInvoiceCSV(filteredInvoices as any, { statusFilter: 'paid' });
+      toast.success(`Exported ${filteredInvoices.length} paid invoices to CSV`);
+    } else {
+      // All statuses export: every status, different filename
+      downloadInvoiceCSV(filteredInvoices as any, { statusFilter: 'all' });
+      toast.success(`Exported ${filteredInvoices.length} invoices (all statuses) to CSV`);
+    }
   };
 
   return (
