@@ -8,6 +8,8 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import {
   EXPIRY_SWEEP_INTERVAL_MS,
+  MAX_EXPIRY_EXTENSION_MS,
+  assertCanExtendExpiry,
   assertInvoiceSettleable,
   isInvoiceExpired,
   runExpirySweep,
@@ -16,11 +18,33 @@ import {
 import { VerifyErrorCode } from './verify-errors';
 
 const NOW = Date.parse('2026-01-01T00:00:00.000Z');
+const SELLER = 'GC4VWBK5QSJCBSRWIZJYWCF2SJAPCKU3OFHH4XK7ZBTZ5HCK7VYLU6FL';
+const OTHER = 'GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN';
 
 function invoice(overrides: { status?: string; expiresAt?: Date | string } = {}) {
   return {
     status: 'PENDING',
     expiresAt: new Date(NOW + 60_000),
+    ...overrides,
+  };
+}
+
+function extendable(
+  overrides: Partial<{
+    status: string;
+    expiresAt: Date | string;
+    sellerPublicKey: string;
+    originalExpiresAt: Date | string;
+    expiryExtended: boolean;
+  }> = {},
+) {
+  const expiresAt = overrides.expiresAt ?? new Date(NOW + 7 * 24 * 60 * 60 * 1000);
+  return {
+    status: 'PENDING',
+    sellerPublicKey: SELLER,
+    expiresAt,
+    originalExpiresAt: expiresAt,
+    expiryExtended: false,
     ...overrides,
   };
 }
@@ -146,5 +170,93 @@ describe('runExpirySweep', () => {
 
     expect(consoleError).toHaveBeenCalled();
     consoleError.mockRestore();
+  });
+});
+
+describe('assertCanExtendExpiry', () => {
+  const current = new Date(NOW + 7 * 24 * 60 * 60 * 1000);
+  const later = new Date(current.getTime() + 3 * 24 * 60 * 60 * 1000);
+
+  it('allows the first extension to a later date within the 30-day cap', () => {
+    const result = assertCanExtendExpiry(extendable({ expiresAt: current }), SELLER, later);
+
+    expect(result).toEqual({
+      ok: true,
+      originalExpiresAt: current,
+      newExpiresAt: later,
+      reviveToPending: false,
+    });
+  });
+
+  it('rejects a second extension', () => {
+    expect(
+      assertCanExtendExpiry(
+        extendable({ expiresAt: current, expiryExtended: true }),
+        SELLER,
+        later,
+      ),
+    ).toMatchObject({ ok: false, code: 'ALREADY_EXTENDED' });
+  });
+
+  it('rejects a shorter or equal new expiry', () => {
+    expect(
+      assertCanExtendExpiry(extendable({ expiresAt: current }), SELLER, current),
+    ).toMatchObject({ ok: false, code: 'NEW_EXPIRY_NOT_AFTER_OLD' });
+
+    expect(
+      assertCanExtendExpiry(
+        extendable({ expiresAt: current }),
+        SELLER,
+        new Date(current.getTime() - 1),
+      ),
+    ).toMatchObject({ ok: false, code: 'NEW_EXPIRY_NOT_AFTER_OLD' });
+  });
+
+  it('rejects a paid invoice', () => {
+    expect(
+      assertCanExtendExpiry(extendable({ status: 'PAID', expiresAt: current }), SELLER, later),
+    ).toMatchObject({ ok: false, code: 'NOT_EXTENDABLE' });
+  });
+
+  it('rejects a voided invoice and does not revive it', () => {
+    expect(
+      assertCanExtendExpiry(
+        extendable({ status: 'CANCELLED', expiresAt: current }),
+        SELLER,
+        later,
+      ),
+    ).toMatchObject({ ok: false, code: 'NOT_EXTENDABLE' });
+  });
+
+  it('allows extending an expired unpaid invoice and marks revive', () => {
+    const result = assertCanExtendExpiry(
+      extendable({ status: 'EXPIRED', expiresAt: new Date(NOW - 1) }),
+      SELLER,
+      later,
+    );
+
+    expect(result).toMatchObject({ ok: true, reviveToPending: true });
+  });
+
+  it('rejects a non-owner', () => {
+    expect(
+      assertCanExtendExpiry(extendable({ expiresAt: current }), OTHER, later),
+    ).toMatchObject({ ok: false, code: 'NOT_OWNER' });
+  });
+
+  it('rejects a date more than 30 days past the original expiry', () => {
+    const tooFar = new Date(current.getTime() + MAX_EXPIRY_EXTENSION_MS + 1);
+
+    expect(
+      assertCanExtendExpiry(extendable({ expiresAt: current }), SELLER, tooFar),
+    ).toMatchObject({ ok: false, code: 'EXTENSION_BEYOND_MAX' });
+  });
+
+  it('allows a date exactly 30 days past the original expiry', () => {
+    const atCap = new Date(current.getTime() + MAX_EXPIRY_EXTENSION_MS);
+
+    expect(assertCanExtendExpiry(extendable({ expiresAt: current }), SELLER, atCap)).toMatchObject({
+      ok: true,
+    });
   });
 });

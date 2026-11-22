@@ -6,7 +6,7 @@ Quittance helps freelancers create an invoice, accept payment via link or QR on 
 
 **Sharp initial user:** freelancer invoicing a client in XLM/USDC on Stellar.
 
----
+--
 
 ## What is shipped (v0.1 local / MVP)
 

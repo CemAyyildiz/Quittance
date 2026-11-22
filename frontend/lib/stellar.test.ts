@@ -17,14 +17,11 @@ import {
   checkWalletConnection,
   requestWalletAccess,
   getUserPublicKey,
+  buildPaymentTransaction,
 } from './stellar';
 
-import {
-  isConnected,
-  getPublicKey,
-  isAllowed,
-  setAllowed,
-} from '@stellar/freighter-api';
+import { isConnected, getPublicKey, isAllowed, setAllowed } from '@stellar/freighter-api';
+import * as StellarSdk from '@stellar/stellar-sdk';
 
 // A well-known, valid Stellar Ed25519 public key (56 chars, starts with G,
 // base32-encoded payload).  This is the same key used in publicKeyValidate.test.ts
@@ -39,9 +36,7 @@ describe('isValidPublicKey (Stellar SDK wrapper)', () => {
   });
 
   it('returns true for a second valid key', () => {
-    expect(
-      isValidPublicKey('GCQTGZQQ5G4PTM2GL7CDIFKUBIPEC52BROAQIAPW53XBRJVN6ZJVTG6V'),
-    ).toBe(true);
+    expect(isValidPublicKey('GCQTGZQQ5G4PTM2GL7CDIFKUBIPEC52BROAQIAPW53XBRJVN6ZJVTG6V')).toBe(true);
   });
 
   // ── invalid: short / long / malformed ────────────────────────────
@@ -80,7 +75,6 @@ describe('isValidPublicKey (Stellar SDK wrapper)', () => {
   });
 });
 
-
 describe('formatStellarAmount', () => {
   it('strips trailing zeros from a whole-number amount', () => {
     expect(formatStellarAmount('100.0000000')).toBe('100');
@@ -111,7 +105,6 @@ describe('formatStellarAmount', () => {
   });
 });
 
-
 describe('checkWalletConnection', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -131,7 +124,6 @@ describe('checkWalletConnection', () => {
     expect(isConnected).toHaveBeenCalledTimes(1);
   });
 });
-
 
 describe('requestWalletAccess', () => {
   beforeEach(() => {
@@ -164,7 +156,6 @@ describe('requestWalletAccess', () => {
   });
 });
 
-
 describe('getUserPublicKey', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -183,5 +174,91 @@ describe('getUserPublicKey', () => {
     const result = await getUserPublicKey();
     expect(result).toBeNull();
     expect(getPublicKey).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('buildPaymentTransaction', () => {
+  const payer = 'GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5';
+  const destination = 'GCQTGZQQ5G4PTM2GL7CDIFKUBIPEC52BROAQIAPW53XBRJVN6ZJVTG6V';
+  const usdcIssuer = 'GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5';
+
+  const makeAccount = (balances: any[]) =>
+    ({
+      accountId: () => payer,
+      sequenceNumber: () => '100',
+      incrementSequenceNumber: () => {},
+      balances,
+    }) as unknown as StellarSdk.Horizon.AccountResponse;
+
+  it('adds changeTrust before payment when the exact trustline is missing', () => {
+    const tx = buildPaymentTransaction(
+      makeAccount([]),
+      destination,
+      '10',
+      'memo-482',
+      'USDC',
+      usdcIssuer,
+    );
+
+    expect(tx.operations).toHaveLength(2);
+    expect(tx.operations[0]).toMatchObject({ type: 'changeTrust' });
+    expect(tx.operations[1]).toMatchObject({
+      type: 'payment',
+      destination,
+      amount: '10.0000000',
+    });
+    expect(tx.memo.value).toBe('memo-482');
+  });
+
+  it('does not count a same-code trustline for a different issuer', () => {
+    const tx = buildPaymentTransaction(
+      makeAccount([
+        {
+          asset_type: 'credit_alphanum4',
+          asset_code: 'USDC',
+          asset_issuer: 'GCQTGZQQ5G4PTM2GL7CDIFKUBIPEC52BROAQIAPW53XBRJVN6ZJVTG6V',
+        },
+      ]),
+      destination,
+      '10',
+      'memo-482',
+      'USDC',
+      usdcIssuer,
+    );
+
+    expect(tx.operations).toHaveLength(2);
+    expect(tx.operations[0].type).toBe('changeTrust');
+  });
+
+  it('adds only payment when the exact trustline exists', () => {
+    const tx = buildPaymentTransaction(
+      makeAccount([
+        {
+          asset_type: 'credit_alphanum4',
+          asset_code: 'USDC',
+          asset_issuer: usdcIssuer,
+          balance: '50',
+        },
+      ]),
+      destination,
+      '10',
+      'memo-482',
+      'USDC',
+      usdcIssuer,
+    );
+
+    expect(tx.operations).toHaveLength(1);
+    expect(tx.operations[0]).toMatchObject({
+      type: 'payment',
+      destination,
+      amount: '10.0000000',
+    });
+  });
+
+  it('never adds changeTrust for native XLM', () => {
+    const tx = buildPaymentTransaction(makeAccount([]), destination, '5', 'native-memo', 'XLM');
+
+    expect(tx.operations).toHaveLength(1);
+    expect(tx.operations[0].type).toBe('payment');
   });
 });

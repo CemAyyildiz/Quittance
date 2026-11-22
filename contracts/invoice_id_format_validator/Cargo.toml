@@ -1,0 +1,32 @@
+[workspace]
+
+[package]
+name = "invoice-id-format-validator"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.74"
+description = "Standalone Soroban contract that validates Quittance invoice ids (fixed prefix, digit body, mod-97 checksum)."
+license = "MIT"
+readme = "README.md"
+publish = false
+
+[lib]
+name = "invoice_id_format_validator"
+path = "src/lib.rs"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+soroban-sdk = "25.0.0"
+
+[dev-dependencies]
+soroban-sdk = { version = "25.0.0", features = ["testutils"] }
+
+[profile.release]
+opt-level = "z"
+overflow-checks = true
+debug = 0
+strip = "symbols"
+debug-assertions = false
+panic = "abort"
+codegen-units = 1
+lto = true

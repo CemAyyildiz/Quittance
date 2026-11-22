@@ -1,4 +1,4 @@
-# Backend tests
+#Backend tests
 
 Smoke tests live alongside `src/` and run with **Vitest** (`npm test` is
 wired to `vitest run` in `backend/package.json`; Vitest is already a

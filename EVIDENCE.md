@@ -1,4 +1,4 @@
-# Quittance — Demo & Testnet Evidence
+#Quittance — Demo & Testnet Evidence
 
 Reviewer one-pager for SCF / Level 4 style reviews.
 
