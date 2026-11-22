@@ -2,6 +2,7 @@
 import { generateInvoiceMemo } from '../utils/memo';
 import { CreateInvoiceInput } from '../utils/validation';
 import memoryStorage from '../storage/memory-storage';
+import { DEFAULT_PAGE_LIMIT, MAX_PAGE_LIMIT } from '../utils/parse-pagination';
 
 class InvoiceMemoryService {
   /**
@@ -67,9 +68,13 @@ class InvoiceMemoryService {
   async getInvoicesBySeller(
     sellerPublicKey: string,
     status?: string,
-    limit: number = 50,
+    limit: number = DEFAULT_PAGE_LIMIT,
     cursor?: string
-  ): Promise<{ invoices: any[]; nextCursor?: string }> {
+  ): Promise<{ invoices: any[]; nextCursor?: string; limit: number }> {
+    const pageLimit = Number.isFinite(limit)
+      ? Math.min(Math.max(Math.floor(limit), 1), MAX_PAGE_LIMIT)
+      : DEFAULT_PAGE_LIMIT;
+
     let invoices = memoryStorage.getAllInvoices(status ? { status } : undefined);
 
     if (sellerPublicKey) {
@@ -84,12 +89,18 @@ class InvoiceMemoryService {
       const cursorIndex = invoices.findIndex(
         (inv) => inv.id === cursor
       );
-      if (cursorIndex !== -1) {
-        startIndex = cursorIndex + 1;
+      // A cursor that does not belong to this seller-scoped list cannot be
+      // honoured; silently starting over would hide the mistake from callers.
+      if (cursorIndex === -1) {
+        throw Object.assign(new Error('Unknown cursor'), {
+          status: 400,
+          code: 'INVALID_CURSOR',
+        });
       }
+      startIndex = cursorIndex + 1;
     }
 
-    const page = invoices.slice(startIndex, startIndex + limit);
+    const page = invoices.slice(startIndex, startIndex + pageLimit);
     const hasMore = startIndex + page.length < invoices.length;
 
     let nextCursor;
@@ -97,7 +108,7 @@ class InvoiceMemoryService {
       nextCursor = page[page.length - 1].id;
     }
 
-    return { invoices: page, nextCursor };
+    return { invoices: page, nextCursor, limit: pageLimit };
   }
 
   /**
