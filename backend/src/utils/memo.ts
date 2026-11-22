@@ -1,4 +1,7 @@
-import { nanoid } from 'nanoid';
+import { customAlphabet } from "nanoid";
+
+const memoRandom = customAlphabet("ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789", 8);
+const shortReferenceRandom = customAlphabet("ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789", 10);
 
 /**
  * Generate a unique memo for invoice
@@ -6,7 +9,7 @@ import { nanoid } from 'nanoid';
  */
 export const generateInvoiceMemo = (): string => {
   const timestamp = Date.now().toString(36).toUpperCase();
-  const random = nanoid(8).toUpperCase();
+  const random = memoRandom();
   return `INV-${timestamp}-${random}`;
 };
 
@@ -21,7 +24,7 @@ export const isValidMemo = (memo: string): boolean => {
  * Generate short payment reference
  */
 export const generateShortReference = (): string => {
-  return nanoid(10).toUpperCase();
+  return shortReferenceRandom();
 };
 
 export default {
@@ -29,4 +32,3 @@ export default {
   isValidMemo,
   generateShortReference,
 };
-

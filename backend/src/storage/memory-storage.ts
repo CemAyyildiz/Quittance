@@ -1,5 +1,5 @@
 // In-memory storage - Database yerine MVP için
-import { v4 as uuidv4 } from 'uuid';
+import { v4 as uuidv4 } from "uuid";
 
 interface Invoice {
   id: string;
@@ -11,7 +11,7 @@ interface Invoice {
   description?: string;
   customerName?: string;
   customerEmail?: string;
-  status: 'PENDING' | 'PAID' | 'EXPIRED' | 'CANCELLED';
+  status: "PENDING" | "PAID" | "EXPIRED" | "CANCELLED";
   paymentTxHash?: string;
   payerPublicKey?: string;
   createdAt: Date;
@@ -29,21 +29,22 @@ class MemoryStorage {
       id: data.id || uuidv4(),
       sellerPublicKey: data.sellerPublicKey!,
       amount: data.amount!,
-      assetCode: data.assetCode || 'XLM',
+      assetCode: data.assetCode || "XLM",
       assetIssuer: data.assetIssuer,
       memo: data.memo!,
       description: data.description,
       customerName: data.customerName,
       customerEmail: data.customerEmail,
-      status: 'PENDING',
+      status: "PENDING",
       createdAt: new Date(),
-      expiresAt: data.expiresAt || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+      expiresAt:
+        data.expiresAt || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
     };
 
     this.invoices.set(invoice.id, invoice);
     this.invoicesByMemo.set(invoice.memo, invoice.id);
 
-    console.log('✅ Invoice created in memory:', invoice.id);
+    console.log("✅ Invoice created in memory:", invoice.id);
     return invoice;
   }
 
@@ -66,14 +67,22 @@ class MemoryStorage {
     const updated = { ...invoice, ...updates };
     this.invoices.set(id, updated);
 
-    console.log('✅ Invoice updated:', id);
+    console.log("✅ Invoice updated:", id);
     return updated;
   }
 
   // Mark as paid
-  markAsPaid(id: string, txHash: string, payerPublicKey: string): Invoice | undefined {
+  markAsPaid(
+    id: string,
+    txHash: string,
+    payerPublicKey: string,
+  ): Invoice | undefined {
+    const existing = this.invoices.get(id);
+    if (!existing || existing.status !== "PENDING") {
+      return existing;
+    }
     return this.updateInvoice(id, {
-      status: 'PAID',
+      status: "PAID",
       paymentTxHash: txHash,
       payerPublicKey,
       paidAt: new Date(),
@@ -85,27 +94,31 @@ class MemoryStorage {
     let invoices = Array.from(this.invoices.values());
 
     if (filter?.status) {
-      invoices = invoices.filter(inv => inv.status === filter.status);
+      invoices = invoices.filter((inv) => inv.status === filter.status);
     }
 
-    return invoices.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+    return invoices.sort(
+      (a, b) => b.createdAt.getTime() - a.createdAt.getTime(),
+    );
   }
 
   // Get stats
   getStats(sellerPublicKey: string): any {
     const invoices = Array.from(this.invoices.values()).filter(
-      inv => inv.sellerPublicKey === sellerPublicKey
+      (inv) => inv.sellerPublicKey === sellerPublicKey,
     );
 
     return {
       total_invoices: invoices.length,
-      paid_invoices: invoices.filter(inv => inv.status === 'PAID').length,
-      pending_invoices: invoices.filter(inv => inv.status === 'PENDING').length,
-      expired_invoices: invoices.filter(inv => inv.status === 'EXPIRED').length,
+      paid_invoices: invoices.filter((inv) => inv.status === "PAID").length,
+      pending_invoices: invoices.filter((inv) => inv.status === "PENDING")
+        .length,
+      expired_invoices: invoices.filter((inv) => inv.status === "EXPIRED")
+        .length,
       total_revenue: invoices
-        .filter(inv => inv.status === 'PAID')
+        .filter((inv) => inv.status === "PAID")
         .reduce((sum, inv) => sum + inv.amount, 0),
-      asset_code: 'XLM',
+      asset_code: "XLM",
     };
   }
 
@@ -115,8 +128,8 @@ class MemoryStorage {
     let count = 0;
 
     this.invoices.forEach((invoice) => {
-      if (invoice.status === 'PENDING' && invoice.expiresAt < now) {
-        invoice.status = 'EXPIRED';
+      if (invoice.status === "PENDING" && invoice.expiresAt < now) {
+        invoice.status = "EXPIRED";
         count++;
       }
     });
@@ -132,7 +145,7 @@ class MemoryStorage {
   clear() {
     this.invoices.clear();
     this.invoicesByMemo.clear();
-    console.log('🗑️ Memory storage cleared');
+    console.log("🗑️ Memory storage cleared");
   }
 
   // Get size
@@ -142,4 +155,3 @@ class MemoryStorage {
 }
 
 export default new MemoryStorage();
-
