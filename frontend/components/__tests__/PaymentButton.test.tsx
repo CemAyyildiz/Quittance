@@ -7,12 +7,14 @@ const {
   mockSendPayment,
   mockCheckWalletConnection,
   mockRequestWalletAccess,
+  mockIsValidPublicKey,
   mockVerify,
   mockToast,
 } = vi.hoisted(() => ({
   mockSendPayment: vi.fn(),
   mockCheckWalletConnection: vi.fn(),
   mockRequestWalletAccess: vi.fn(),
+  mockIsValidPublicKey: vi.fn(),
   mockVerify: vi.fn(),
   mockToast: {
     error: vi.fn(),
@@ -28,6 +30,7 @@ vi.mock('@/lib/stellar', () => ({
   sendPayment: mockSendPayment,
   checkWalletConnection: mockCheckWalletConnection,
   requestWalletAccess: mockRequestWalletAccess,
+  isValidPublicKey: mockIsValidPublicKey,
 }));
 
 vi.mock('@/lib/api', () => ({
@@ -41,6 +44,7 @@ vi.mock('sonner', () => ({
 }));
 
 const DESTINATION = 'GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5';
+const FEE_SOURCE = 'GCQTGZQQ5G4PTM2GL7CDIFKUBIPEC52BROAQIAPW53XBRJVN6ZJVTG6V';
 const TX_HASH = 'a'.repeat(64);
 const PAY_IDLE_LABEL = 'Pay with Freighter';
 const PAY_PROCESSING_LABEL = 'Processing...';
@@ -74,6 +78,7 @@ beforeEach(() => {
   mockCheckWalletConnection.mockResolvedValue(true);
   mockRequestWalletAccess.mockResolvedValue(true);
   mockSendPayment.mockResolvedValue(TX_HASH);
+  mockIsValidPublicKey.mockReturnValue(true);
   mockVerify.mockResolvedValue({ verified: true });
 });
 
@@ -173,6 +178,48 @@ describe('PaymentButton', () => {
     });
     expect(onSuccess).toHaveBeenCalledWith(TX_HASH);
     expect(screen.getByRole('button', { name: PAY_IDLE_LABEL })).toBeEnabled();
+  });
+
+  it('wraps the payment when a fee source is entered', async () => {
+    renderButton({ invoiceId: 'inv-482' });
+
+    fireEvent.click(
+      screen.getByRole('checkbox', { name: /another account pays the network fee/i }),
+    );
+    fireEvent.change(screen.getByLabelText('Fee source account'), {
+      target: { value: FEE_SOURCE },
+    });
+    fireEvent.click(screen.getByRole('button', { name: PAY_IDLE_LABEL }));
+
+    await waitFor(() =>
+      expect(mockSendPayment).toHaveBeenCalledWith(
+        DESTINATION,
+        '10',
+        'memo-482',
+        'XLM',
+        undefined,
+        { feeSource: FEE_SOURCE },
+      ),
+    );
+    expect(mockIsValidPublicKey).toHaveBeenCalledWith(FEE_SOURCE);
+  });
+
+  it('rejects an invalid fee source without sending anything', async () => {
+    mockIsValidPublicKey.mockReturnValue(false);
+    renderButton();
+
+    fireEvent.click(
+      screen.getByRole('checkbox', { name: /another account pays the network fee/i }),
+    );
+    fireEvent.change(screen.getByLabelText('Fee source account'), {
+      target: { value: 'not-a-key' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: PAY_IDLE_LABEL }));
+
+    await waitFor(() =>
+      expect(mockToast.error).toHaveBeenCalledWith('Enter a valid fee source account'),
+    );
+    expect(mockSendPayment).not.toHaveBeenCalled();
   });
 
   it('shows testnet trustline guidance for non-native assets', () => {

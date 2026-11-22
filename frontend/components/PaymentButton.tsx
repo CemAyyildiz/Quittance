@@ -1,7 +1,12 @@
 'use client';
 
 import { useState } from 'react';
-import { sendPayment, checkWalletConnection, requestWalletAccess } from '@/lib/stellar';
+import {
+  sendPayment,
+  checkWalletConnection,
+  requestWalletAccess,
+  isValidPublicKey,
+} from '@/lib/stellar';
 import { toast } from 'sonner';
 import { Wallet, Loader2 } from 'lucide-react';
 import { invoiceApi } from '@/lib/api';
@@ -36,10 +41,19 @@ export default function PaymentButton({
   onError,
 }: PaymentButtonProps) {
   const [loading, setLoading] = useState(false);
+  const [feeBumpEnabled, setFeeBumpEnabled] = useState(false);
+  const [feeSource, setFeeSource] = useState('');
 
   const issuer = assetIssuer || getAssetByCode(assetCode)?.issuer;
 
   const handlePayment = async () => {
+    const trimmedFeeSource = feeSource.trim();
+
+    if (feeBumpEnabled && !isValidPublicKey(trimmedFeeSource)) {
+      toast.error('Enter a valid fee source account');
+      return;
+    }
+
     setLoading(true);
     try {
       const connected = await checkWalletConnection();
@@ -52,7 +66,14 @@ export default function PaymentButton({
       }
 
       toast.loading('Confirm in wallet...', { id: PAY_TOAST_ID });
-      const txHash = await sendPayment(destination, amount, memo, assetCode, issuer);
+      const txHash = await sendPayment(
+        destination,
+        amount,
+        memo,
+        assetCode,
+        issuer,
+        feeBumpEnabled ? { feeSource: trimmedFeeSource } : undefined
+      );
 
       if (invoiceId) {
         toast.loading('Verifying payment...', { id: PAY_TOAST_ID });
@@ -107,6 +128,45 @@ export default function PaymentButton({
           </p>
         </div>
       )}
+      <div className="mb-4 rounded-lg border border-gray-200 bg-gray-50 p-4">
+        <label className="flex items-start gap-3 text-sm font-medium text-gray-900">
+          <input
+            type="checkbox"
+            checked={feeBumpEnabled}
+            onChange={(event) => setFeeBumpEnabled(event.target.checked)}
+            className="mt-1 h-4 w-4 rounded border-gray-300"
+          />
+          <span>
+            Another account pays the network fee
+            <span className="mt-1 block text-xs font-normal text-gray-600">
+              Fee-bump this payment. The fee source account must also be unlocked in
+              Freighter.
+            </span>
+          </span>
+        </label>
+
+        {feeBumpEnabled && (
+          <div className="mt-3">
+            <label
+              htmlFor="fee-source-account"
+              className="mb-1 block text-xs font-medium text-gray-700"
+            >
+              Fee source account
+            </label>
+            <input
+              id="fee-source-account"
+              type="text"
+              value={feeSource}
+              onChange={(event) => setFeeSource(event.target.value)}
+              placeholder="G..."
+              className="input font-mono text-xs"
+              autoComplete="off"
+              spellCheck={false}
+            />
+          </div>
+        )}
+      </div>
+
       <button
         onClick={handlePayment}
         disabled={loading}

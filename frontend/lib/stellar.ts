@@ -175,15 +175,39 @@ export const buildPaymentTransaction = (
   return builder.build();
 };
 
+export interface SendPaymentOptions {
+  /** Account that pays the network fee by wrapping the payment in a fee bump. */
+  feeSource?: string;
+}
+
 /**
- * Send payment with memo
+ * Wrap an already-built inner payment transaction in a fee-bump transaction.
+ * The fee source only pays the network fee; the inner transaction keeps its
+ * own source account, operations, and memo.
+ */
+export const buildFeeBumpPaymentTransaction = (
+  innerTransaction: StellarSdk.Transaction,
+  feeSource: string
+): StellarSdk.FeeBumpTransaction => {
+  return StellarSdk.TransactionBuilder.buildFeeBumpTransaction(
+    feeSource,
+    StellarSdk.BASE_FEE,
+    innerTransaction,
+    NETWORK_PASSPHRASE
+  );
+};
+
+/**
+ * Send payment with memo. When `options.feeSource` is set, the payer signs the
+ * inner payment and the fee source signs the wrapping fee bump.
  */
 export const sendPayment = async (
   destination: string,
   amount: string,
   memo: string,
   assetCode: string = 'XLM',
-  assetIssuer?: string
+  assetIssuer?: string,
+  options: SendPaymentOptions = {}
 ): Promise<string> => {
   try {
     // Check wallet connection
@@ -234,19 +258,36 @@ export const sendPayment = async (
       assetIssuer
     );
 
-    // Sign with Freighter
+    // The fee source pays the fee but is not the payer: sign the inner
+    // payment with the payer first, then wrap and sign with the fee source.
+    const feeSource = options.feeSource?.trim();
     const signedTxXdr = await signTransaction(transaction.toXDR(), {
       networkPassphrase: NETWORK_PASSPHRASE,
+      ...(feeSource ? { accountToSign: userPublicKey } : {}),
     });
 
-    // Parse signed transaction
-    const signedTx = StellarSdk.TransactionBuilder.fromXDR(
-      signedTxXdr,
-      NETWORK_PASSPHRASE
-    );
+    let submitTx: StellarSdk.Transaction | StellarSdk.FeeBumpTransaction =
+      StellarSdk.TransactionBuilder.fromXDR(signedTxXdr, NETWORK_PASSPHRASE);
+
+    if (feeSource) {
+      if (!(submitTx instanceof StellarSdk.Transaction)) {
+        throw new Error('A fee bump can only wrap a regular payment transaction.');
+      }
+
+      const feeBumpTx = buildFeeBumpPaymentTransaction(submitTx, feeSource);
+      const signedFeeBumpXdr = await signTransaction(feeBumpTx.toXDR(), {
+        networkPassphrase: NETWORK_PASSPHRASE,
+        accountToSign: feeSource,
+      });
+
+      submitTx = StellarSdk.TransactionBuilder.fromXDR(
+        signedFeeBumpXdr,
+        NETWORK_PASSPHRASE
+      );
+    }
 
     // Submit to network
-    const result = await server.submitTransaction(signedTx as any);
+    const result = await server.submitTransaction(submitTx as any);
 
     console.log('Payment successful:', result.hash);
     return result.hash;
@@ -352,6 +393,7 @@ export default {
   getAccountBalance,
   checkAssetReadiness,
   buildPaymentTransaction,
+  buildFeeBumpPaymentTransaction,
   sendPayment,
   getTransaction,
   checkTransactionStatus,
