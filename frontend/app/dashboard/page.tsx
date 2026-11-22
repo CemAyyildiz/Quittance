@@ -19,10 +19,24 @@ import {
   RefreshCw,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { downloadInvoiceCSV } from '@/lib/export';
+import { downloadPaidInvoiceCSV, downloadAllInvoicesCSV } from '@/lib/export';
 import { invoiceStatusLabel } from '@/lib/invoiceStatusLabel';
 
 const PAGE_SIZE = 50;
+
+function matchesInvoiceSearch(invoice: any, searchQuery: string): boolean {
+  const query = searchQuery.trim().toLowerCase();
+  if (!query) return true;
+
+  return [
+    invoice.id,
+    invoice.memo,
+    invoice.description,
+    invoice.customerName,
+    invoice.customerEmail,
+    invoice.amount,
+  ].some((value) => value != null && String(value).toLowerCase().includes(query));
+}
 
 export default function DashboardPage() {
   const { publicKey, connected } = useWalletStore();
@@ -37,6 +51,7 @@ export default function DashboardPage() {
   const [cursorStack, setCursorStack] = useState<Array<string | undefined>>([undefined]);
   const [pageIndex, setPageIndex] = useState(0);
   const [nextCursor, setNextCursor] = useState<string | undefined>(undefined);
+  const [exporting, setExporting] = useState<'paid' | 'all' | null>(null);
 
   const loadPage = useCallback(async (cursor?: string) => {
     if (!publicKey) return;
@@ -84,23 +99,7 @@ export default function DashboardPage() {
 
   // Filter and search the invoices on the current page
   useEffect(() => {
-    if (!searchQuery.trim()) {
-      setFilteredInvoices(invoices);
-      return;
-    }
-
-    const query = searchQuery.toLowerCase();
-    const filtered = invoices.filter((invoice) => {
-      return (
-        invoice.id.toLowerCase().includes(query) ||
-        invoice.memo.toLowerCase().includes(query) ||
-        invoice.description?.toLowerCase().includes(query) ||
-        invoice.customerName?.toLowerCase().includes(query) ||
-        invoice.customerEmail?.toLowerCase().includes(query) ||
-        invoice.amount.toString().includes(query)
-      );
-    });
-    setFilteredInvoices(filtered);
+    setFilteredInvoices(invoices.filter((invoice) => matchesInvoiceSearch(invoice, searchQuery)));
   }, [searchQuery, invoices]);
 
   const handleNextPage = () => {
@@ -122,13 +121,62 @@ export default function DashboardPage() {
     loadPage(cursorStack[previousIndex]);
   };
 
-  const handleExportCSV = () => {
-    if (filteredInvoices.length === 0) {
-      toast.error('No invoices to export');
-      return;
+  const loadInvoicesForExport = async (status?: string) => {
+    if (!publicKey) return [];
+
+    const exported: any[] = [];
+    const seenCursors = new Set<string>();
+    let cursor: string | undefined;
+
+    do {
+      const result = await invoiceApi.getAll({
+        status,
+        limit: PAGE_SIZE,
+        sellerPublicKey: publicKey,
+        cursor,
+      });
+
+      if (!Array.isArray(result.data)) {
+        throw new Error('Invoice export returned an invalid page');
+      }
+
+      exported.push(
+        ...result.data.filter((invoice: any) => invoice?.sellerPublicKey === publicKey),
+      );
+
+      cursor = result.pagination?.nextCursor;
+      if (cursor && seenCursors.has(cursor)) {
+        throw new Error('Invoice export pagination did not advance');
+      }
+      if (cursor) seenCursors.add(cursor);
+    } while (cursor);
+
+    return exported;
+  };
+
+  const handleExportCSV = async (type: 'paid' | 'all') => {
+    if (!publicKey || exporting) return;
+
+    setExporting(type);
+    try {
+      const status = type === 'paid' ? 'PAID' : undefined;
+      const invoices = await loadInvoicesForExport(status);
+      const matching = invoices.filter((invoice) => matchesInvoiceSearch(invoice, searchQuery));
+
+      if (type === 'paid') {
+        downloadPaidInvoiceCSV(matching, publicKey);
+        const paidCount = matching.filter((invoice) => invoice.status === 'PAID').length;
+        toast.success(`Exported ${paidCount} paid invoices to CSV`);
+      } else {
+        downloadAllInvoicesCSV(matching, publicKey);
+        toast.success(`Exported ${matching.length} invoices to CSV`);
+      }
+    } catch (error) {
+      console.error('Invoice CSV export failed:', error);
+      toast.error('Failed to export invoices');
+    } finally {
+      setExporting(null);
     }
-    downloadInvoiceCSV(filteredInvoices as any);
-    toast.success(`Exported ${filteredInvoices.length} invoices to CSV`);
   };
 
   return (
@@ -286,13 +334,28 @@ export default function DashboardPage() {
                 />
               </div>
               <button
-                onClick={handleExportCSV}
+                onClick={() => void handleExportCSV('paid')}
+                disabled={exporting !== null}
                 className="btn btn-primary flex items-center gap-2 whitespace-nowrap"
-                title="Export displayed invoices"
-                aria-label="Export CSV"
+                title="Export paid invoices"
+                aria-label="Export paid CSV"
               >
                 <Download className="w-5 h-5" aria-hidden="true" />
-                <span className="hidden sm:inline">Export CSV</span>
+                <span className="hidden sm:inline">
+                  {exporting === 'paid' ? 'Exporting…' : 'Export Paid CSV'}
+                </span>
+              </button>
+              <button
+                onClick={() => void handleExportCSV('all')}
+                disabled={exporting !== null}
+                className="btn btn-secondary flex items-center gap-2 whitespace-nowrap"
+                title="Export all invoices"
+                aria-label="Export all CSV"
+              >
+                <Download className="w-5 h-5" aria-hidden="true" />
+                <span className="hidden sm:inline">
+                  {exporting === 'all' ? 'Exporting…' : 'Export All CSV'}
+                </span>
               </button>
             </div>
 
