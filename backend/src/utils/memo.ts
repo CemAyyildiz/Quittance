@@ -1,17 +1,19 @@
-import { nanoid } from 'nanoid';
+import { customAlphabet, nanoid } from 'nanoid';
 
-const MAX_MEMO_BYTES = 28;
+export const MAX_MEMO_BYTES = 28;
+
+// nanoid's default alphabet includes '-' and '_', which would break the
+// INV-<timestamp>-<random> format, so keep the random segment alphanumeric.
+const randomMemoSegment = customAlphabet('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ', 8);
 
 /**
  * Generate a unique memo for invoice
  * Format: INV-TIMESTAMP-RANDOM
- * Guaranteed to be 28 bytes or fewer (ASCII only).
+ * ASCII only and well under 28 bytes, so it always fits a Stellar text memo.
  */
-export const generateInvoiceMemo = (): string {
+export const generateInvoiceMemo = (): string => {
   const timestamp = Date.now().toString(36).toUpperCase().slice(0, 6);
-  const random = nanoid(10).toUpperCase().slice(0, 10);
-  const memo = `INV-${timestamp}-${random}`;
-  return memo.length <= MAX_MEMO_BYTES ? memo : generateInvoiceMemo();
+  return `INV-${timestamp}-${randomMemoSegment()}`;
 };
 
 /**
@@ -53,4 +55,3 @@ export default {
   isValidMemo,
   generateShortReference,
 };
-
