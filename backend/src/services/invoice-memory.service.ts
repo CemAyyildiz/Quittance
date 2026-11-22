@@ -103,7 +103,7 @@ class InvoiceMemoryService {
           inv.customerName && String(inv.customerName).toLowerCase().includes(query)
         );
         const matchesSellerName = Boolean(
-          inv.sellerName && String(inv.sellerName).toLowerCase().includes(query)
+          (inv as any).sellerName && String((inv as any).sellerName).toLowerCase().includes(query)
         );
         return matchesInvoiceNumber || matchesMemo || matchesCustomerName || matchesSellerName;
       });
