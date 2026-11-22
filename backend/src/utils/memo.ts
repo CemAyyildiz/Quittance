@@ -1,6 +1,6 @@
-import { customAlphabet, nanoid } from 'nanoid';
+import { customAlphabet, nanoid } from "nanoid";
 
-const UPPER_ALPHANUMERIC = '0123456789ABCDEFGHIJKLMNOPQRSTUVWSTEM';
+const UPPER_ALPHANUMERIC = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 const randomId = customAlphabet(UPPER_ALPHANUMERIC, 8);
 
 /**
@@ -34,4 +34,3 @@ export default {
   isValidMemo,
   generateShortReference,
 };
-
