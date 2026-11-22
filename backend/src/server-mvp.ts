@@ -461,7 +461,9 @@ app.post('/api/invoices/:id/verify', async (req: Request, res: Response) => {
     const updatedInvoice = await invoiceService.markAsPaid(
       id,
       txHash,
-      paymentOp.from
+      paymentOp.from,
+      Number(transaction.ledger_sequence),
+      transaction.created_at ? new Date(transaction.created_at) : undefined
     );
 
     res.json({
