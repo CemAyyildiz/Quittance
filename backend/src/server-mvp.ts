@@ -2,7 +2,7 @@ import express, { Application, Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import { requestId } from './middleware/request-id';
-import { createInvoiceSchema } from './utils/validation';
+import { createInvoiceSchema, verifyTxHashSchema } from './utils/validation';
 import invoiceService from './services/invoice-memory.service';
 import { generatePaymentQR, generateStellarPaymentQR, buildStellarPaymentUri } from './utils/qrcode';
 import stellarService from './services/stellar.service';
@@ -416,6 +416,16 @@ app.post('/api/invoices/:id/verify', invoiceVerifyRateLimit(), async (req: Reque
         success: false,
         code: VerifyErrorCode.TX_HASH_REQUIRED,
         error: VerifyErrorMessages[VerifyErrorCode.TX_HASH_REQUIRED],
+      });
+    }
+
+    // A short or non-hex hash can never match a Stellar transaction. Reject it
+    // here so it never costs a Horizon round trip.
+    if (!verifyTxHashSchema.safeParse(txHash).success) {
+      return res.status(400).json({
+        success: false,
+        code: VerifyErrorCode.INVALID_TX_HASH,
+        error: VerifyErrorMessages[VerifyErrorCode.INVALID_TX_HASH],
       });
     }
 
