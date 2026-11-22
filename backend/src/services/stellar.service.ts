@@ -1,5 +1,5 @@
 import * as StellarSdk from '@stellar/stellar-sdk';
-import { server, NETWORK_PASSPHRASE, getSellerKeypair } from '../config/stellar';
+import { server, NETWORK_PASSPHRASE, getSellerKeypair, STELLAR_HORIZON_URL } from '../config/stellar';
 
 /** Result of checking a seller account before creating an invoice. */
 export type SellerAssetReadiness =
@@ -72,7 +72,59 @@ export interface PaymentRecord {
   createdAt: string;
 }
 
+/** Result of a short Horizon reachability probe used by /health/detail. */
+export interface HorizonHealthResult {
+  reachable: boolean;
+  latestLedger?: number;
+}
+
+/** Default probe timeout — slow Horizon must become 503, not a hung request. */
+const HORIZON_HEALTH_TIMEOUT_MS = 3000;
+
 class StellarService {
+  /**
+   * Probe Horizon with a short timeout via the root endpoint.
+   * Returns the latest ledger sequence on success; never throws.
+   */
+  async checkHorizonHealth(
+    timeoutMs: number = HORIZON_HEALTH_TIMEOUT_MS
+  ): Promise<HorizonHealthResult> {
+    const baseUrl = STELLAR_HORIZON_URL.replace(/\/$/, '');
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+    try {
+      const response = await fetch(`${baseUrl}/`, {
+        method: 'GET',
+        headers: { Accept: 'application/json' },
+        signal: controller.signal,
+      });
+
+      if (!response.ok) {
+        return { reachable: false };
+      }
+
+      const body = (await response.json()) as {
+        history_latest_ledger?: number;
+        core_latest_ledger?: number;
+      };
+
+      const latestLedger = Number(
+        body.history_latest_ledger ?? body.core_latest_ledger
+      );
+
+      if (!Number.isFinite(latestLedger) || latestLedger <= 0) {
+        return { reachable: false };
+      }
+
+      return { reachable: true, latestLedger };
+    } catch {
+      return { reachable: false };
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
   /**
    * Load account details from Stellar network
    */

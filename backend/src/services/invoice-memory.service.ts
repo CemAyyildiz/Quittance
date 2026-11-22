@@ -1,12 +1,8 @@
 // Invoice service with in-memory storage
 import { generateInvoiceMemo } from '../utils/memo';
 import { CreateInvoiceInput } from '../utils/validation';
-import memoryStorage, { StatusEvent, StatusEventStatus } from '../storage/memory-storage';
-import {
-  AnchorError,
-  AnchorErrorCode,
-  canonicalDigestMatches,
-} from '../utils/canonical-proof';
+import { assertCanExtendExpiry } from '../utils/invoice-expiry';
+import memoryStorage from '../storage/memory-storage';
 
 class InvoiceMemoryService {
   /**
@@ -50,6 +46,13 @@ class InvoiceMemoryService {
    */
   async getInvoiceByMemo(memo: string): Promise<any | null> {
     return memoryStorage.getInvoiceByMemo(memo);
+  }
+
+  /**
+   * Get the invoice that already stored this transaction hash, if any
+   */
+  async getInvoiceByTxHash(txHash: string): Promise<any | null> {
+    return memoryStorage.getInvoiceByTxHash(txHash) ?? null;
   }
 
   /**
@@ -187,6 +190,45 @@ class InvoiceMemoryService {
     }
 
     return memoryStorage.updateInvoice(invoiceId, { status: 'CANCELLED' });
+  }
+
+  /**
+   * Push expiresAt later exactly once for the owning seller.
+   * Memo, amount, and asset are left untouched.
+   */
+  async extendExpiry(
+    invoiceId: string,
+    sellerPublicKey: string,
+    newExpiresAt: Date | string,
+  ): Promise<any> {
+    const invoice = memoryStorage.getInvoiceById(invoiceId);
+
+    if (!invoice) {
+      throw Object.assign(new Error('Invoice not found'), { code: 'NOT_FOUND', status: 404 });
+    }
+
+    const decision = assertCanExtendExpiry(invoice, sellerPublicKey, newExpiresAt);
+    if (!decision.ok) {
+      throw Object.assign(new Error(decision.error), {
+        code: decision.code,
+        status: 400,
+      });
+    }
+
+    const updates: Record<string, unknown> = {
+      expiresAt: decision.newExpiresAt,
+      originalExpiresAt: decision.originalExpiresAt,
+      expiryExtended: true,
+    };
+
+    // Extending an expired unpaid invoice revives it; voided stays rejected above.
+    if (decision.reviveToPending) {
+      updates.status = 'PENDING';
+    }
+
+    const updated = memoryStorage.updateInvoice(invoiceId, updates);
+    console.log('✅ Invoice expiry extended:', invoiceId);
+    return updated;
   }
 
   /**
