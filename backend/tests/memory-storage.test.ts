@@ -209,6 +209,18 @@ beforeEach(() => {
     'no cross-leak between seller A and seller B listings',
   );
 });
+  it('getInvoiceByTxHash finds the invoice that stored the hash and ignores unknown hashes', () => {
+  const payer = 'G' + 'P'.repeat(55);
+  const invoice = memoryStorage.createInvoice(buildSeed({ memo: nextMemo('tx-index') }));
+
+  expect(memoryStorage.getInvoiceByTxHash('tx-hash-index')).toBe(undefined);
+
+  memoryStorage.markAsPaid(invoice.id, 'tx-hash-index', payer);
+
+  expect(memoryStorage.getInvoiceByTxHash('tx-hash-index')?.id).toBe(invoice.id);
+  expect(memoryStorage.getInvoiceByTxHash('a-different-hash')).toBe(undefined);
+});
+
   it('markExpiredInvoices transitions past-dated PENDING invoices to EXPIRED', () => {
   const pastDate = new Date(Date.now() - 24 * 60 * 60 * 1000); // yesterday
   const futureDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days from now

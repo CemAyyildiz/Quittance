@@ -49,6 +49,13 @@ class InvoiceMemoryService {
   }
 
   /**
+   * Get the invoice that already stored this transaction hash, if any
+   */
+  async getInvoiceByTxHash(txHash: string): Promise<any | null> {
+    return memoryStorage.getInvoiceByTxHash(txHash) ?? null;
+  }
+
+  /**
    * Update invoice status to PAID
    */
   async markAsPaid(invoiceId: string, txHash: string, payerPublicKey: string): Promise<any> {

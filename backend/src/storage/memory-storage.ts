@@ -26,6 +26,7 @@ interface Invoice {
 class MemoryStorage {
   private invoices: Map<string, Invoice> = new Map();
   private invoicesByMemo: Map<string, string> = new Map(); // memo -> invoice id
+  private invoicesByTxHash: Map<string, string> = new Map(); // tx hash -> invoice id
 
   // Create invoice
   createInvoice(data: Partial<Invoice>): Invoice {
@@ -65,6 +66,12 @@ class MemoryStorage {
     return id ? this.invoices.get(id) : undefined;
   }
 
+  // Get the invoice that already stored this transaction hash, if any
+  getInvoiceByTxHash(txHash: string): Invoice | undefined {
+    const id = this.invoicesByTxHash.get(txHash);
+    return id ? this.invoices.get(id) : undefined;
+  }
+
   // Update invoice
   updateInvoice(id: string, updates: Partial<Invoice>): Invoice | undefined {
     const invoice = this.invoices.get(id);
@@ -79,12 +86,19 @@ class MemoryStorage {
 
   // Mark as paid
   markAsPaid(id: string, txHash: string, payerPublicKey: string): Invoice | undefined {
-    return this.updateInvoice(id, {
+    const invoice = this.updateInvoice(id, {
       status: 'PAID',
       paymentTxHash: txHash,
       payerPublicKey,
       paidAt: new Date(),
     });
+
+    // Remember the hash so it cannot settle a second invoice later.
+    if (invoice) {
+      this.invoicesByTxHash.set(txHash, id);
+    }
+
+    return invoice;
   }
 
   // Get all invoices
@@ -139,6 +153,7 @@ class MemoryStorage {
   clear() {
     this.invoices.clear();
     this.invoicesByMemo.clear();
+    this.invoicesByTxHash.clear();
     console.log('🗑️ Memory storage cleared');
   }
 
