@@ -35,6 +35,15 @@ export interface VerifyInvoicePaymentInput {
   paymentTo: string;
   /** Invoice seller public key (`invoice.sellerPublicKey`). */
   invoiceSellerPublicKey: string;
+  /**
+   * Account that sent the payment (`paymentOp.from`, i.e. the transaction or
+   * operation source). When it is the seller, the payment is a self-payment
+   * and cannot settle the invoice.
+   *
+   * Optional so callers that cannot supply a source keep their previous
+   * behaviour.
+   */
+  paymentSource?: string | null;
   /** Payment amount as a decimal string (`paymentOp.amount`). */
   paymentAmount: string;
   /** Invoice amount (`invoice.amount`). */
@@ -89,6 +98,21 @@ export type VerifyInvoicePaymentResult =
 function normalizeIssuer(issuer: string | null | undefined): string | undefined {
   const trimmed = (issuer ?? '').trim();
   return trimmed === '' ? undefined : trimmed;
+}
+
+/**
+ * Whether the payment was sent by the seller themselves.
+ *
+ * Horizon reports the *inner* transaction source for a fee-bump receipt, so a
+ * fee-bumped self-payment still arrives here with the seller as the source.
+ */
+export function isSelfPayment(
+  paymentSource: string | null | undefined,
+  invoiceSellerPublicKey: string,
+): boolean {
+  const source = (paymentSource ?? '').trim();
+  const seller = (invoiceSellerPublicKey ?? '').trim();
+  return source !== '' && seller !== '' && source === seller;
 }
 
 /**
@@ -153,8 +177,8 @@ export function paymentAssetMatchesInvoice(input: {
  * settle.
  *
  * Checks run in the same order as the MVP `verify` handler so the reported
- * `code` matches what that handler would have returned: memo, destination,
- * amount, then asset. The first mismatch short-circuits and wins.
+ * `code` matches what that handler would have returned: self-payment, memo,
+ * destination, amount, then asset. The first mismatch short-circuits and wins.
  *
  * @example
  * verifyInvoicePayment({
@@ -172,6 +196,10 @@ export function paymentAssetMatchesInvoice(input: {
 export function verifyInvoicePayment(
   input: VerifyInvoicePaymentInput,
 ): VerifyInvoicePaymentResult {
+  if (isSelfPayment(input.paymentSource, input.invoiceSellerPublicKey)) {
+    return { ok: false, code: VerifyErrorCode.SELF_PAYMENT };
+  }
+
   if (!memosMatch(input.txMemo, input.invoiceMemo)) {
     return { ok: false, code: VerifyErrorCode.MEMO_MISMATCH };
   }

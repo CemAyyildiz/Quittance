@@ -58,6 +58,12 @@ export enum VerifyErrorCode {
    */
   ASSET_MISMATCH = 'ASSET_MISMATCH',
   /**
+   * The payment was sent by the invoice seller. Paying yourself produces a
+   * memo/amount match that is not a client payment, so it cannot settle the
+   * invoice.
+   */
+  SELF_PAYMENT = 'SELF_PAYMENT',
+  /**
    * The invoice has already been marked paid in our records.
    * Reserved for the full-server payment-verification path.
    */
@@ -100,6 +106,7 @@ export const VerifyErrorMessages: Readonly<Record<VerifyErrorCode, string>> = Ob
   [VerifyErrorCode.DESTINATION_MISMATCH]:
     'Payment destination does not match the invoice seller.',
   [VerifyErrorCode.ASSET_MISMATCH]: 'Payment asset does not match the invoice asset.',
+  [VerifyErrorCode.SELF_PAYMENT]: 'The invoice seller cannot settle their own invoice.',
   [VerifyErrorCode.INVOICE_ALREADY_PAID]: 'Invoice has already been paid.',
   [VerifyErrorCode.INVOICE_NOT_PENDING]: 'Invoice is not pending',
   [VerifyErrorCode.INVOICE_EXPIRED]: 'Invoice settlement window has expired.',
