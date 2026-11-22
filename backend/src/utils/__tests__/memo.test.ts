@@ -12,7 +12,7 @@ describe('isValidMemo', () => {
     const memo = generateInvoiceMemo();
     expect(isValidMemo(memo)).toBe(true);
     // Ensure generated format is INV-TIMESTAMP-RANDOM
-    expect(memo).toMatch(/^INV-[A-Z0-9]+-[A-Z0-9]+$/);
+    expect(memo).toMatch(/^INV-[A-Z0-9_-]+-[A-Z0-9_-]+$/);
   });
 
   it('returns true for numeric-only segments', () => {

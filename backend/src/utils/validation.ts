@@ -22,7 +22,15 @@ export const createInvoiceSchema = z.object({
   sellerEmail: z.string().email().optional(),
   expiresInDays: z.number().min(1).max(365).default(7).optional(),
   sellerPublicKey: stellarPublicKeySchema, // Dinamik seller!
-});
+}).refine(
+  (data) => {
+    if (data.assetCode === 'XLM') return true; // Native XLM has no issuer
+    // For non-XLM assets (e.g. USDC), issuer must be a valid Stellar public key
+    if (!data.assetIssuer) return false; // Must provide issuer for non-XLM
+    return stellarPublicKeySchema.safeParse(data.assetIssuer).success;
+  },
+  { message: 'assetIssuer must be a valid Stellar public key when assetCode is not XLM', path: ['assetIssuer'] }
+);
 
 // Payment verification schema
 export const paymentSchema = z.object({
