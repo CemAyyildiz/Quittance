@@ -14,11 +14,20 @@ interface InvoiceFormProps {
   userWallet?: string;
 }
 
+interface InvoiceLineDraft {
+  label: string;
+  quantity: string;
+  unitPrice: string;
+}
+
 const amountErrorId = 'amount-error';
 
 export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps) {
   const [loading, setLoading] = useState(false);
   const [amount, setAmount] = useState('');
+  const [lineItems, setLineItems] = useState<InvoiceLineDraft[]>([
+    { label: '', quantity: '1', unitPrice: '' },
+  ]);
   const [assetCode, setAssetCode] = useState('XLM');
   const [description, setDescription] = useState('');
   const [customerName, setCustomerName] = useState('');
@@ -48,14 +57,64 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
     };
   }, [userWallet, assetCode]);
 
+
   const handleAmountChange = (value: string) => {
     setAmount(value);
+    setLineItems((lines) =>
+      lines.length === 1 ? [{ ...lines[0], unitPrice: value }] : lines,
+    );
     if (value && (isNaN(parseFloat(value)) || parseFloat(value) <= 0)) {
       setAmountError('Amount must be greater than 0');
     } else {
       setAmountError('');
     }
   };
+
+  const updateLine = (
+    index: number,
+    field: keyof InvoiceLineDraft,
+    value: string,
+  ) => {
+    setLineItems((lines) =>
+      lines.map((line, lineIndex) =>
+        lineIndex === index ? { ...line, [field]: value } : line,
+      ),
+    );
+  };
+
+  const addLine = () => {
+    if (lineItems.length >= 20) return;
+    setLineItems((lines) => [
+      ...lines,
+      { label: '', quantity: '1', unitPrice: '' },
+    ]);
+  };
+
+  const removeLine = (index: number) => {
+    setLineItems((lines) =>
+      lines.length === 1 ? lines : lines.filter((_, lineIndex) => lineIndex !== index),
+    );
+  };
+
+  const linePayload = lineItems.map((line) => ({
+    label: line.label.trim(),
+    quantity: Number(line.quantity),
+    unitPrice: Number(line.unitPrice),
+  }));
+
+  const lineTotal = linePayload.reduce(
+    (sum, line) =>
+      sum + (Number.isFinite(line.quantity) && Number.isFinite(line.unitPrice)
+        ? Math.round(line.quantity * line.unitPrice * 10_000_000) / 10_000_000
+        : 0),
+    0,
+  );
+
+  useEffect(() => {
+    if (lineItems.some((line) => line.unitPrice !== '')) {
+      setAmount(lineTotal.toFixed(7).replace(/0+$/, '').replace(/\.$/, ''));
+    }
+  }, [lineItems]);
 
   const handleEmailChange = (value: string) => {
     setCustomerEmail(value);
@@ -74,8 +133,10 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
       return;
     }
 
-    const amountNum = parseFloat(amount);
-    if (!amount || amountNum <= 0 || isNaN(amountNum)) {
+    const amountNum = lineItems.some((line) => line.unitPrice !== '')
+      ? lineTotal
+      : parseFloat(amount);
+    if (!amountNum || amountNum <= 0 || !Number.isFinite(amountNum)) {
       setAmountError('Enter a valid amount');
       return;
     }
@@ -87,11 +148,30 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
     }
     setEmailError('');
 
+    if (lineItems.length > 20) {
+      toast.error('A maximum of 20 invoice lines is allowed');
+      return;
+    }
+    if (
+      linePayload.some(
+        (line) =>
+          !line.label ||
+          !Number.isFinite(line.quantity) ||
+          line.quantity <= 0 ||
+          !Number.isFinite(line.unitPrice) ||
+          line.unitPrice <= 0,
+      )
+    ) {
+      toast.error('Each line needs a label, quantity, and unit price greater than zero');
+      return;
+    }
+
     setLoading(true);
     try {
       const selectedAsset = getAssetByCode(assetCode);
       const result = await invoiceApi.create({
         amount: amountNum,
+        lineItems: linePayload,
         assetCode: assetCode,
         assetIssuer: selectedAsset?.issuer,
         expiresInDays: 7,
@@ -104,6 +184,7 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
       toast.success('Invoice created');
       onSuccess?.(result.data);
       setAmount('');
+      setLineItems([{ label: '', quantity: '1', unitPrice: '' }]);
       setAssetCode('XLM');
       setDescription('');
       setCustomerName('');
@@ -168,6 +249,70 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
             )}
           </div>
         )}
+
+        <div className="mt-5 border-t pt-4">
+          <div className="flex items-center justify-between mb-3">
+            <label className="label mb-0">Invoice lines *</label>
+            <button
+              type="button"
+              onClick={addLine}
+              disabled={lineItems.length >= 20}
+              className="text-sm font-semibold text-cyan-700 disabled:text-gray-400"
+            >
+              Add line
+            </button>
+          </div>
+          <div className="space-y-3">
+            {lineItems.map((line, index) => (
+              <div
+                key={index}
+                className="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_6rem_7rem_auto] gap-2"
+              >
+                <input
+                  type="text"
+                  className="input"
+                  placeholder="Line label"
+                  aria-label={`Line ${index + 1} label`}
+                  value={line.label}
+                  onChange={(event) => updateLine(index, 'label', event.target.value)}
+                  maxLength={255}
+                />
+                <input
+                  type="number"
+                  step="0.0000001"
+                  min="0.0000001"
+                  className="input"
+                  placeholder="Qty"
+                  aria-label={`Line ${index + 1} quantity`}
+                  value={line.quantity}
+                  onChange={(event) => updateLine(index, 'quantity', event.target.value)}
+                />
+                <input
+                  type="number"
+                  step="0.0000001"
+                  min="0.0000001"
+                  className="input"
+                  placeholder="Unit price"
+                  aria-label={`Line ${index + 1} unit price`}
+                  value={line.unitPrice}
+                  onChange={(event) => updateLine(index, 'unitPrice', event.target.value)}
+                />
+                <button
+                  type="button"
+                  onClick={() => removeLine(index)}
+                  disabled={lineItems.length === 1}
+                  className="btn btn-outline px-3 disabled:opacity-40"
+                  aria-label={`Remove line ${index + 1}`}
+                >
+                  Remove
+                </button>
+              </div>
+            ))}
+          </div>
+          <p className="mt-3 text-sm font-semibold text-gray-700">
+            Total: {lineTotal.toFixed(7).replace(/0+$/, '').replace(/\.$/, '') || '0'} {assetCode}
+          </p>
+        </div>
       </div>
 
       <div>

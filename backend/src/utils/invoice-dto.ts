@@ -2,13 +2,14 @@ export interface InvoiceDTO {
   id: string;
   sellerPublicKey: string;
   amount: number;
+  lineItems?: Array<{ label: string; quantity: number; unitPrice: number }>;
   assetCode: string;
   assetIssuer?: string;
   memo: string;
   description?: string;
   customerName?: string;
   customerEmail?: string;
-  status: 'PENDING' | 'PAID' | 'EXPIRED' | 'CANCELLED';
+  status: "PENDING" | "PAID" | "EXPIRED" | "CANCELLED";
   paymentTxHash?: string;
   payerPublicKey?: string;
   createdAt: string;
@@ -20,13 +21,14 @@ export function toInvoiceDTO(invoice: {
   id: string;
   sellerPublicKey: string;
   amount: number;
+  lineItems?: Array<{ label: string; quantity: number; unitPrice: number }>;
   assetCode: string;
   assetIssuer?: string;
   memo: string;
   description?: string;
   customerName?: string;
   customerEmail?: string;
-  status: 'PENDING' | 'PAID' | 'EXPIRED' | 'CANCELLED';
+  status: "PENDING" | "PAID" | "EXPIRED" | "CANCELLED";
   paymentTxHash?: string;
   payerPublicKey?: string;
   createdAt: Date;
@@ -37,6 +39,7 @@ export function toInvoiceDTO(invoice: {
     id: invoice.id,
     sellerPublicKey: invoice.sellerPublicKey,
     amount: invoice.amount,
+    lineItems: invoice.lineItems,
     assetCode: invoice.assetCode,
     assetIssuer: invoice.assetIssuer,
     memo: invoice.memo,

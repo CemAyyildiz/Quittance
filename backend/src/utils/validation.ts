@@ -1,28 +1,67 @@
-import { z } from 'zod';
+import { z } from "zod";
+import { isDecimalEqual } from "./amount-compare";
+import { linesTotal } from "./invoice-lines";
 
 // Stellar public key validation
-export const stellarPublicKeySchema = z.string()
+export const stellarPublicKeySchema = z
+  .string()
   .length(56)
-  .regex(/^G[A-Z2-7]{55}$/, 'Invalid Stellar public key format');
+  .regex(/^G[A-Z2-7]{55}$/, "Invalid Stellar public key format");
 
 // Stellar transaction hash validation (64-char hex)
-export const verifyTxHashSchema = z.string()
+export const verifyTxHashSchema = z
+  .string()
   .length(64)
-  .regex(/^[0-9a-fA-F]{64}$/, 'Invalid Stellar transaction hash format');
+  .regex(/^[0-9a-fA-F]{64}$/, "Invalid Stellar transaction hash format");
 
 // Invoice creation schema
-export const createInvoiceSchema = z.object({
-  amount: z.number().positive().max(1000000000),
-  assetCode: z.string().default('XLM').optional(),
-  assetIssuer: z.string().optional(),
-  description: z.string().max(500).optional(),
-  customerName: z.string().max(255).optional(),
-  customerEmail: z.string().email().optional(),
-  sellerName: z.string().max(255).optional(),
-  sellerEmail: z.string().email().optional(),
-  expiresInDays: z.number().min(1).max(365).default(7).optional(),
-  sellerPublicKey: stellarPublicKeySchema, // Dinamik seller!
+export const invoiceLineSchema = z.object({
+  label: z.string().trim().min(1).max(255),
+  quantity: z.number().positive().max(1000000000),
+  unitPrice: z.number().positive().max(1000000000),
 });
+
+export const createInvoiceSchema = z
+  .object({
+    amount: z.number().positive().max(1000000000),
+    assetCode: z.string().default("XLM").optional(),
+    assetIssuer: z.string().optional(),
+    description: z.string().max(500).optional(),
+    customerName: z.string().max(255).optional(),
+    customerEmail: z.string().email().optional(),
+    sellerName: z.string().max(255).optional(),
+    sellerEmail: z.string().email().optional(),
+    expiresInDays: z.number().min(1).max(365).default(7).optional(),
+    sellerPublicKey: stellarPublicKeySchema, // Dinamik seller!
+    lineItems: z.array(invoiceLineSchema).min(1).max(20).optional(),
+  })
+  .superRefine((invoice, ctx) => {
+    if (invoice.assetCode && invoice.assetCode !== "XLM") {
+      if (!invoice.assetIssuer) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["assetIssuer"],
+          message: "Issuer is required for non-native assets",
+        });
+      } else if (!/^G[A-Z2-7]{55}$/.test(invoice.assetIssuer)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["assetIssuer"],
+          message: "Invalid Stellar public key format",
+        });
+      }
+    }
+    if (invoice.lineItems) {
+      const expected = linesTotal(invoice.lineItems);
+      if (!isDecimalEqual(String(invoice.amount), expected)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["amount"],
+          message: `Invoice amount must equal the sum of line items (${expected})`,
+        });
+      }
+    }
+  });
 
 // Payment verification schema
 export const paymentSchema = z.object({
@@ -41,4 +80,3 @@ export default {
   stellarPublicKeySchema,
   verifyTxHashSchema,
 };
-

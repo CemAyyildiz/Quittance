@@ -84,7 +84,10 @@ export default function InvoiceDetailPage() {
         <div className="orb orb-2"></div>
         <div className="orb orb-3"></div>
         <div className="relative" role="status">
-          <div className="absolute inset-0 bg-gradient-to-r from-cyan-400 to-blue-500 rounded-full blur-2xl opacity-30" aria-hidden="true"></div>
+          <div
+            className="absolute inset-0 bg-gradient-to-r from-cyan-400 to-blue-500 rounded-full blur-2xl opacity-30"
+            aria-hidden="true"
+          ></div>
           <Loader2
             className="w-16 h-16 animate-spin text-cyan-400 relative z-10"
             aria-label="Loading invoice details"
@@ -127,7 +130,9 @@ export default function InvoiceDetailPage() {
                 <span className="hidden sm:inline">Back</span>
               </button>
               <Link href="/" className="hover:opacity-90 transition-opacity">
-                <span className="font-display text-xl tracking-tight text-[var(--ink)]">Quittance</span>
+                <span className="font-display text-xl tracking-tight text-[var(--ink)]">
+                  Quittance
+                </span>
               </Link>
             </div>
 
@@ -168,12 +173,16 @@ export default function InvoiceDetailPage() {
 
               <div className="space-y-5">
                 <div className="bg-gradient-to-br from-gray-50 to-slate-50 p-5 rounded-2xl border border-gray-200/50">
-                  <p className="text-xs text-gray-600 mb-2 font-semibold uppercase tracking-wide">Invoice ID</p>
+                  <p className="text-xs text-gray-600 mb-2 font-semibold uppercase tracking-wide">
+                    Invoice ID
+                  </p>
                   <p className="font-mono text-sm text-gray-900 break-all">{invoice.id}</p>
                 </div>
 
                 <div className="bg-gradient-to-br from-cyan-50 to-blue-50 p-6 rounded-2xl border-2 border-cyan-200/50 shadow-lg">
-                  <p className="text-xs text-gray-600 mb-3 font-semibold uppercase tracking-wide">Amount</p>
+                  <p className="text-xs text-gray-600 mb-3 font-semibold uppercase tracking-wide">
+                    Amount
+                  </p>
                   <div className="flex items-center gap-3">
                     <AssetLogo code={invoice.assetCode} size={40} showName={false} />
                     <p className="text-4xl sm:text-5xl font-bold bg-gradient-to-r from-cyan-600 to-blue-600 bg-clip-text text-transparent">
@@ -199,6 +208,31 @@ export default function InvoiceDetailPage() {
                   <div className="border-b pb-4">
                     <p className="text-sm text-gray-600 mb-1">Description</p>
                     <p className="text-gray-900">{invoice.description}</p>
+                  </div>
+                )}
+
+                {invoice.lineItems?.length > 0 && (
+                  <div className="border-b pb-4">
+                    <p className="text-sm text-gray-600 mb-3">Invoice lines</p>
+                    <div className="space-y-2">
+                      {invoice.lineItems.map((line: any, index: number) => (
+                        <div key={index} className="flex justify-between gap-3 text-sm">
+                          <div>
+                            <p className="font-medium text-gray-900">{line.label}</p>
+                            <p className="text-xs text-gray-500">
+                              {line.quantity} x {line.unitPrice}
+                            </p>
+                          </div>
+                          <p className="font-semibold text-gray-900 whitespace-nowrap">
+                            {formatAmount(
+                              Math.round(line.quantity * line.unitPrice * 10_000_000) / 10_000_000,
+                              7,
+                            )}{' '}
+                            {invoice.assetCode}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 )}
 
@@ -229,9 +263,7 @@ export default function InvoiceDetailPage() {
                 {invoice.status === 'PENDING' && (
                   <div className="border-b pb-4">
                     <p className="text-sm text-gray-600 mb-1">Expires In</p>
-                    <p className="text-gray-900 font-semibold">
-                      {timeRemaining}
-                    </p>
+                    <p className="text-gray-900 font-semibold">{timeRemaining}</p>
                   </div>
                 )}
 
@@ -249,15 +281,11 @@ export default function InvoiceDetailPage() {
                 <PaymentStatus status={invoice.status} txHash={invoice.paymentTxHash} />
               )}
 
-              {invoice.status === 'PAID' && (
-                <PaymentReceipt invoice={invoice} />
-              )}
+              {invoice.status === 'PAID' && <PaymentReceipt invoice={invoice} />}
 
               {invoice.status === 'PENDING' && paymentInfo && (
                 <div className="card">
-                  <h3 className="text-lg font-semibold mb-4 text-center">
-                    Payment QR Code
-                  </h3>
+                  <h3 className="text-lg font-semibold mb-4 text-center">Payment QR Code</h3>
                   <PaymentQrCodes
                     paymentUrl={paymentInfo.paymentUrl}
                     stellarPaymentUri={
@@ -267,15 +295,12 @@ export default function InvoiceDetailPage() {
                         invoice.amount.toString(),
                         invoice.assetCode,
                         invoice.memo,
-                        invoice.assetIssuer
+                        invoice.assetIssuer,
                       )
                     }
                     size={200}
                   />
-                  <Link
-                    href={`/pay/${invoice.id}`}
-                    className="btn btn-primary w-full mt-4"
-                  >
+                  <Link href={`/pay/${invoice.id}`} className="btn btn-primary w-full mt-4">
                     Go to Payment Page
                   </Link>
                 </div>

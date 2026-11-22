@@ -102,3 +102,30 @@ describe('InvoiceForm amount validation onChange', () => {
     expect(amount.getAttribute('aria-invalid')).toBe('false');
   });
 });
+
+describe('InvoiceForm line items', () => {
+  it('adds two lines and shows their sum', () => {
+    render(<InvoiceForm />);
+
+    const labelInputs = screen.getAllByPlaceholderText('Line label');
+    fireEvent.change(labelInputs[0], { target: { value: 'Design' } });
+    fireEvent.change(screen.getAllByPlaceholderText('Qty')[0], {
+      target: { value: '2' },
+    });
+    fireEvent.change(screen.getAllByPlaceholderText('Unit price')[0], {
+      target: { value: '10' },
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add line' }));
+
+    const allUnitPrices = screen.getAllByPlaceholderText('Unit price');
+    const allLabels = screen.getAllByPlaceholderText('Line label');
+    fireEvent.change(allLabels[1], { target: { value: 'Development' } });
+    fireEvent.change(screen.getAllByPlaceholderText('Qty')[1], {
+      target: { value: '3' },
+    });
+    fireEvent.change(allUnitPrices[1], { target: { value: '5' } });
+
+    expect(screen.getByText(/Total: 35/)).toBeTruthy();
+  });
+});

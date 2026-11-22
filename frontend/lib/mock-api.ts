@@ -2,11 +2,12 @@
 
 import { buildStellarPaymentUri } from '@/lib/stellar-payment-uri';
 
-const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 type MockInvoice = {
   id: string;
   amount: number;
+  lineItems?: Array<{ label: string; quantity: number; unitPrice: number }>;
   assetCode: string;
   assetIssuer?: string;
   description: string;
@@ -26,7 +27,7 @@ type MockInvoice = {
 const mockInvoices: MockInvoice[] = [
   {
     id: '1',
-    amount: 100.50,
+    amount: 100.5,
     assetCode: 'XLM',
     assetIssuer: undefined,
     description: 'Web development service',
@@ -43,7 +44,7 @@ const mockInvoices: MockInvoice[] = [
   },
   {
     id: '2',
-    amount: 250.00,
+    amount: 250.0,
     assetCode: 'XLM',
     assetIssuer: undefined,
     description: 'Logo design',
@@ -69,7 +70,7 @@ const mockInvoices: MockInvoice[] = [
   },
   {
     id: '4',
-    amount: 500.00,
+    amount: 500.0,
     assetCode: 'USDC',
     assetIssuer: 'GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5',
     description: 'Mobile app development',
@@ -85,7 +86,7 @@ const mockInvoices: MockInvoice[] = [
 export const mockInvoiceApi = {
   create: async (data: any) => {
     await delay(1000); // Simulate network delay
-    
+
     const newInvoice = {
       id: Math.random().toString(36).substr(2, 9),
       ...data,
@@ -94,19 +95,22 @@ export const mockInvoiceApi = {
       sellerPublicKey: 'GABC123EXAMPLE456789',
       assetIssuer: data.assetIssuer,
       createdAt: new Date().toISOString(),
-      expiresAt: new Date(Date.now() + (data.expiresInDays || 7) * 24 * 60 * 60 * 1000).toISOString(),
+      expiresAt: new Date(
+        Date.now() + (data.expiresInDays || 7) * 24 * 60 * 60 * 1000,
+      ).toISOString(),
     };
 
     mockInvoices.unshift(newInvoice);
 
     const paymentUrl = `${window.location.origin}/pay/${newInvoice.id}`;
-    const qrCode = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+    const qrCode =
+      'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
     const stellarPaymentUri = buildStellarPaymentUri(
       newInvoice.sellerPublicKey,
       newInvoice.amount.toString(),
       newInvoice.assetCode,
       newInvoice.memo,
-      newInvoice.assetIssuer
+      newInvoice.assetIssuer,
     );
 
     return {
@@ -123,8 +127,8 @@ export const mockInvoiceApi = {
 
   getById: async (id: string) => {
     await delay(500);
-    const invoice = mockInvoices.find(inv => inv.id === id);
-    
+    const invoice = mockInvoices.find((inv) => inv.id === id);
+
     if (!invoice) {
       throw new Error('Invoice not found');
     }
@@ -140,7 +144,7 @@ export const mockInvoiceApi = {
     let filtered = [...mockInvoices];
 
     if (params?.status && params.status !== 'ALL') {
-      filtered = filtered.filter(inv => inv.status === params.status);
+      filtered = filtered.filter((inv) => inv.status === params.status);
     }
 
     return {
@@ -156,20 +160,21 @@ export const mockInvoiceApi = {
 
   getPaymentInfo: async (id: string) => {
     await delay(500);
-    const invoice = mockInvoices.find(inv => inv.id === id);
-    
+    const invoice = mockInvoices.find((inv) => inv.id === id);
+
     if (!invoice) {
       throw new Error('Invoice not found');
     }
 
     const paymentUrl = `${window.location.origin}/pay/${invoice.id}`;
-    const qrCode = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+    const qrCode =
+      'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
     const stellarPaymentUri = buildStellarPaymentUri(
       invoice.sellerPublicKey,
       invoice.amount.toString(),
       invoice.assetCode,
       invoice.memo,
-      (invoice as any).assetIssuer
+      (invoice as any).assetIssuer,
     );
 
     return {
@@ -186,8 +191,8 @@ export const mockInvoiceApi = {
 
   cancel: async (id: string) => {
     await delay(500);
-    const invoice = mockInvoices.find(inv => inv.id === id);
-    
+    const invoice = mockInvoices.find((inv) => inv.id === id);
+
     if (invoice) {
       invoice.status = 'CANCELLED';
     }
@@ -200,8 +205,8 @@ export const mockInvoiceApi = {
 
   verify: async (id: string, txHash: string) => {
     await delay(1000);
-    const invoice = mockInvoices.find(inv => inv.id === id);
-    
+    const invoice = mockInvoices.find((inv) => inv.id === id);
+
     if (invoice) {
       invoice.status = 'PAID';
       invoice.paymentTxHash = txHash;
@@ -216,14 +221,14 @@ export const mockInvoiceApi = {
 
   getStats: async () => {
     await delay(500);
-    
+
     const stats = {
       total_invoices: mockInvoices.length,
-      paid_invoices: mockInvoices.filter(inv => inv.status === 'PAID').length,
-      pending_invoices: mockInvoices.filter(inv => inv.status === 'PENDING').length,
-      expired_invoices: mockInvoices.filter(inv => inv.status === 'EXPIRED').length,
+      paid_invoices: mockInvoices.filter((inv) => inv.status === 'PAID').length,
+      pending_invoices: mockInvoices.filter((inv) => inv.status === 'PENDING').length,
+      expired_invoices: mockInvoices.filter((inv) => inv.status === 'EXPIRED').length,
       total_revenue: mockInvoices
-        .filter(inv => inv.status === 'PAID')
+        .filter((inv) => inv.status === 'PAID')
         .reduce((sum, inv) => sum + inv.amount, 0),
       asset_code: 'XLM',
     };
