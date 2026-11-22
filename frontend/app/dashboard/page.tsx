@@ -31,8 +31,8 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [filter, setFilter] = useState<string>('all');
+  const [searchInput, setSearchInput] = useState<string>('');
   const [searchQuery, setSearchQuery] = useState<string>('');
-  const [filteredInvoices, setFilteredInvoices] = useState<any[]>([]);
   const [viewMode, setViewMode] = useState<'invoices' | 'transactions'>('invoices');
   const [cursorStack, setCursorStack] = useState<Array<string | undefined>>([undefined]);
   const [pageIndex, setPageIndex] = useState(0);
@@ -49,6 +49,7 @@ export default function DashboardPage() {
           limit: PAGE_SIZE,
           sellerPublicKey: publicKey,
           cursor,
+          search: searchQuery || undefined,
         }),
         invoiceApi.getStats(publicKey),
       ]);
@@ -62,12 +63,11 @@ export default function DashboardPage() {
     } finally {
       setLoading(false);
     }
-  }, [filter, publicKey]);
+  }, [filter, publicKey, searchQuery]);
 
   useEffect(() => {
     if (!connected || !publicKey) {
       setInvoices([]);
-      setFilteredInvoices([]);
       setStats(null);
       setLoading(false);
       setLoadError(false);
@@ -76,32 +76,21 @@ export default function DashboardPage() {
       setNextCursor(undefined);
       return;
     }
-    // A new seller or status filter always starts from the first page.
+    // A new seller, status filter or search always starts from the first page.
     setCursorStack([undefined]);
     setPageIndex(0);
     loadPage(undefined);
   }, [connected, publicKey, filter, loadPage]);
 
-  // Filter and search the invoices on the current page
+  // Search runs on the server over the whole seller-scoped list, so debounce
+  // the input and only apply queries long enough to be meaningful.
   useEffect(() => {
-    if (!searchQuery.trim()) {
-      setFilteredInvoices(invoices);
-      return;
-    }
-
-    const query = searchQuery.toLowerCase();
-    const filtered = invoices.filter((invoice) => {
-      return (
-        invoice.id.toLowerCase().includes(query) ||
-        invoice.memo.toLowerCase().includes(query) ||
-        invoice.description?.toLowerCase().includes(query) ||
-        invoice.customerName?.toLowerCase().includes(query) ||
-        invoice.customerEmail?.toLowerCase().includes(query) ||
-        invoice.amount.toString().includes(query)
-      );
-    });
-    setFilteredInvoices(filtered);
-  }, [searchQuery, invoices]);
+    const trimmed = searchInput.trim();
+    const timer = setTimeout(() => {
+      setSearchQuery(trimmed.length >= 2 ? trimmed : '');
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchInput]);
 
   const handleNextPage = () => {
     if (!nextCursor) return;
@@ -123,12 +112,12 @@ export default function DashboardPage() {
   };
 
   const handleExportCSV = () => {
-    if (filteredInvoices.length === 0) {
+    if (invoices.length === 0) {
       toast.error('No invoices to export');
       return;
     }
-    downloadInvoiceCSV(filteredInvoices as any);
-    toast.success(`Exported ${filteredInvoices.length} invoices to CSV`);
+    downloadInvoiceCSV(invoices as any);
+    toast.success(`Exported ${invoices.length} invoices to CSV`);
   };
 
   return (
@@ -281,9 +270,14 @@ export default function DashboardPage() {
                   placeholder="Search invoices..."
                   aria-label="Search invoices"
                   className="input w-full"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
+                  value={searchInput}
+                  onChange={(e) => setSearchInput(e.target.value)}
                 />
+                {searchInput.trim().length === 1 && (
+                  <p className="text-xs text-gray-500 mt-1">
+                    Type at least 2 characters to search.
+                  </p>
+                )}
               </div>
               <button
                 onClick={handleExportCSV}
@@ -361,7 +355,7 @@ export default function DashboardPage() {
                   Try again
                 </button>
               </div>
-            ) : filteredInvoices.length === 0 ? (
+            ) : invoices.length === 0 ? (
               <div className="card text-center py-12">
                 <FileText className="w-16 h-16 text-gray-400 mx-auto mb-4" />
                 <h3 className="text-xl font-semibold text-gray-700 mb-2">
@@ -383,11 +377,11 @@ export default function DashboardPage() {
               <>
                 {searchQuery && (
                   <div className="mb-4 text-sm text-gray-600">
-                    Found {filteredInvoices.length} invoice{filteredInvoices.length !== 1 ? 's' : ''}
+                    Found {invoices.length} invoice{invoices.length !== 1 ? 's' : ''} for “{searchQuery}”
                   </div>
                 )}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {filteredInvoices.map((invoice) => (
+                  {invoices.map((invoice) => (
                     <InvoiceCard key={invoice.id} invoice={invoice} />
                   ))}
                 </div>

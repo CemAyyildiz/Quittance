@@ -183,7 +183,7 @@ app.get('/api/invoices', async (req: Request, res: Response) => {
   try {
     await runExpirySweep(invoiceService);
 
-    const { status, cursor, sellerPublicKey } = req.query;
+    const { status, cursor, sellerPublicKey, search } = req.query;
 
     if (!sellerPublicKey) {
       return res.status(400).json({
@@ -199,6 +199,21 @@ app.get('/api/invoices', async (req: Request, res: Response) => {
       });
     }
 
+    if (search !== undefined && typeof search !== 'string') {
+      return res.status(400).json({
+        success: false,
+        error: 'search must be a single string value',
+      });
+    }
+
+    const searchQuery = typeof search === 'string' ? search.trim() : '';
+    if (searchQuery.length === 1) {
+      return res.status(400).json({
+        success: false,
+        error: 'search must be at least 2 characters',
+      });
+    }
+
     // Reuse the shared parser so a limit above 100 is clamped, not honoured.
     const { limit } = parsePaginationQuery(req.query);
 
@@ -206,7 +221,8 @@ app.get('/api/invoices', async (req: Request, res: Response) => {
       sellerPublicKey as string,
       typeof status === 'string' ? status : undefined,
       limit,
-      cursor
+      cursor,
+      searchQuery || undefined
     );
 
     res.json({
