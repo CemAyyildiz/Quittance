@@ -9,7 +9,8 @@ import {
 import { hasAssetTrustline } from './assets';
 
 // Network configuration
-const STELLAR_NETWORK = process.env.NEXT_PUBLIC_STELLAR_NETWORK || 'TESTNET';
+export const STELLAR_NETWORK = process.env.NEXT_PUBLIC_STELLAR_NETWORK || 'TESTNET';
+export const NEXT_PUBLIC_STELLAR_NETWORK = process.env.NEXT_PUBLIC_STELLAR_NETWORK || 'TESTNET';
 const HORIZON_URL =
   process.env.NEXT_PUBLIC_HORIZON_URL ||
   (STELLAR_NETWORK === 'TESTNET'
