@@ -3,6 +3,7 @@ import {
   STELLAR_ASSETS,
   getAssetByCode,
   formatAssetName,
+  hasAssetTrustline,
   type StellarAsset,
 } from './assets';
 
@@ -19,9 +20,7 @@ describe('STELLAR_ASSETS registry', () => {
     const usdc = STELLAR_ASSETS.find((a) => a.code === 'USDC');
     expect(usdc).toBeDefined();
     expect(usdc!.name).toBe('USD Coin');
-    expect(usdc!.issuer).toBe(
-      'GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5',
-    );
+    expect(usdc!.issuer).toBe('GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5');
     expect(usdc!.decimals).toBe(7);
   });
 
@@ -29,9 +28,7 @@ describe('STELLAR_ASSETS registry', () => {
     const usdt = STELLAR_ASSETS.find((a) => a.code === 'USDT');
     expect(usdt).toBeDefined();
     expect(usdt!.name).toBe('Tether USD');
-    expect(usdt!.issuer).toBe(
-      'GCQTGZQQ5G4PTM2GL7CDIFKUBIPEC52BROAQIAPW53XBRJVN6ZJVTG6V',
-    );
+    expect(usdt!.issuer).toBe('GCQTGZQQ5G4PTM2GL7CDIFKUBIPEC52BROAQIAPW53XBRJVN6ZJVTG6V');
     expect(usdt!.decimals).toBe(7);
   });
 
@@ -97,5 +94,30 @@ describe('formatAssetName', () => {
   it('returns the input code unchanged for unknown asset', () => {
     expect(formatAssetName('BTC')).toBe('BTC');
     expect(formatAssetName('DOGE')).toBe('DOGE');
+  });
+});
+
+describe('hasAssetTrustline', () => {
+  const issuer = 'GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5';
+
+  it('matches the exact code and issuer', () => {
+    expect(hasAssetTrustline([{ asset_code: 'USDC', asset_issuer: issuer }], 'USDC', issuer)).toBe(
+      true,
+    );
+  });
+
+  it('does not match the same code with a different issuer', () => {
+    expect(
+      hasAssetTrustline(
+        [
+          {
+            asset_code: 'USDC',
+            asset_issuer: 'GCQTGZQQ5G4PTM2GL7CDIFKUBIPEC52BROAQIAPW53XBRJVN6ZJVTG6V',
+          },
+        ],
+        'USDC',
+        issuer,
+      ),
+    ).toBe(false);
   });
 });
