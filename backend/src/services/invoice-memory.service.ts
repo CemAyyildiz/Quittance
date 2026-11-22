@@ -2,7 +2,12 @@
 import { generateInvoiceMemo } from '../utils/memo';
 import { CreateInvoiceInput } from '../utils/validation';
 import { assertCanExtendExpiry } from '../utils/invoice-expiry';
-import memoryStorage from '../storage/memory-storage';
+import memoryStorage, { StatusEvent, StatusEventStatus } from '../storage/memory-storage';
+import {
+  AnchorError,
+  AnchorErrorCode,
+  canonicalDigestMatches,
+} from '../utils/canonical-proof';
 
 class InvoiceMemoryService {
   /**

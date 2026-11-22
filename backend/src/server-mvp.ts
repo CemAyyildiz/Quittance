@@ -23,6 +23,16 @@ import {
   isSelfPayment,
   paymentAssetMatchesInvoice,
 } from './utils/verify-invoice-payment';
+import {
+  AnchorError,
+  AnchorErrorCode,
+  canonicalDigestMatches,
+  computeCanonicalDigest,
+  getAnchorContractId,
+} from './utils/canonical-proof';
+import { verifyAnchorTransaction } from './utils/anchor-transaction';
+import { amountToStroops } from './utils/amount-compare';
+import { memosMatch } from './utils/memo-normalize';
 
 // Load environment variables
 dotenv.config();
@@ -291,12 +301,148 @@ app.get('/api/invoices/:id/history', async (req: Request, res: Response) => {
 
 // Record a partial payment as its own history event. `verify` still requires
 // the full amount; this endpoint is the explicit partial-payment transition.
+// It is a seller-only write AND the hash must be a real, confirmed partial
+// payment to this invoice, otherwise anyone could pad the seller's history.
 app.post('/api/invoices/:id/partial-payment', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const { txHash } = req.body;
-    const invoice = await invoiceService.recordPartialPayment(id, txHash);
-    return res.json({ success: true, data: toInvoiceDTO(invoice) });
+    const { txHash, sellerPublicKey } = req.body ?? {};
+
+    const invoice = await invoiceService.getInvoiceById(id);
+    if (!invoice) {
+      return res.status(404).json({
+        success: false,
+        code: VerifyErrorCode.INVOICE_NOT_FOUND,
+        error: VerifyErrorMessages[VerifyErrorCode.INVOICE_NOT_FOUND],
+      });
+    }
+    if (!sellerPublicKey || invoice.sellerPublicKey !== sellerPublicKey) {
+      return res.status(403).json({ success: false, error: 'Not the owning seller' });
+    }
+    if (invoice.status !== 'PENDING') {
+      return res.status(400).json({
+        success: false,
+        code: VerifyErrorCode.INVOICE_NOT_PENDING,
+        error: VerifyErrorMessages[VerifyErrorCode.INVOICE_NOT_PENDING],
+      });
+    }
+    if (!txHash) {
+      return res.status(400).json({
+        success: false,
+        code: VerifyErrorCode.TX_HASH_REQUIRED,
+        error: VerifyErrorMessages[VerifyErrorCode.TX_HASH_REQUIRED],
+      });
+    }
+    if (!/^[0-9a-fA-F]{64}$/.test(txHash)) {
+      return res.status(400).json({
+        success: false,
+        code: 'INVALID_TX_HASH',
+        error: 'Invalid Stellar transaction hash format',
+      });
+    }
+
+    // A hash that already settled (or partially paid) another invoice cannot
+    // be replayed here to manufacture history.
+    const invoiceWithSameHash = await invoiceService.getInvoiceByTxHash(txHash);
+    if (invoiceWithSameHash && invoiceWithSameHash.id !== invoice.id) {
+      return res.status(400).json({
+        success: false,
+        code: VerifyErrorCode.TX_HASH_ALREADY_USED,
+        error: VerifyErrorMessages[VerifyErrorCode.TX_HASH_ALREADY_USED],
+      });
+    }
+
+    const settleable = assertInvoiceSettleable(invoice);
+    if (!settleable.ok) {
+      return res.status(400).json({
+        success: false,
+        code: settleable.code,
+        error: VerifyErrorMessages[settleable.code],
+      });
+    }
+
+    const txDetails = await stellarService.getTransaction(txHash);
+    const transaction = txDetails.transaction;
+    const paymentOp = txDetails.operations.find((op: any) => op.type === 'payment');
+
+    if (!paymentOp) {
+      return res.status(400).json({
+        success: false,
+        code: VerifyErrorCode.NO_PAYMENT_OPERATION,
+        error: VerifyErrorMessages[VerifyErrorCode.NO_PAYMENT_OPERATION],
+      });
+    }
+
+    const paymentSource = paymentOp.source_account ?? paymentOp.from;
+    if (
+      isSelfPayment(transaction.source_account, invoice.sellerPublicKey) ||
+      isSelfPayment(paymentSource, invoice.sellerPublicKey)
+    ) {
+      return res.status(400).json({
+        success: false,
+        code: VerifyErrorCode.SELF_PAYMENT,
+        error: VerifyErrorMessages[VerifyErrorCode.SELF_PAYMENT],
+      });
+    }
+
+    if (!memosMatch(transaction.memo, invoice.memo)) {
+      return res.status(400).json({
+        success: false,
+        code: VerifyErrorCode.MEMO_MISMATCH,
+        error: VerifyErrorMessages[VerifyErrorCode.MEMO_MISMATCH],
+      });
+    }
+
+    if (paymentOp.to !== invoice.sellerPublicKey) {
+      return res.status(400).json({
+        success: false,
+        code: VerifyErrorCode.DESTINATION_MISMATCH,
+        error: VerifyErrorMessages[VerifyErrorCode.DESTINATION_MISMATCH],
+      });
+    }
+
+    const opIsNative = paymentOp.asset_type === 'native';
+    const opAsset = opIsNative ? 'XLM' : paymentOp.asset_code;
+    if (
+      !paymentAssetMatchesInvoice({
+        paymentAsset: opAsset,
+        invoiceAssetCode: invoice.assetCode,
+        paymentAssetIssuer: paymentOp.asset_issuer,
+        invoiceAssetIssuer: invoice.assetIssuer,
+        paymentIsNative: opIsNative,
+      })
+    ) {
+      return res.status(400).json({
+        success: false,
+        code: VerifyErrorCode.ASSET_MISMATCH,
+        error: VerifyErrorMessages[VerifyErrorCode.ASSET_MISMATCH],
+      });
+    }
+
+    // Partial means strictly between zero and the invoice total, compared in
+    // integer stroops so one stroop is never rounded away.
+    let paidStroops: bigint;
+    let invoiceStroops: bigint;
+    try {
+      paidStroops = amountToStroops(paymentOp.amount);
+      invoiceStroops = amountToStroops(invoice.amount);
+    } catch {
+      return res.status(400).json({
+        success: false,
+        code: VerifyErrorCode.AMOUNT_MISMATCH,
+        error: VerifyErrorMessages[VerifyErrorCode.AMOUNT_MISMATCH],
+      });
+    }
+    if (paidStroops <= 0n || paidStroops >= invoiceStroops) {
+      return res.status(400).json({
+        success: false,
+        code: VerifyErrorCode.AMOUNT_MISMATCH,
+        error: 'A partial payment must be more than zero and less than the invoice amount.',
+      });
+    }
+
+    const updated = await invoiceService.recordPartialPayment(id, txHash);
+    return res.json({ success: true, data: toInvoiceDTO(updated) });
   } catch (error: any) {
     console.error('Record partial payment error:', error);
     return res.status(400).json({
@@ -393,17 +539,64 @@ app.post('/api/invoices/:id/anchor/prepare', async (req: Request, res: Response)
 });
 
 // Record the hash of the seller-signed transaction that wrote the anchor.
+// Seller-only, and the hash must be a confirmed anchor call for THIS invoice
+// and digest: an unverified hash would let a caller record a fake anchor and
+// permanently block the real one (an invoice anchors at most once).
 app.post('/api/invoices/:id/anchor', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const { digest, txHash, sellerPublicKey } = req.body;
+    const { digest, txHash, sellerPublicKey } = req.body ?? {};
 
     const invoice = await invoiceService.getInvoiceById(id);
     if (!invoice) {
       return res.status(404).json({ success: false, error: 'Invoice not found' });
     }
-    if (sellerPublicKey && invoice.sellerPublicKey !== sellerPublicKey) {
+    if (!sellerPublicKey || invoice.sellerPublicKey !== sellerPublicKey) {
       return res.status(403).json({ success: false, error: 'Not the owning seller' });
+    }
+    if (!txHash || !/^[0-9a-fA-F]{64}$/.test(txHash)) {
+      return res.status(400).json({
+        success: false,
+        code: AnchorErrorCode.INVALID_TX_HASH,
+        error: 'Invalid anchoring transaction hash',
+      });
+    }
+
+    const contractId = getAnchorContractId();
+    if (!contractId) {
+      return res.status(409).json({
+        success: false,
+        code: 'ANCHOR_CONTRACT_NOT_CONFIGURED',
+        error: 'Receipt anchoring contract is not configured',
+      });
+    }
+
+    let txDetails: any;
+    try {
+      txDetails = await stellarService.getTransaction(txHash);
+    } catch {
+      return res.status(400).json({
+        success: false,
+        code: 'ANCHOR_TX_NOT_FOUND',
+        error: 'Anchoring transaction was not found on chain',
+      });
+    }
+
+    const check = verifyAnchorTransaction({
+      transaction: txDetails.transaction,
+      operations: txDetails.operations,
+      sellerPublicKey,
+      contractId,
+      invoiceId: invoice.id,
+      digest,
+    });
+    if (!check.ok) {
+      return res.status(400).json({
+        success: false,
+        code: 'ANCHOR_TX_MISMATCH',
+        error: 'Transaction does not contain the expected anchor call for this invoice',
+        reason: check.reason,
+      });
     }
 
     const updated = await invoiceService.anchorProof(id, digest, txHash);
