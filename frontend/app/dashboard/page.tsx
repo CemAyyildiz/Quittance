@@ -30,10 +30,10 @@ export default function DashboardPage() {
   const [loadError, setLoadError] = useState(false);
   const [filter, setFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
-  const [filteredInvoices, setFilteredInvoices] = useState<any[]>([]);
   const [viewMode, setViewMode] = useState<'invoices' | 'transactions'>('invoices');
+  const [pagination, setPagination] = useState<{ cursor?: string; hasMore: boolean }>({ hasMore: false });
 
-  const loadData = useCallback(async () => {
+  const loadData = useCallback(async (overwrite = false) => {
     if (!publicKey) return;
     try {
       setLoading(true);
@@ -43,18 +43,24 @@ export default function DashboardPage() {
           status: filter === 'all' ? undefined : filter.toUpperCase(),
           limit: 50,
           sellerPublicKey: publicKey,
+          cursor: pagination.cursor,
         }),
         invoiceApi.getStats(publicKey),
       ]);
-      setInvoices(invoicesResult.data);
+
+      setInvoices(overwrite ? invoicesResult.data : [...invoices, ...invoicesResult.data]);
       setStats(statsResult.data[0] || {});
+      setPagination(prev => ({
+        cursor: invoicesResult.data.length > 0 ? invoicesResult.data[invoicesResult.data.length - 1].id : prev.cursor,
+        hasMore: invoicesResult.data.length >= 50,
+      }));
     } catch (error) {
       setLoadError(true);
       toast.error('Failed to load data');
     } finally {
       setLoading(false);
     }
-  }, [filter, publicKey]);
+  }, [filter, publicKey, pagination.cursor]);
 
   useEffect(() => {
     if (!connected || !publicKey) {
@@ -62,9 +68,10 @@ export default function DashboardPage() {
       setStats(null);
       setLoading(false);
       setLoadError(false);
+      setPagination({ hasMore: false });
       return;
     }
-    loadData();
+    loadData(true);
   }, [connected, publicKey, loadData]);
 
   // Filter and search invoices
@@ -87,6 +94,10 @@ export default function DashboardPage() {
     });
     setFilteredInvoices(filtered);
   }, [searchQuery, invoices]);
+
+  const loadMore = useCallback(() => {
+    loadData(false);
+  }, [loadData]);
 
   const handleExportCSV = () => {
     if (filteredInvoices.length === 0) {
@@ -278,6 +289,17 @@ export default function DashboardPage() {
                 </button>
               ))}
             </div>
+
+            {pagination.hasMore && !loading && (
+              <button
+                onClick={loadMore}
+                className="btn btn-primary mt-2 w-full"
+                disabled={pagination.hasMore}
+                aria-label="Load more invoices"
+              >
+                Load more invoices
+              </button>
+            )}
 
             {loading ? (
               <div className="card py-10" role="status" aria-live="polite" aria-busy="true">

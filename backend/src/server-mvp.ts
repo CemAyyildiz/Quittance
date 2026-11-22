@@ -179,7 +179,7 @@ app.get('/api/invoices', async (req: Request, res: Response) => {
   try {
     await runExpirySweep(invoiceService);
 
-    const { status, limit = 50, offset = 0, sellerPublicKey } = req.query;
+    const { status, limit = 50, cursor, sellerPublicKey } = req.query;
 
     if (!sellerPublicKey) {
       return res.status(400).json({
@@ -188,20 +188,19 @@ app.get('/api/invoices', async (req: Request, res: Response) => {
       });
     }
 
-    const invoices = await invoiceService.getInvoicesBySeller(
+    const result = await invoiceService.getInvoicesBySeller(
       sellerPublicKey as string,
       status as string | undefined,
       parseInt(limit as string),
-      parseInt(offset as string)
+      cursor as string | undefined
     );
 
     res.json({
       success: true,
-      data: invoices.map(toInvoiceDTO),
+      data: result.invoices.map(toInvoiceDTO),
       pagination: {
         limit: parseInt(limit as string),
-        offset: parseInt(offset as string),
-        total: invoices.length,
+        cursor: result.nextCursor,
       },
     });
   } catch (error: any) {

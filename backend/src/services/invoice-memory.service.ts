@@ -62,21 +62,42 @@ class InvoiceMemoryService {
   }
 
   /**
-   * Get all invoices for a seller
+   * Get all invoices for a seller with cursor-based pagination
    */
   async getInvoicesBySeller(
     sellerPublicKey: string,
     status?: string,
     limit: number = 50,
-    offset: number = 0
-  ): Promise<any[]> {
+    cursor?: string
+  ): Promise<{ invoices: any[]; nextCursor?: string }> {
     let invoices = memoryStorage.getAllInvoices(status ? { status } : undefined);
 
     if (sellerPublicKey) {
       invoices = invoices.filter((inv) => inv.sellerPublicKey === sellerPublicKey);
     }
 
-    return invoices.slice(offset, offset + limit);
+    // Sort by createdAt descending for consistent pagination
+    invoices.sort((a: any, b: any) => (b.createdAt || 0) - (a.createdAt || 0));
+
+    let startIndex = 0;
+    if (cursor) {
+      const cursorIndex = invoices.findIndex(
+        (inv) => inv.id === cursor
+      );
+      if (cursorIndex !== -1) {
+        startIndex = cursorIndex + 1;
+      }
+    }
+
+    const page = invoices.slice(startIndex, startIndex + limit);
+    const hasMore = startIndex + page.length < invoices.length;
+
+    let nextCursor;
+    if (hasMore && page.length > 0) {
+      nextCursor = page[page.length - 1].id;
+    }
+
+    return { invoices: page, nextCursor };
   }
 
   /**
