@@ -393,7 +393,12 @@ app.post('/api/invoices/:id/verify', async (req: Request, res: Response) => {
       // return a network-mismatch error instead of a generic 500 so the
       // user sees a clear message about the network discrepancy.
       const errMsg = (error as Error).message || '';
-      if (errMsg.includes('not found') || errMsg.includes('Not Found')) {
+      const status = error?.response?.status;
+      if (
+        status === 404 ||
+        errMsg.includes('not found') ||
+        errMsg.includes('Not Found')
+      ) {
         return res.status(400).json({
           success: false,
           code: VerifyErrorCode.VERIFY_FAILED,

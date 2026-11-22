@@ -5,10 +5,9 @@ import { invoiceApi } from '@/lib/api';
 import { toast } from 'sonner';
 import { Loader2 } from 'lucide-react';
 import { STELLAR_ASSETS, getAssetByCode } from '@/lib/assets';
-import { checkAssetReadiness } from '@/lib/stellar';
+import { checkAssetReadiness, getWalletNetwork } from '@/lib/stellar';
 import { isValidEmail } from '@/lib/utils';
 import AssetLogo from './AssetLogo';
-import { NEXT_PUBLIC_STELLAR_NETWORK } from '@/lib/stellar';
 
 interface InvoiceFormProps {
   onSuccess?: (invoice: any) => void;
@@ -21,33 +20,28 @@ function useNetworkMismatch(userWallet: string | undefined) {
   const [networkMismatch, setNetworkMismatch] = useState(false);
 
   useEffect(() => {
-    if (!userWallet) {
+    if (!userWallet || typeof getWalletNetwork !== 'function') {
       setNetworkMismatch(false);
       return;
     }
-    const expected = (NEXT_PUBLIC_STELLAR_NETWORK || 'TESTNET').trim().toUpperCase();
+    const configured = (process.env.NEXT_PUBLIC_STELLAR_NETWORK || 'TESTNET')
+      .trim()
+      .toUpperCase();
+    const expected = configured === 'TESTNET' ? 'TESTNET' : 'PUBLIC';
+    let cancelled = false;
 
-    // Lightweight check: compare the expected network env with the Freighter-
-    // derived network. We attempt a minimal Horizon account load; if it fails
-    // (e.g. account not found on this network), flag a mismatch so the user
-    // can switch Freighter to the correct network before submitting.
     const detectNetwork = async () => {
-      if (!userWallet) return;
-      try {
-        const { Horizon } = require('stellar-sdk');
-        const horizonUrl = expected === 'TESTNET'
-          ? 'https://horizon-testnet.stellar.org'
-          : 'https://horizon-stellar.org';
-        const server = new Horizon.Server(horizonUrl);
-        await server.loadAccount(userWallet);
-        setNetworkMismatch(false);
-      } catch {
-        setNetworkMismatch(true);
+      const walletNetwork = await getWalletNetwork();
+      if (!cancelled) {
+        setNetworkMismatch(walletNetwork !== 'UNKNOWN' && walletNetwork !== expected);
       }
     };
 
     detectNetwork();
-  }, [userWallet, NEXT_PUBLIC_STELLAR_NETWORK]);
+    return () => {
+      cancelled = true;
+    };
+  }, [userWallet]);
 
   return { networkMismatch, setNetworkMismatch };
 }

@@ -5,6 +5,7 @@ import {
   signTransaction,
   isAllowed,
   setAllowed,
+  getNetworkDetails,
 } from '@stellar/freighter-api';
 import { hasAssetTrustline } from './assets';
 
@@ -23,6 +24,33 @@ export const NETWORK_PASSPHRASE =
     : StellarSdk.Networks.PUBLIC;
 
 export const server = new StellarSdk.Horizon.Server(HORIZON_URL);
+
+export type WalletNetwork = 'TESTNET' | 'PUBLIC' | 'UNKNOWN';
+
+export const getWalletNetwork = async (): Promise<WalletNetwork> => {
+  try {
+    const details = await getNetworkDetails();
+    const network = details.networkPassphrase || details.network || '';
+    const normalized = network.toUpperCase();
+
+    if (
+      normalized.includes('TESTNET') ||
+      normalized === StellarSdk.Networks.TESTNET
+    ) {
+      return 'TESTNET';
+    }
+    if (
+      normalized.includes('PUBLIC') ||
+      normalized.includes('MAINNET') ||
+      normalized === StellarSdk.Networks.PUBLIC
+    ) {
+      return 'PUBLIC';
+    }
+    return 'UNKNOWN';
+  } catch {
+    return 'UNKNOWN';
+  }
+};
 
 /**
  * Check if Freighter wallet is available and connected
