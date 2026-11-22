@@ -20,6 +20,7 @@ import {
   isSelfPayment,
   paymentAssetMatchesInvoice,
 } from './utils/verify-invoice-payment';
+import { STELLAR_NETWORK, validateStellarConfig } from './config/stellar';
 
 // Load environment variables
 dotenv.config();
@@ -383,7 +384,29 @@ app.post('/api/invoices/:id/verify', async (req: Request, res: Response) => {
       });
     }
 
-    const txDetails = await stellarService.getTransaction(txHash);
+    let txDetails: { transaction: any; operations: any[] };
+    try {
+      txDetails = await stellarService.getTransaction(txHash);
+    } catch (error: any) {
+      // If the transaction was not found on the API's configured network (e.g.
+      // the user switched Freighter to a different network after invoicing),
+      // return a network-mismatch error instead of a generic 500 so the
+      // user sees a clear message about the network discrepancy.
+      const errMsg = (error as Error).message || '';
+      if (errMsg.includes('not found') || errMsg.includes('Not Found')) {
+        return res.status(400).json({
+          success: false,
+          code: VerifyErrorCode.VERIFY_FAILED,
+          error: 'Payment verification failed: transaction not found on the configured network. Check that Freighter is on the correct Stellar network.',
+        });
+      }
+      return res.status(500).json({
+        success: false,
+        code: VerifyErrorCode.VERIFY_FAILED,
+        error: VerifyErrorMessages[VerifyErrorCode.VERIFY_FAILED],
+      });
+    }
+
     const transaction = txDetails.transaction;
     const paymentOp = txDetails.operations.find((op: any) => op.type === 'payment');
 

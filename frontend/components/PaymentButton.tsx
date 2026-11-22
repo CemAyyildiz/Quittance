@@ -93,38 +93,3 @@ export default function PaymentButton({
       setLoading(false);
     }
   };
-
-  return (
-    <div>
-      {assetCode !== 'XLM' && issuer && (
-        <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-4">
-          <p className="text-sm text-amber-800 font-semibold mb-1">
-            Paying with {assetCode} (testnet)
-          </p>
-          <p className="text-xs text-amber-700 break-all">
-            Your Freighter wallet needs a {assetCode} trustline to issuer {issuer} and at
-            least {amount} {assetCode}. Without it the payment cannot go through.
-          </p>
-        </div>
-      )}
-      <button
-        onClick={handlePayment}
-        disabled={loading}
-        aria-busy={loading}
-        className="btn btn-primary w-full flex items-center justify-center gap-2 text-lg py-4"
-      >
-        {loading ? (
-          <>
-            <Loader2 aria-hidden="true" className="w-6 h-6 animate-spin" />
-            Processing...
-          </>
-        ) : (
-          <>
-            <Wallet aria-hidden="true" className="w-6 h-6" />
-            Pay with Freighter
-          </>
-        )}
-      </button>
-    </div>
-  );
-}

@@ -8,6 +8,7 @@ import { STELLAR_ASSETS, getAssetByCode } from '@/lib/assets';
 import { checkAssetReadiness } from '@/lib/stellar';
 import { isValidEmail } from '@/lib/utils';
 import AssetLogo from './AssetLogo';
+import { NEXT_PUBLIC_STELLAR_NETWORK } from '@/lib/stellar';
 
 interface InvoiceFormProps {
   onSuccess?: (invoice: any) => void;
@@ -15,6 +16,41 @@ interface InvoiceFormProps {
 }
 
 const amountErrorId = 'amount-error';
+
+function useNetworkMismatch(userWallet: string | undefined) {
+  const [networkMismatch, setNetworkMismatch] = useState(false);
+
+  useEffect(() => {
+    if (!userWallet) {
+      setNetworkMismatch(false);
+      return;
+    }
+    const expected = (NEXT_PUBLIC_STELLAR_NETWORK || 'TESTNET').trim().toUpperCase();
+
+    // Lightweight check: compare the expected network env with the Freighter-
+    // derived network. We attempt a minimal Horizon account load; if it fails
+    // (e.g. account not found on this network), flag a mismatch so the user
+    // can switch Freighter to the correct network before submitting.
+    const detectNetwork = async () => {
+      if (!userWallet) return;
+      try {
+        const { Horizon } = require('stellar-sdk');
+        const horizonUrl = expected === 'TESTNET'
+          ? 'https://horizon-testnet.stellar.org'
+          : 'https://horizon-stellar.org';
+        const server = new Horizon.Server(horizonUrl);
+        await server.loadAccount(userWallet);
+        setNetworkMismatch(false);
+      } catch {
+        setNetworkMismatch(true);
+      }
+    };
+
+    detectNetwork();
+  }, [userWallet, NEXT_PUBLIC_STELLAR_NETWORK]);
+
+  return { networkMismatch, setNetworkMismatch };
+}
 
 export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps) {
   const [loading, setLoading] = useState(false);
@@ -26,6 +62,7 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
   const [trustlineWarning, setTrustlineWarning] = useState<string | null>(null);
   const [amountError, setAmountError] = useState('');
   const [emailError, setEmailError] = useState('');
+  const { networkMismatch } = useNetworkMismatch(userWallet);
 
   const selectedAsset = getAssetByCode(assetCode);
 
@@ -71,6 +108,11 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
 
     if (!userWallet) {
       toast.error('Connect your wallet first');
+      return;
+    }
+
+    if (networkMismatch) {
+      toast.error('Network mismatch: Please ensure Freighter is on the same network as the API.');
       return;
     }
 

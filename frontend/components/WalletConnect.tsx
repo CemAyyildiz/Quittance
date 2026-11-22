@@ -13,6 +13,7 @@ import { Wallet, LogOut, Loader2, ExternalLink, Bell, BellOff } from 'lucide-rea
 import { toast } from 'sonner';
 import { formatAddress } from '@/lib/utils';
 import { explorerAccountUrl } from '@/lib/explorerUrl';
+import { NEXT_PUBLIC_STELLAR_NETWORK } from '@/lib/stellar';
 
 interface WalletConnectProps {
   onConnect?: (publicKey: string) => void;
@@ -22,6 +23,7 @@ interface WalletConnectProps {
 export default function WalletConnect({ onConnect, onConnectionFailure }: WalletConnectProps = {}) {
   const [loading, setLoading] = useState(false);
   const [monitoringActive, setMonitoringActive] = useState(false);
+  const [networkMismatch, setNetworkMismatch] = useState(false);
   const { publicKey, balance, connected, setWallet, updateBalance, disconnect } = useWalletStore();
 
   useEffect(() => {
@@ -29,13 +31,34 @@ export default function WalletConnect({ onConnect, onConnectionFailure }: Wallet
       paymentMonitor.startMonitoring(publicKey, () => loadBalance(publicKey));
       setMonitoringActive(true);
     }
-
-    return () => {
-      if (publicKey) {
-        paymentMonitor.stopMonitoring(publicKey);
-      }
-    };
   }, [connected, publicKey]);
+
+  // Detect network mismatch by attempting to load the account from the
+  // expected Horizon URL. If it fails, flag a mismatch so the user can
+  // switch Freighter to the correct network before creating or paying.
+  useEffect(() => {
+    if (connected && publicKey) {
+      const expected = (NEXT_PUBLIC_STELLAR_NETWORK || 'TESTNET').trim().toUpperCase();
+      const testnetHorizon = 'https://horizon-testnet.stellar.org';
+      const publicHorizon = 'https://horizon-stellar.org';
+
+      const checkNetwork = async () => {
+        const horizon = expected === 'TESTNET' ? testnetHorizon : publicHorizon;
+        try {
+          const { Horizon } = require('stellar-sdk');
+          const server = new Horizon.Server(horizon);
+          await server.loadAccount(publicKey);
+          setNetworkMismatch(false);
+        } catch {
+          setNetworkMismatch(true);
+        }
+      };
+
+      checkNetwork();
+    } else {
+      setNetworkMismatch(false);
+    }
+  }, [connected, publicKey, NEXT_PUBLIC_STELLAR_NETWORK]);
 
   const loadBalance = async (key: string) => {
     try {
@@ -75,108 +98,3 @@ export default function WalletConnect({ onConnect, onConnectionFailure }: Wallet
       setLoading(false);
     }
   };
-
-  const handleDisconnect = () => {
-    if (publicKey) {
-      paymentMonitor.stopMonitoring(publicKey);
-    }
-    setMonitoringActive(false);
-    disconnect();
-    toast.info('Wallet disconnected');
-  };
-
-  const toggleMonitoring = () => {
-    if (!publicKey) return;
-
-    if (monitoringActive) {
-      paymentMonitor.stopMonitoring(publicKey);
-      setMonitoringActive(false);
-      toast.info('Monitoring paused');
-    } else {
-      paymentMonitor.startMonitoring(publicKey, () => loadBalance(publicKey));
-      setMonitoringActive(true);
-    }
-  };
-
-  const openExplorer = () => {
-    if (!publicKey) return;
-    window.open(explorerAccountUrl(publicKey), '_blank');
-  };
-
-  if (connected && publicKey) {
-    return (
-      <div className="flex items-center gap-2">
-        {/* Balance */}
-        <div className="hidden md:flex flex-col items-end mr-2">
-          <span className="text-xs text-gray-500 font-medium">Balance</span>
-          <span className="text-sm font-semibold text-gray-900">{balance} XLM</span>
-        </div>
-
-        {/* Address */}
-        <button
-          onClick={openExplorer}
-          className="hidden sm:flex items-center gap-2 px-3 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
-          aria-label="View wallet on Stellar Explorer"
-        >
-          <Wallet className="w-4 h-4 text-cyan-600" />
-          <span className="text-sm font-mono text-gray-900">{formatAddress(publicKey, 4)}</span>
-          <ExternalLink className="w-3 h-3 text-gray-500" />
-        </button>
-
-        {/* Mobile view */}
-        <button
-          onClick={openExplorer}
-          className="sm:hidden p-2 bg-gray-100 hover:bg-gray-200 rounded-lg"
-          aria-label="View wallet on Stellar Explorer"
-        >
-          <Wallet className="w-5 h-5 text-cyan-600" />
-        </button>
-
-        {/* Monitoring Toggle */}
-        <button
-          onClick={toggleMonitoring}
-          className={`p-2 rounded-lg transition-colors ${
-            monitoringActive
-              ? 'text-green-600 bg-green-50 hover:bg-green-100'
-              : 'text-gray-500 bg-gray-100 hover:bg-gray-200'
-          }`}
-          title={monitoringActive ? 'Monitoring active' : 'Start monitoring'}
-          aria-label={monitoringActive ? 'Monitoring active' : 'Start monitoring'}
-        >
-          {monitoringActive ? <Bell className="w-5 h-5" /> : <BellOff className="w-5 h-5" />}
-        </button>
-
-        {/* Disconnect */}
-        <button
-          onClick={handleDisconnect}
-          className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-          title="Disconnect wallet"
-          aria-label="Disconnect wallet"
-        >
-          <LogOut className="w-5 h-5" />
-        </button>
-      </div>
-    );
-  }
-
-  return (
-    <button
-      onClick={handleConnect}
-      disabled={loading}
-      aria-busy={loading}
-      className="btn btn-primary flex items-center gap-2"
-    >
-      {loading ? (
-        <>
-          <Loader2 className="w-5 h-5 animate-spin" aria-hidden="true" />
-          <span className="hidden sm:inline">Connecting...</span>
-        </>
-      ) : (
-        <>
-          <Wallet className="w-5 h-5" />
-          <span className="hidden sm:inline">Connect Wallet</span>
-        </>
-      )}
-    </button>
-  );
-}
