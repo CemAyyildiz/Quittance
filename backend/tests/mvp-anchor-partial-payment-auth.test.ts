@@ -44,7 +44,7 @@ function seedInvoice(amount = 1.5) {
 
 function seedPaidInvoice() {
   const invoice = seedInvoice();
-  return memoryStorage.markAsPaid(invoice.id, 'e'.repeat(64), PAYER, 42)!;
+  return memoryStorage.markAsPaid(invoice.id, 'e'.repeat(64), PAYER, { ledger: 42 })!;
 }
 
 function anchorReceipt(overrides: { source?: string; invoiceId?: string; digest?: string } = {}) {

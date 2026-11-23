@@ -78,7 +78,7 @@ describe('invoice status history', () => {
       amount: 7,
       assetCode: 'XLM',
     } as any);
-    await invoiceMemoryService.markAsPaid(paid.id, 'TX_PAY', payer);
+    await invoiceMemoryService.markAsPaid(paid.id, 'TX_PAY', payer, 43);
     await invoiceMemoryService.recordRefund(paid.id, 'TX_REFUND');
     history = await invoiceMemoryService.getStatusHistory(paid.id);
     expect(history.map((row) => row.status)).toEqual(['CREATED', 'PAID', 'REFUNDED']);

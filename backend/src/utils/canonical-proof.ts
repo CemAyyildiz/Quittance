@@ -34,6 +34,8 @@ export interface CanonicalProofInvoice {
   id: string;
   paymentTxHash?: string;
   paymentLedger?: number;
+  /** Ledger sequence as stored on the invoice by `markAsPaid`. */
+  ledger?: number;
   sellerPublicKey: string;
   payerPublicKey?: string;
   amount: number;
@@ -88,7 +90,7 @@ export function computeCanonicalDigest(invoice: CanonicalProofInvoice): string {
     u32be(RECEIPT_VERSION),
     field('network', Buffer.from(NETWORK_PASSPHRASE, 'utf8')),
     field('tx_hash', txHashBytes),
-    field('ledger', u32be(invoice.paymentLedger ?? 0)),
+    field('ledger', u32be(invoice.paymentLedger ?? invoice.ledger ?? 0)),
     field('seller', Buffer.from(invoice.sellerPublicKey ?? '', 'utf8')),
     field('payer', Buffer.from(invoice.payerPublicKey ?? '', 'utf8')),
     field('amount', i64be(amountStroops)),

@@ -18,7 +18,7 @@ function paidInvoice() {
     memo: 'INV-ANCHOR-1',
     id: '11111111-1111-1111-1111-111111111111',
   });
-  return memoryStorage.markAsPaid(invoice.id, txHash, payer, 12345)!;
+  return memoryStorage.markAsPaid(invoice.id, txHash, payer, { ledger: 12345 })!;
 }
 
 describe('proof anchoring', () => {
@@ -72,7 +72,7 @@ describe('proof anchoring', () => {
       memo: 'Invoice INV-001',
       id: '11111111-1111-1111-1111-111111111111',
     });
-    const withPayment = memoryStorage.markAsPaid(invoice.id, txHash, 'PayerA-PubKey-123456789012345678901234567890123456', 12345)!;
+    const withPayment = memoryStorage.markAsPaid(invoice.id, txHash, 'PayerA-PubKey-123456789012345678901234567890123456', { ledger: 12345 })!;
     expect(computeCanonicalDigest(withPayment)).toBe(
       '45d16a23e4b9492ccd2d36951094398064db488e804d2e975f0222c4fdde8e31',
     );

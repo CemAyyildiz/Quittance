@@ -36,6 +36,7 @@ CREATE TABLE IF NOT EXISTS invoices (
   expires_at TIMESTAMP DEFAULT NOW() + INTERVAL '7 days',
   original_expires_at TIMESTAMP,
   expiry_extended BOOLEAN NOT NULL DEFAULT false,
+  anchoring_tx_hash VARCHAR(64),
   metadata JSONB
 );
 

@@ -5,15 +5,22 @@ import { requestId } from './middleware/request-id';
 import { createInvoiceSchema } from './utils/validation';
 import invoiceService from './services/invoice-memory.service';
 import { generatePaymentQR, generateStellarPaymentQR, buildStellarPaymentUri } from './utils/qrcode';
-import stellarService from './services/stellar.service';
+import stellarService, {
+  HorizonUnavailableError,
+  UnfundedAccountError,
+} from './services/stellar.service';
 import {
   rateLimitIfEnabled,
   sellerCreateRateLimit,
   invoiceVerifyRateLimit,
 } from './middleware/rate-limit-stub';
 import healthDetailRouter from './routes/health-detail';
-import { toInvoiceDTO as mapInvoiceDTO } from './utils/invoice-dto';
-import { isDecimalEqual } from './utils/amount-compare';
+import { toInvoiceDTO as mapInvoiceDTO, toStatusHistoryDTO } from './utils/invoice-dto';
+import {
+  amountToStroops,
+  amountsMatch,
+  isDecimalEqual,
+} from './utils/amount-compare';
 import { VerifyErrorCode, VerifyErrorMessages } from './utils/verify-errors';
 import {
   assertInvoiceSettleable,
@@ -25,6 +32,15 @@ import {
   paymentAssetMatchesInvoice,
 } from './utils/verify-invoice-payment';
 import { parsePaginationQuery } from './utils/parse-pagination';
+import {
+  AnchorError,
+  AnchorErrorCode,
+  canonicalDigestMatches,
+  computeCanonicalDigest,
+  getAnchorContractId,
+} from './utils/canonical-proof';
+import { verifyAnchorTransaction } from './utils/anchor-transaction';
+import { memosMatch } from './utils/memo-normalize';
 import { isSmtpConfigured, sendEmail, generateInvoiceEmail } from './utils/smtp';
 import { STELLAR_NETWORK } from './config/stellar';
 

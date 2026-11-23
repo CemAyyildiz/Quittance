@@ -143,7 +143,12 @@ export function paymentAssetMatchesInvoice(input: {
   invoiceAssetIssuer?: string | null;
   paymentIsNative?: boolean;
 }): boolean {
-  const invoiceIsNative = input.invoiceAssetCode === NATIVE_ASSET_CODE;
+  // An `XLM` invoice that records an issuer is a *credit* asset that happens
+  // to share the native code, not native lumens; only an issuer-less XLM
+  // invoice is native.
+  const invoiceIsNative =
+    input.invoiceAssetCode === NATIVE_ASSET_CODE &&
+    normalizeIssuer(input.invoiceAssetIssuer) === undefined;
 
   if (invoiceIsNative) {
     // `paymentIsNative` is only consulted when the caller supplied it, so
