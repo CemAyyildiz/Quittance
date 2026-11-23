@@ -3,6 +3,7 @@ import { createHash } from 'crypto';
 export interface InvoiceDTO {
   id: string;
   sellerPublicKey: string;
+  sellerName?: string;
   amount: number;
   assetCode: string;
   assetIssuer?: string;
@@ -90,6 +91,7 @@ export function toInvoiceDTO(
   invoice: {
     id: string;
     sellerPublicKey: string;
+    sellerName?: string;
     amount: number;
     assetCode: string;
     assetIssuer?: string;
@@ -130,6 +132,9 @@ export function toInvoiceDTO(
     originalExpiresAt: originalExpiresAt.toISOString(),
     expiryExtended: invoice.expiryExtended ?? false,
   };
+
+  // The label belongs to this invoice; it must never become payment identity.
+  if (invoice.sellerName?.trim()) dto.sellerName = invoice.sellerName.trim();
 
   if (
     invoice.status === 'PAID' &&

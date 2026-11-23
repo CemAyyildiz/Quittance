@@ -26,6 +26,7 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
   const [memo, setMemo] = useState('');
   const [customerName, setCustomerName] = useState('');
   const [customerEmail, setCustomerEmail] = useState('');
+  const [sellerName, setSellerName] = useState('');
   const [trustlineWarning, setTrustlineWarning] = useState<string | null>(null);
   const [amountError, setAmountError] = useState('');
   const [emailError, setEmailError] = useState('');
@@ -106,6 +107,7 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
         assetIssuer: selectedAsset?.issuer,
         expiresInDays: 7,
         sellerPublicKey: userWallet,
+        sellerName: sellerName.trim() || undefined,
         description: description || undefined,
         memo: memo || undefined,
         customerName: customerName.trim() || undefined,
@@ -120,6 +122,7 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
       setMemo('');
       setCustomerName('');
       setCustomerEmail('');
+      setSellerName('');
       setAmountError('');
       setEmailError('');
     } catch (error: any) {
@@ -220,6 +223,22 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
             non-ASCII characters use more than one byte each.
           </p>
         )}
+      </div>
+
+      <div>
+        <label className="label" htmlFor="seller-display-name">Your display name (optional)</label>
+        <input
+          id="seller-display-name"
+          type="text"
+          className="input text-sm"
+          value={sellerName}
+          onChange={(e) => setSellerName(e.target.value)}
+          maxLength={80}
+          aria-describedby="seller-display-name-help"
+        />
+        <p id="seller-display-name-help" className="text-xs text-gray-500 mt-1">
+          Shown on this invoice next to your wallet address. Payments still go to your public key.
+        </p>
       </div>
 
       <div>

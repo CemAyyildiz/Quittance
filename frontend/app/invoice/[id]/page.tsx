@@ -167,6 +167,13 @@ export default function InvoiceDetailPage() {
               <h2 className="text-3xl font-bold text-gray-900 mb-8">Invoice Details</h2>
 
               <div className="space-y-5">
+                <div className="border-b pb-4">
+                  <p className="text-sm text-gray-600 mb-1">Seller</p>
+                  {invoice.sellerName && <p className="text-gray-900">{invoice.sellerName}</p>}
+                  <p className="font-mono text-sm text-gray-900" title={invoice.sellerPublicKey}>
+                    {invoice.sellerPublicKey.slice(0, 8)}…{invoice.sellerPublicKey.slice(-8)}
+                  </p>
+                </div>
                 <div className="bg-gradient-to-br from-gray-50 to-slate-50 p-5 rounded-2xl border border-gray-200/50">
                   <p className="text-xs text-gray-600 mb-2 font-semibold uppercase tracking-wide">Invoice ID</p>
                   <p className="font-mono text-sm text-gray-900 break-all">{invoice.id}</p>

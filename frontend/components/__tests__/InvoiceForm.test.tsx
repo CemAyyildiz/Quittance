@@ -34,6 +34,22 @@ function changeEmailTo(input: HTMLElement, value: string) {
 
 const MEMO_PLACEHOLDER = 'Payment reference, e.g. INV-2026';
 
+describe('InvoiceForm seller display name', () => {
+  it('submits a trimmed invoice label and keeps the connected wallet as identity', async () => {
+    const { invoiceApi } = await import('@/lib/api');
+    render(<InvoiceForm userWallet="GABC1234567890" />);
+    const label = screen.getByLabelText('Your display name (optional)');
+    expect(label.getAttribute('maxlength')).toBe('80');
+    fireEvent.change(label, { target: { value: '  Studio & Co  ' } });
+    fireEvent.change(screen.getByPlaceholderText('10.00'), { target: { value: '5' } });
+    fireEvent.click(screen.getByRole('button', { name: /create invoice/i }));
+    await waitFor(() => expect(invoiceApi.create).toHaveBeenCalledWith(
+      expect.objectContaining({ sellerName: 'Studio & Co', sellerPublicKey: 'GABC1234567890' }),
+    ));
+    await waitFor(() => expect((label as HTMLInputElement).value).toBe(''));
+  });
+});
+
 describe('InvoiceForm memo byte limit', () => {
   it('shows a live byte count for the memo', () => {
     render(<InvoiceForm />);

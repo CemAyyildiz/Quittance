@@ -4,6 +4,7 @@ import { v4 as uuidv4 } from 'uuid';
 interface Invoice {
   id: string;
   sellerPublicKey: string;
+  sellerName?: string;
   amount: number;
   assetCode: string;
   assetIssuer?: string;
@@ -35,6 +36,7 @@ class MemoryStorage {
     const invoice: Invoice = {
       id: data.id || uuidv4(),
       sellerPublicKey: data.sellerPublicKey!,
+      sellerName: data.sellerName,
       amount: data.amount!,
       assetCode: data.assetCode || 'XLM',
       assetIssuer: data.assetIssuer,

@@ -69,6 +69,22 @@ describe('PaymentPage SEP-7 handoff', () => {
     vi.clearAllMocks();
   });
 
+  it('renders a seller label as inert text next to its destination key', async () => {
+    const label = '<img src=x onerror=alert(1)>';
+    mockInvoice({ sellerName: label });
+    const { container } = render(<PaymentPage />);
+    expect(await screen.findByText(label)).toBeInTheDocument();
+    expect(screen.getByText(`${DESTINATION.slice(0, 8)}…${DESTINATION.slice(-8)}`)).toBeInTheDocument();
+    expect(container.querySelector('img[src="x"]')).toBeNull();
+    expect((await screen.findByRole('link', { name: /open sep-7 payment uri/i })).getAttribute('href')).toContain(`destination=${DESTINATION}`);
+  });
+
+  it('shows only the destination key when no display name was set', async () => {
+    mockInvoice({});
+    render(<PaymentPage />);
+    expect(await screen.findByText(`${DESTINATION.slice(0, 8)}…${DESTINATION.slice(-8)}`)).toBeInTheDocument();
+  });
+
   it('shows an XLM SEP-7 URI with destination, amount, memo and memo type only', async () => {
     mockInvoice({});
     render(<PaymentPage />);
