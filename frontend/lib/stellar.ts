@@ -31,6 +31,11 @@ export const getWalletNetwork = async (): Promise<WalletNetwork> => {
   try {
     const details = await getNetworkDetails();
     const network = details.networkPassphrase || details.network || '';
+
+    if (!network) {
+      return 'UNKNOWN';
+    }
+
     const normalized = network.toUpperCase();
 
     if (

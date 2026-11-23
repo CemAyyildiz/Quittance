@@ -18,10 +18,12 @@ const amountErrorId = 'amount-error';
 
 function useNetworkMismatch(userWallet: string | undefined) {
   const [networkMismatch, setNetworkMismatch] = useState(false);
+  const [walletNetwork, setWalletNetwork] = useState<WalletNetwork>('UNKNOWN');
 
   useEffect(() => {
     if (!userWallet || typeof getWalletNetwork !== 'function') {
       setNetworkMismatch(false);
+      setWalletNetwork('UNKNOWN');
       return;
     }
     const configured = (process.env.NEXT_PUBLIC_STELLAR_NETWORK || 'TESTNET')
@@ -31,19 +33,22 @@ function useNetworkMismatch(userWallet: string | undefined) {
     let cancelled = false;
 
     const detectNetwork = async () => {
-      const walletNetwork = await getWalletNetwork();
+      const network = await getWalletNetwork();
+      setWalletNetwork(network);
       if (!cancelled) {
-        setNetworkMismatch(walletNetwork !== 'UNKNOWN' && walletNetwork !== expected);
+        // Treat UNKNOWN as a mismatch – user needs to know the network can't be determined
+        setNetworkMismatch(network !== 'UNKNOWN' && network !== expected);
       }
     };
 
     detectNetwork();
+    // Re-check when the wallet changes (user may switch Freighter networks)
     return () => {
       cancelled = true;
     };
-  }, [userWallet]);
+  }, [userWallet, getWalletNetwork]);
 
-  return { networkMismatch, setNetworkMismatch };
+  return { networkMismatch, setNetworkMismatch, walletNetwork };
 }
 
 export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps) {
@@ -56,7 +61,7 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
   const [trustlineWarning, setTrustlineWarning] = useState<string | null>(null);
   const [amountError, setAmountError] = useState('');
   const [emailError, setEmailError] = useState('');
-  const { networkMismatch } = useNetworkMismatch(userWallet);
+  const { networkMismatch, walletNetwork } = useNetworkMismatch(userWallet);
 
   const selectedAsset = getAssetByCode(assetCode);
 
@@ -106,7 +111,10 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
     }
 
     if (networkMismatch) {
-      toast.error('Network mismatch: Please ensure Freighter is on the same network as the API.');
+      const configuredNetwork = (process.env.NEXT_PUBLIC_STELLAR_NETWORK || 'TESTNET').trim();
+      toast.error(
+        `Network mismatch: Freighter is on ${walletNetwork !== 'UNKNOWN' ? walletNetwork : 'unknown'} network, but the API is configured for ${configuredNetwork}. Please ensure both are on the same network.`
+      );
       return;
     }
 

@@ -6,6 +6,7 @@ import {
   requestWalletAccess,
   getUserPublicKey,
   getAccountBalance,
+  getWalletNetwork,
 } from '@/lib/stellar';
 import { useWalletStore } from '@/lib/store';
 import { paymentMonitor } from '@/lib/payment-monitor';
@@ -22,7 +23,21 @@ interface WalletConnectProps {
 export default function WalletConnect({ onConnect, onConnectionFailure }: WalletConnectProps = {}) {
   const [loading, setLoading] = useState(false);
   const [monitoringActive, setMonitoringActive] = useState(false);
+  const [networkMismatch, setNetworkMismatch] = useState(false);
   const { publicKey, balance, connected, setWallet, updateBalance, disconnect } = useWalletStore();
+
+  useEffect(() => {
+    if (connected && publicKey) {
+      (async () => {
+        const walletNetwork = await getWalletNetwork();
+        const configured = (process.env.NEXT_PUBLIC_STELLAR_NETWORK || 'TESTNET')
+          .trim()
+          .toUpperCase();
+        const expected = configured === 'TESTNET' ? 'TESTNET' : 'PUBLIC';
+        setNetworkMismatch(walletNetwork !== 'UNKNOWN' && walletNetwork !== expected);
+      })();
+    }
+  }, [connected, publicKey]);
 
   useEffect(() => {
     if (connected && publicKey && !paymentMonitor.isMonitoring(publicKey)) {
@@ -106,6 +121,19 @@ export default function WalletConnect({ onConnect, onConnectionFailure }: Wallet
   if (connected && publicKey) {
     return (
       <div className="flex items-center gap-2">
+        {/* Network mismatch banner */}
+        {networkMismatch && (
+          <div className="flex items-center gap-2 mb-2 px-3 py-2 bg-red-100 border border-red-200 rounded-lg text-sm text-red-800">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path className="stroke-current" d="M12 9v2m0 6l-6-6m6 6l6-6"/></svg>
+            <span>Network mismatch: Freighter is on a different network than the API. Please connect to the correct network.</span>
+            <button
+              onClick={() => setNetworkMismatch(false)}
+              className="ml-2 text-red-600 hover underline"
+            >
+             Dismiss
+            </button>
+          </div>
+        )}
         {/* Balance */}
         <div className="hidden md:flex flex-col items-end mr-2">
           <span className="text-xs text-gray-500 font-medium">Balance</span>

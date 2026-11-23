@@ -1,7 +1,7 @@
 'use client';
 
-import { useState } from 'react';
-import { sendPayment, checkWalletConnection, requestWalletAccess } from '@/lib/stellar';
+import { useState, useEffect } from 'react';
+import { sendPayment, checkWalletConnection, requestWalletAccess, getWalletNetwork } from '@/lib/stellar';
 import { toast } from 'sonner';
 import { Wallet, Loader2 } from 'lucide-react';
 import { invoiceApi } from '@/lib/api';
@@ -36,12 +36,31 @@ export default function PaymentButton({
   onError,
 }: PaymentButtonProps) {
   const [loading, setLoading] = useState(false);
+  const [networkMismatch, setNetworkMismatch] = useState(false);
 
-  const issuer = assetIssuer || getAssetByCode(assetCode)?.issuer;
+  useEffect(() => {
+    (async () => {
+      const walletNetwork = await getWalletNetwork();
+      const configured = (process.env.NEXT_PUBLIC_STELLAR_NETWORK || 'TESTNET')
+        .trim()
+        .toUpperCase();
+      const expected = configured === 'TESTNET' ? 'TESTNET' : 'PUBLIC';
+      setNetworkMismatch(walletNetwork !== 'UNKNOWN' && walletNetwork !== expected);
+    })();
+  }, []);
 
   const handlePayment = async () => {
     setLoading(true);
     try {
+      // Block payment if networks mismatch
+      if (networkMismatch) {
+        toast.error(
+          `Network mismatch: Please ensure Freighter is on the same network as the API.`
+        );
+        setLoading(false);
+        return;
+      }
+
       const connected = await checkWalletConnection();
       if (!connected) {
         const allowed = await requestWalletAccess();
