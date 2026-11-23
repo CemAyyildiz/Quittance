@@ -2,7 +2,7 @@
 import { generateInvoiceMemo, validateMemoByteLength } from '../utils/memo';
 import { CreateInvoiceInput } from '../utils/validation';
 import { assertCanExtendExpiry } from '../utils/invoice-expiry';
-import memoryStorage from '../storage/memory-storage';
+import { getStorage } from '../storage/storage-factory';
 import { DEFAULT_PAGE_LIMIT, MAX_PAGE_LIMIT } from '../utils/parse-pagination';
 
 class InvoiceMemoryService {
@@ -28,7 +28,8 @@ class InvoiceMemoryService {
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + (input.expiresInDays || 7));
 
-    const invoice = memoryStorage.createInvoice({
+    const storage = await getStorage();
+    const invoice = await storage.createInvoice({
       sellerPublicKey: input.sellerPublicKey, // Dynamic wallet of the caller.
       amount: input.amount,
       assetCode: input.assetCode || 'XLM',
@@ -48,28 +49,32 @@ class InvoiceMemoryService {
    * Get invoice by ID
    */
   async getInvoiceById(id: string): Promise<any | null> {
-    return memoryStorage.getInvoiceById(id);
+    const storage = await getStorage();
+    return storage.getInvoiceById(id);
   }
 
   /**
    * Get invoice by memo
    */
   async getInvoiceByMemo(memo: string): Promise<any | null> {
-    return memoryStorage.getInvoiceByMemo(memo);
+    const storage = await getStorage();
+    return storage.getInvoiceByMemo(memo);
   }
 
   /**
    * Get the invoice that already stored this transaction hash, if any
    */
   async getInvoiceByTxHash(txHash: string): Promise<any | null> {
-    return memoryStorage.getInvoiceByTxHash(txHash) ?? null;
+    const storage = await getStorage();
+    return (await storage.getInvoiceByTxHash(txHash)) ?? null;
   }
 
   /**
    * Update invoice status to PAID
    */
   async markAsPaid(invoiceId: string, txHash: string, payerPublicKey: string, ledgerSeq?: number, paidAt?: Date): Promise<any> {
-    if (!memoryStorage.getInvoiceById(invoiceId)) {
+    const storage = await getStorage();
+    if (!(await storage.getInvoiceById(invoiceId))) {
       throw new Error('Invoice not found');
     }
 
@@ -77,7 +82,7 @@ class InvoiceMemoryService {
       throw new Error('Ledger sequence is required to mark invoice as paid');
     }
 
-    const invoice = memoryStorage.markAsPaid(invoiceId, txHash, payerPublicKey, { ledger: ledgerSeq, paidAt: paidAt });
+    const invoice = await storage.markAsPaid(invoiceId, txHash, payerPublicKey, { ledger: ledgerSeq, paidAt: paidAt });
 
     if (!invoice) {
       throw new Error('Invoice not found');
@@ -100,7 +105,8 @@ class InvoiceMemoryService {
       ? Math.min(Math.max(Math.floor(limit), 1), MAX_PAGE_LIMIT)
       : DEFAULT_PAGE_LIMIT;
 
-    let invoices = memoryStorage.getAllInvoices(status ? { status } : undefined);
+    const storage = await getStorage();
+    let invoices = await storage.getAllInvoices(status ? { status } : undefined);
 
     if (sellerPublicKey) {
       invoices = invoices.filter((inv) => inv.sellerPublicKey === sellerPublicKey);
@@ -141,6 +147,9 @@ class InvoiceMemoryService {
    */
   async cancelInvoice(invoiceId: string, sellerPublicKey: string): Promise<any> {
     const invoice = memoryStorage.getInvoiceById(invoiceId);
+  async cancelInvoice(invoiceId: string): Promise<any> {
+    const storage = await getStorage();
+    const invoice = await storage.getInvoiceById(invoiceId);
 
     if (!invoice) {
       throw Object.assign(new Error('Invoice not found'), {
@@ -165,7 +174,7 @@ class InvoiceMemoryService {
       });
     }
 
-    return memoryStorage.updateInvoice(invoiceId, { status: 'CANCELLED' });
+    return storage.updateInvoice(invoiceId, { status: 'CANCELLED' });
   }
 
   /**
@@ -177,7 +186,8 @@ class InvoiceMemoryService {
     sellerPublicKey: string,
     newExpiresAt: Date | string,
   ): Promise<any> {
-    const invoice = memoryStorage.getInvoiceById(invoiceId);
+    const storage = await getStorage();
+    const invoice = await storage.getInvoiceById(invoiceId);
 
     if (!invoice) {
       throw Object.assign(new Error('Invoice not found'), { code: 'NOT_FOUND', status: 404 });
@@ -202,7 +212,7 @@ class InvoiceMemoryService {
       updates.status = 'PENDING';
     }
 
-    const updated = memoryStorage.updateInvoice(invoiceId, updates);
+    const updated = await storage.updateInvoice(invoiceId, updates);
     console.log('✅ Invoice expiry extended:', invoiceId);
     return updated;
   }
@@ -211,14 +221,16 @@ class InvoiceMemoryService {
    * Mark expired invoices
    */
   async markExpiredInvoices(): Promise<number> {
-    return memoryStorage.markExpiredInvoices();
+    const storage = await getStorage();
+    return storage.markExpiredInvoices();
   }
 
   /**
    * Get invoice statistics
    */
   async getInvoiceStats(sellerPublicKey: string): Promise<any> {
-    return [memoryStorage.getStats(sellerPublicKey)];
+    const storage = await getStorage();
+    return [await storage.getStats(sellerPublicKey)];
   }
 }
 
