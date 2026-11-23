@@ -63,6 +63,11 @@ export const invoiceApi = USE_MOCK_API ? mockInvoiceApi : {
     return response.data;
   },
 
+  duplicate: async (id: string, data: { sellerPublicKey: string; copyCustomerEmail?: boolean }) => {
+    const response = await api.post(`/invoices/${id}/duplicate`, data);
+    return response.data;
+  },
+
   extendExpiry: async (id: string, data: { sellerPublicKey: string; expiresAt: string }) => {
     const response = await api.post(`/invoices/${id}/extend-expiry`, data);
     return response.data;

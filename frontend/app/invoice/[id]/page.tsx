@@ -14,7 +14,7 @@ import AssetLogo from '@/components/AssetLogo';
 import { formatAmount, formatDate, copyToClipboard } from '@/lib/utils';
 import { openInvoicePDF } from '@/lib/export';
 import { useCountdown } from '@/lib/useCountdown';
-import { ArrowLeft, Share2, Loader2, Download } from 'lucide-react';
+import { ArrowLeft, Share2, Loader2, Download, Copy } from 'lucide-react';
 import { toast } from 'sonner';
 
 export default function InvoiceDetailPage() {
@@ -26,6 +26,9 @@ export default function InvoiceDetailPage() {
   const [paymentInfo, setPaymentInfo] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [userWallet, setUserWallet] = useState<string | null>(null);
+  const [duplicateOpen, setDuplicateOpen] = useState(false);
+  const [copyCustomerEmail, setCopyCustomerEmail] = useState(false);
+  const [duplicating, setDuplicating] = useState(false);
   const timeRemaining = useCountdown(invoice?.status === 'PENDING' ? invoice.expiresAt : null);
 
   useEffect(() => {
@@ -75,6 +78,24 @@ export default function InvoiceDetailPage() {
   const handleDownloadProof = () => {
     openInvoicePDF(invoice);
     toast.success('Opening payment proof');
+  };
+
+  const handleDuplicate = async () => {
+    if (!userWallet) return;
+    setDuplicating(true);
+    try {
+      const result = await invoiceApi.duplicate(id, {
+        sellerPublicKey: userWallet,
+        copyCustomerEmail,
+      });
+      toast.success('Invoice duplicated');
+      router.push(`/invoice/${result.data.invoice.id}`);
+    } catch (error: any) {
+      toast.error(error.response?.data?.error || 'Failed to duplicate invoice');
+    } finally {
+      setDuplicating(false);
+      setDuplicateOpen(false);
+    }
   };
 
   if (loading) {
@@ -157,9 +178,42 @@ export default function InvoiceDetailPage() {
                   <span className="hidden sm:inline">Download Proof</span>
                 </button>
               )}
+              {userWallet === invoice.sellerPublicKey && (
+                <button
+                  onClick={() => setDuplicateOpen(true)}
+                  className="btn btn-outline flex items-center gap-2"
+                  aria-label="Duplicate invoice"
+                >
+                  <Copy className="w-5 h-5" aria-hidden="true" />
+                  <span className="hidden sm:inline">Duplicate</span>
+                </button>
+              )}
             </div>
           </div>
         </header>
+
+        {duplicateOpen && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 px-4" role="dialog" aria-modal="true" aria-labelledby="duplicate-title">
+            <div className="card w-full max-w-md">
+              <h2 id="duplicate-title" className="text-xl font-bold text-gray-900 mb-3">Duplicate invoice</h2>
+              <p className="text-sm text-gray-600 mb-5">A new pending invoice will be created with a new ID and payment memo.</p>
+              <label className="flex items-center gap-3 text-sm text-gray-700 mb-6">
+                <input
+                  type="checkbox"
+                  checked={copyCustomerEmail}
+                  onChange={(event) => setCopyCustomerEmail(event.target.checked)}
+                />
+                Copy client email
+              </label>
+              <div className="flex justify-end gap-3">
+                <button type="button" className="btn btn-outline" onClick={() => setDuplicateOpen(false)} disabled={duplicating}>Cancel</button>
+                <button type="button" className="btn btn-primary" onClick={handleDuplicate} disabled={duplicating}>
+                  {duplicating ? 'Duplicating…' : 'Duplicate invoice'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="pt-20">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8">

@@ -55,6 +55,30 @@ class InvoiceMemoryService {
     return memoryStorage.getInvoiceByTxHash(txHash) ?? null;
   }
 
+  /** Create a fresh, unpaid copy owned by the requesting seller. */
+  async duplicateInvoice(
+    invoiceId: string,
+    sellerPublicKey: string,
+    copyCustomerEmail = false,
+  ): Promise<any> {
+    const source = memoryStorage.getInvoiceById(invoiceId);
+    if (!source || source.sellerPublicKey !== sellerPublicKey) {
+      throw Object.assign(new Error('Invoice not found'), { code: 'NOT_FOUND', status: 404 });
+    }
+
+    return this.createInvoice({
+      sellerPublicKey,
+      amount: source.amount,
+      assetCode: source.assetCode,
+      assetIssuer: source.assetIssuer,
+      description: source.description,
+      lineItems: source.lineItems,
+      customerName: source.customerName,
+      customerEmail: copyCustomerEmail ? source.customerEmail : undefined,
+      expiresInDays: 7,
+    } as CreateInvoiceInput & { lineItems?: unknown[] });
+  }
+
   /**
    * Update invoice status to PAID
    */

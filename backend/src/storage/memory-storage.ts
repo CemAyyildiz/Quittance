@@ -9,6 +9,7 @@ interface Invoice {
   assetIssuer?: string;
   memo: string;
   description?: string;
+  lineItems?: unknown[];
   customerName?: string;
   customerEmail?: string;
   status: 'PENDING' | 'PAID' | 'EXPIRED' | 'CANCELLED';
@@ -39,6 +40,7 @@ class MemoryStorage {
       assetIssuer: data.assetIssuer,
       memo: data.memo!,
       description: data.description,
+      lineItems: data.lineItems ? [...data.lineItems] : undefined,
       customerName: data.customerName,
       customerEmail: data.customerEmail,
       status: 'PENDING',

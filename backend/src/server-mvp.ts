@@ -265,6 +265,55 @@ app.get('/api/invoices/:id/payment-info', async (req: Request, res: Response) =>
   }
 });
 
+// Duplicate an invoice (owner only). The new invoice is always pending and unpaid.
+app.post('/api/invoices/:id/duplicate', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { sellerPublicKey, copyCustomerEmail = false } = req.body ?? {};
+
+    if (!sellerPublicKey || typeof sellerPublicKey !== 'string') {
+      return res.status(400).json({
+        success: false,
+        code: 'SELLER_REQUIRED',
+        error: 'sellerPublicKey is required',
+      });
+    }
+    if (typeof copyCustomerEmail !== 'boolean') {
+      return res.status(400).json({
+        success: false,
+        code: 'INVALID_COPY_CUSTOMER_EMAIL',
+        error: 'copyCustomerEmail must be a boolean',
+      });
+    }
+
+    const invoice = await invoiceService.duplicateInvoice(id, sellerPublicKey, copyCustomerEmail);
+    const paymentUrl = `${FRONTEND_URL}/pay/${invoice.id}`;
+    const stellarPaymentUri = buildStellarPaymentUri(
+      invoice.sellerPublicKey,
+      invoice.amount.toString(),
+      invoice.assetCode,
+      invoice.memo,
+      invoice.assetIssuer,
+    );
+
+    res.status(201).json({
+      success: true,
+      data: {
+        invoice: toInvoiceDTO(invoice),
+        paymentUrl,
+        stellarPaymentUri,
+      },
+    });
+  } catch (error: any) {
+    const status = typeof error.status === 'number' ? error.status : 400;
+    res.status(status).json({
+      success: false,
+      code: error.code,
+      error: error.message || 'Failed to duplicate invoice',
+    });
+  }
+});
+
 // Cancel invoice
 app.post('/api/invoices/:id/cancel', async (req: Request, res: Response) => {
   try {
