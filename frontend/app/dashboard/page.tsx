@@ -22,6 +22,8 @@ import { toast } from 'sonner';
 import { downloadInvoiceCSV } from '@/lib/export';
 import { invoiceStatusLabel } from '@/lib/invoiceStatusLabel';
 
+const PAGE_SIZE = 50;
+
 export default function DashboardPage() {
   const { publicKey, connected } = useWalletStore();
   const [invoices, setInvoices] = useState<any[]>([]);
@@ -32,8 +34,11 @@ export default function DashboardPage() {
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [filteredInvoices, setFilteredInvoices] = useState<any[]>([]);
   const [viewMode, setViewMode] = useState<'invoices' | 'transactions'>('invoices');
+  const [cursorStack, setCursorStack] = useState<Array<string | undefined>>([undefined]);
+  const [pageIndex, setPageIndex] = useState(0);
+  const [nextCursor, setNextCursor] = useState<string | undefined>(undefined);
 
-  const loadData = useCallback(async () => {
+  const loadPage = useCallback(async (cursor?: string) => {
     if (!publicKey) return;
     try {
       setLoading(true);
@@ -41,13 +46,16 @@ export default function DashboardPage() {
       const [invoicesResult, statsResult] = await Promise.all([
         invoiceApi.getAll({
           status: filter === 'all' ? undefined : filter.toUpperCase(),
-          limit: 50,
+          limit: PAGE_SIZE,
           sellerPublicKey: publicKey,
+          cursor,
         }),
         invoiceApi.getStats(publicKey),
       ]);
+
       setInvoices(invoicesResult.data);
       setStats(statsResult.data[0] || {});
+      setNextCursor(invoicesResult.pagination?.nextCursor);
     } catch (error) {
       setLoadError(true);
       toast.error('Failed to load data');
@@ -59,15 +67,22 @@ export default function DashboardPage() {
   useEffect(() => {
     if (!connected || !publicKey) {
       setInvoices([]);
+      setFilteredInvoices([]);
       setStats(null);
       setLoading(false);
       setLoadError(false);
+      setCursorStack([undefined]);
+      setPageIndex(0);
+      setNextCursor(undefined);
       return;
     }
-    loadData();
-  }, [connected, publicKey, loadData]);
+    // A new seller or status filter always starts from the first page.
+    setCursorStack([undefined]);
+    setPageIndex(0);
+    loadPage(undefined);
+  }, [connected, publicKey, filter, loadPage]);
 
-  // Filter and search invoices
+  // Filter and search the invoices on the current page
   useEffect(() => {
     if (!searchQuery.trim()) {
       setFilteredInvoices(invoices);
@@ -87,6 +102,25 @@ export default function DashboardPage() {
     });
     setFilteredInvoices(filtered);
   }, [searchQuery, invoices]);
+
+  const handleNextPage = () => {
+    if (!nextCursor) return;
+    const nextIndex = pageIndex + 1;
+    setCursorStack((prev) => {
+      const stack = [...prev];
+      stack[nextIndex] = nextCursor;
+      return stack;
+    });
+    setPageIndex(nextIndex);
+    loadPage(nextCursor);
+  };
+
+  const handlePreviousPage = () => {
+    if (pageIndex === 0) return;
+    const previousIndex = pageIndex - 1;
+    setPageIndex(previousIndex);
+    loadPage(cursorStack[previousIndex]);
+  };
 
   const handleExportCSV = () => {
     if (filteredInvoices.length === 0) {
@@ -320,7 +354,7 @@ export default function DashboardPage() {
                 </p>
                 <button
                   type="button"
-                  onClick={loadData}
+                  onClick={() => loadPage(cursorStack[pageIndex])}
                   className="btn btn-primary inline-flex items-center gap-2"
                 >
                   <RefreshCw className="w-5 h-5" aria-hidden="true" />
@@ -363,6 +397,30 @@ export default function DashboardPage() {
                 </div>
               </>
             )}
+
+            <div className="flex items-center justify-between gap-3 mt-6">
+              <button
+                type="button"
+                onClick={handlePreviousPage}
+                disabled={pageIndex === 0 || loading}
+                className="btn inline-flex items-center gap-2"
+                aria-label="Previous page"
+              >
+                Previous
+              </button>
+              <span className="text-sm text-gray-600" aria-live="polite">
+                Page {pageIndex + 1}
+              </span>
+              <button
+                type="button"
+                onClick={handleNextPage}
+                disabled={!nextCursor || loading}
+                className="btn btn-primary inline-flex items-center gap-2"
+                aria-label="Next page"
+              >
+                Next
+              </button>
+            </div>
           </>
         )}
           </>

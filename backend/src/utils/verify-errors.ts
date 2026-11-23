@@ -42,6 +42,8 @@ export enum VerifyErrorCode {
   INVOICE_NOT_FOUND = 'INVOICE_NOT_FOUND',
   /** The matched transaction contained no payment operation. */
   NO_PAYMENT_OPERATION = 'NO_PAYMENT_OPERATION',
+  /** The matched transaction did not expose a usable ledger sequence. */
+  MISSING_LEDGER_SEQUENCE = 'MISSING_LEDGER_SEQUENCE',
   /**
    * The transaction hash is already stored on a different invoice, so it
    * cannot settle this one.
@@ -106,6 +108,7 @@ export const VerifyErrorMessages: Readonly<Record<VerifyErrorCode, string>> = Ob
   [VerifyErrorCode.TX_HASH_REQUIRED]: 'Transaction hash is required',
   [VerifyErrorCode.INVOICE_NOT_FOUND]: 'Invoice not found',
   [VerifyErrorCode.NO_PAYMENT_OPERATION]: 'No payment operation found',
+  [VerifyErrorCode.MISSING_LEDGER_SEQUENCE]: 'Transaction is missing a ledger sequence',
   [VerifyErrorCode.TX_HASH_ALREADY_USED]:
     'This transaction hash has already been used.',
   [VerifyErrorCode.MEMO_MISMATCH]: 'Memo mismatch',

@@ -48,7 +48,7 @@ function seedInvoice(customerEmail?: string) {
 
 function matchingHorizonTx(memo: string) {
   return {
-    transaction: { memo, source_account: PAYER },
+    transaction: { memo, source_account: PAYER, ledger_sequence: 12345 },
     operations: [
       {
         type: 'payment',
