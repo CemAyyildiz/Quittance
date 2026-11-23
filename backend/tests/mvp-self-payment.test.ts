@@ -152,6 +152,25 @@ describe('MVP self-payment rejection', () => {
     expect(body.code).toBe('SELF_PAYMENT');
   });
 
+  it('does not mark an invoice paid when Horizon cannot find the transaction', async () => {
+    const invoice = seedInvoice();
+    getTransaction.mockRejectedValue({
+      message: 'Not Found',
+      response: { status: 404 },
+    });
+
+    const { status, body } = await call('POST', `/api/invoices/${invoice.id}/verify`, {
+      txHash: TX_HASH,
+    });
+
+    expect(status).toBe(400);
+    expect(body.code).toBe('VERIFY_FAILED');
+    expect(body.error).not.toContain('network mismatch');
+
+    const after = await call('GET', `/api/invoices/${invoice.id}`);
+    expect(after.body.data.status).toBe('PENDING');
+  });
+
   it('accepts a different payer whose memo and fields match', async () => {
     const invoice = seedInvoice();
     getTransaction.mockResolvedValue(horizonTx(invoice.memo, { txSource: PAYER }));

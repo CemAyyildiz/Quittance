@@ -5,7 +5,11 @@ import { invoiceApi } from '@/lib/api';
 import { toast } from 'sonner';
 import { Loader2 } from 'lucide-react';
 import { STELLAR_ASSETS, getAssetByCode } from '@/lib/assets';
-import { checkAssetReadiness, getWalletNetwork } from '@/lib/stellar';
+import {
+  checkAssetReadiness,
+  getWalletNetwork,
+  type WalletNetwork,
+} from '@/lib/stellar';
 import { isValidEmail } from '@/lib/utils';
 import AssetLogo from './AssetLogo';
 
@@ -34,17 +38,21 @@ function useNetworkMismatch(userWallet: string | undefined) {
 
     const detectNetwork = async () => {
       const network = await getWalletNetwork();
-      setWalletNetwork(network);
       if (!cancelled) {
-        // Treat UNKNOWN as a mismatch – user needs to know the network can't be determined
-        setNetworkMismatch(network !== 'UNKNOWN' && network !== expected);
+        setWalletNetwork(network);
+        setNetworkMismatch(network !== expected);
       }
     };
 
     detectNetwork();
-    // Re-check when the wallet changes (user may switch Freighter networks)
+    const interval = window.setInterval(detectNetwork, 3000);
+    window.addEventListener('focus', detectNetwork);
+    document.addEventListener('visibilitychange', detectNetwork);
     return () => {
       cancelled = true;
+      window.clearInterval(interval);
+      window.removeEventListener('focus', detectNetwork);
+      document.removeEventListener('visibilitychange', detectNetwork);
     };
   }, [userWallet, getWalletNetwork]);
 
@@ -110,14 +118,6 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
       return;
     }
 
-    if (networkMismatch) {
-      const configuredNetwork = (process.env.NEXT_PUBLIC_STELLAR_NETWORK || 'TESTNET').trim();
-      toast.error(
-        `Network mismatch: Freighter is on ${walletNetwork !== 'UNKNOWN' ? walletNetwork : 'unknown'} network, but the API is configured for ${configuredNetwork}. Please ensure both are on the same network.`
-      );
-      return;
-    }
-
     const amountNum = parseFloat(amount);
     if (!amount || amountNum <= 0 || isNaN(amountNum)) {
       setAmountError('Enter a valid amount');
@@ -130,6 +130,18 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
       return;
     }
     setEmailError('');
+
+    const liveWalletNetwork = await getWalletNetwork();
+    const configuredNetwork = (process.env.NEXT_PUBLIC_STELLAR_NETWORK || 'TESTNET')
+      .trim()
+      .toUpperCase();
+    const expectedNetwork = configuredNetwork === 'TESTNET' ? 'TESTNET' : 'PUBLIC';
+    if (liveWalletNetwork !== expectedNetwork) {
+      toast.error(
+        `Network mismatch: Freighter is on ${liveWalletNetwork === 'PUBLIC' ? 'Mainnet' : liveWalletNetwork === 'TESTNET' ? 'Testnet' : 'unknown'}, but this app is configured for ${expectedNetwork === 'PUBLIC' ? 'Mainnet' : 'Testnet'}.`
+      );
+      return;
+    }
 
     setLoading(true);
     try {

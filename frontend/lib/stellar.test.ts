@@ -9,6 +9,7 @@ vi.mock('@stellar/freighter-api', () => ({
   signTransaction: vi.fn(),
   isAllowed: vi.fn(),
   setAllowed: vi.fn(),
+  getNetworkDetails: vi.fn(),
 }));
 
 import {
@@ -18,9 +19,16 @@ import {
   requestWalletAccess,
   getUserPublicKey,
   buildPaymentTransaction,
+  getWalletNetwork,
 } from './stellar';
 
-import { isConnected, getPublicKey, isAllowed, setAllowed } from '@stellar/freighter-api';
+import {
+  isConnected,
+  getPublicKey,
+  isAllowed,
+  setAllowed,
+  getNetworkDetails,
+} from '@stellar/freighter-api';
 import * as StellarSdk from '@stellar/stellar-sdk';
 
 // A well-known, valid Stellar Ed25519 public key (56 chars, starts with G,
@@ -174,6 +182,33 @@ describe('getUserPublicKey', () => {
     const result = await getUserPublicKey();
     expect(result).toBeNull();
     expect(getPublicKey).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('getWalletNetwork', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('recognizes the exact Testnet passphrase', async () => {
+    (getNetworkDetails as any).mockResolvedValue({
+      networkPassphrase: StellarSdk.Networks.TESTNET,
+    });
+    await expect(getWalletNetwork()).resolves.toBe('TESTNET');
+  });
+
+  it('recognizes the exact Public passphrase', async () => {
+    (getNetworkDetails as any).mockResolvedValue({
+      networkPassphrase: StellarSdk.Networks.PUBLIC,
+    });
+    await expect(getWalletNetwork()).resolves.toBe('PUBLIC');
+  });
+
+  it('does not accept an uppercased or unknown passphrase as a match', async () => {
+    (getNetworkDetails as any).mockResolvedValue({
+      networkPassphrase: StellarSdk.Networks.TESTNET.toUpperCase(),
+    });
+    await expect(getWalletNetwork()).resolves.toBe('UNKNOWN');
   });
 });
 

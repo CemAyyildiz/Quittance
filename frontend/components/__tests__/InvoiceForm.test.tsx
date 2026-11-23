@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import React from 'react';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import InvoiceForm from '../InvoiceForm';
@@ -10,9 +10,18 @@ vi.mock('@/lib/api', () => ({
 vi.mock('sonner', () => ({
   toast: { success: vi.fn(), error: vi.fn() },
 }));
+vi.mock('@/lib/stellar', () => ({
+  checkAssetReadiness: vi.fn().mockResolvedValue('ok'),
+  getWalletNetwork: vi.fn().mockResolvedValue('TESTNET'),
+}));
+
+beforeEach(() => {
+  vi.stubEnv('NEXT_PUBLIC_STELLAR_NETWORK', 'TESTNET');
+});
 
 afterEach(() => {
   cleanup();
+  vi.unstubAllEnvs();
 });
 
 /**

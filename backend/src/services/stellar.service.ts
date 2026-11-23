@@ -133,7 +133,7 @@ class StellarService {
       };
     } catch (error: any) {
       console.error('Error fetching transaction:', error);
-      throw new Error(`Transaction not found: ${error.message}`);
+      throw error;
     }
   }
 

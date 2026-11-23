@@ -388,21 +388,15 @@ app.post('/api/invoices/:id/verify', async (req: Request, res: Response) => {
     try {
       txDetails = await stellarService.getTransaction(txHash);
     } catch (error: any) {
-      // If the transaction was not found on the API's configured network (e.g.
-      // the user switched Freighter to a different network after invoicing),
-      // return a network-mismatch error instead of a generic 500 so the
-      // user sees a clear message about the network discrepancy.
-      const errMsg = (error as Error).message || '';
-      const status = error?.response?.status;
-      if (
-        status === 404 ||
-        errMsg.includes('not found') ||
-        errMsg.includes('Not Found')
-      ) {
+      const status = error?.response?.status ?? error?.status;
+      if (status === 404) {
+        const networkName = STELLAR_NETWORK?.trim().toUpperCase() === 'PUBLIC'
+          ? 'Mainnet'
+          : 'Testnet';
         return res.status(400).json({
           success: false,
           code: VerifyErrorCode.VERIFY_FAILED,
-          error: 'Payment verification failed: transaction not found on the configured network. Check that Freighter is on the correct Stellar network.',
+          error: `Payment verification failed: transaction not found on the configured ${networkName} network. The invoice was not marked paid.`,
         });
       }
       return res.status(500).json({

@@ -8,12 +8,14 @@ const {
   mockCheckWalletConnection,
   mockRequestWalletAccess,
   mockVerify,
+  mockGetWalletNetwork,
   mockToast,
 } = vi.hoisted(() => ({
   mockSendPayment: vi.fn(),
   mockCheckWalletConnection: vi.fn(),
   mockRequestWalletAccess: vi.fn(),
   mockVerify: vi.fn(),
+  mockGetWalletNetwork: vi.fn(),
   mockToast: {
     error: vi.fn(),
     loading: vi.fn(),
@@ -28,6 +30,7 @@ vi.mock('@/lib/stellar', () => ({
   sendPayment: mockSendPayment,
   checkWalletConnection: mockCheckWalletConnection,
   requestWalletAccess: mockRequestWalletAccess,
+  getWalletNetwork: mockGetWalletNetwork,
 }));
 
 vi.mock('@/lib/api', () => ({
@@ -73,12 +76,14 @@ beforeEach(() => {
   vi.clearAllMocks();
   mockCheckWalletConnection.mockResolvedValue(true);
   mockRequestWalletAccess.mockResolvedValue(true);
+  mockGetWalletNetwork.mockResolvedValue('TESTNET');
   mockSendPayment.mockResolvedValue(TX_HASH);
   mockVerify.mockResolvedValue({ verified: true });
 });
 
 afterEach(() => {
   cleanup();
+  vi.unstubAllEnvs();
 });
 
 describe('PaymentButton', () => {
@@ -192,5 +197,21 @@ describe('PaymentButton', () => {
 
     expect(screen.queryByText(/Paying with/)).not.toBeInTheDocument();
     expect(screen.queryByText(/trustline/)).not.toBeInTheDocument();
+  });
+
+  it('blocks payment and names both networks when Freighter mismatches', async () => {
+    vi.stubEnv('NEXT_PUBLIC_STELLAR_NETWORK', 'PUBLIC');
+    mockGetWalletNetwork.mockResolvedValue('TESTNET');
+
+    renderButton();
+
+    fireEvent.click(screen.getByRole('button', { name: PAY_IDLE_LABEL }));
+
+    await waitFor(() =>
+      expect(mockToast.error).toHaveBeenCalledWith(
+        'Network mismatch: Freighter is on Testnet, but this app is configured for Mainnet.',
+      ),
+    );
+    expect(mockSendPayment).not.toHaveBeenCalled();
   });
 });

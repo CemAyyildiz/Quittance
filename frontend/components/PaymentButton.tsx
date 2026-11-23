@@ -36,26 +36,35 @@ export default function PaymentButton({
   onError,
 }: PaymentButtonProps) {
   const [loading, setLoading] = useState(false);
-  const [networkMismatch, setNetworkMismatch] = useState(false);
+
+  const recheckWalletNetwork = async () => {
+    const liveWalletNetwork = await getWalletNetwork();
+    const configured = (process.env.NEXT_PUBLIC_STELLAR_NETWORK || 'TESTNET')
+      .trim()
+      .toUpperCase();
+    const expected = configured === 'TESTNET' ? 'TESTNET' : 'PUBLIC';
+    const mismatch = liveWalletNetwork !== expected;
+    return { mismatch, liveWalletNetwork, expected };
+  };
 
   useEffect(() => {
-    (async () => {
-      const walletNetwork = await getWalletNetwork();
-      const configured = (process.env.NEXT_PUBLIC_STELLAR_NETWORK || 'TESTNET')
-        .trim()
-        .toUpperCase();
-      const expected = configured === 'TESTNET' ? 'TESTNET' : 'PUBLIC';
-      setNetworkMismatch(walletNetwork !== 'UNKNOWN' && walletNetwork !== expected);
-    })();
+    recheckWalletNetwork();
+    const interval = window.setInterval(recheckWalletNetwork, 3000);
+    window.addEventListener('focus', recheckWalletNetwork);
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener('focus', recheckWalletNetwork);
+    };
   }, []);
 
   const handlePayment = async () => {
     setLoading(true);
     try {
       // Block payment if networks mismatch
-      if (networkMismatch) {
+      const networkCheck = await recheckWalletNetwork();
+      if (networkCheck.mismatch) {
         toast.error(
-          `Network mismatch: Please ensure Freighter is on the same network as the API.`
+          `Network mismatch: Freighter is on ${networkCheck.liveWalletNetwork === 'PUBLIC' ? 'Mainnet' : networkCheck.liveWalletNetwork === 'TESTNET' ? 'Testnet' : 'unknown'}, but this app is configured for ${networkCheck.expected === 'PUBLIC' ? 'Mainnet' : 'Testnet'}.`
         );
         setLoading(false);
         return;
@@ -71,7 +80,7 @@ export default function PaymentButton({
       }
 
       toast.loading('Confirm in wallet...', { id: PAY_TOAST_ID });
-      const txHash = await sendPayment(destination, amount, memo, assetCode, issuer);
+      const txHash = await sendPayment(destination, amount, memo, assetCode, assetIssuer);
 
       if (invoiceId) {
         toast.loading('Verifying payment...', { id: PAY_TOAST_ID });
@@ -115,13 +124,13 @@ export default function PaymentButton({
 
   return (
     <div>
-      {assetCode !== 'XLM' && issuer && (
+      {assetCode !== 'XLM' && assetIssuer && (
         <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-4">
           <p className="text-sm text-amber-800 font-semibold mb-1">
             Paying with {assetCode} (testnet)
           </p>
           <p className="text-xs text-amber-700 break-all">
-            Your Freighter wallet needs a {assetCode} trustline to issuer {issuer} and at
+            Your Freighter wallet needs a {assetCode} trustline to issuer {assetIssuer} and at
             least {amount} {assetCode}. Without it the payment cannot go through.
           </p>
         </div>

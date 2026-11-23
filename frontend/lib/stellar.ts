@@ -30,24 +30,27 @@ export type WalletNetwork = 'TESTNET' | 'PUBLIC' | 'UNKNOWN';
 export const getWalletNetwork = async (): Promise<WalletNetwork> => {
   try {
     const details = await getNetworkDetails();
-    const network = details.networkPassphrase || details.network || '';
+    const passphrase = details.networkPassphrase || '';
+    const network = details.network || '';
 
-    if (!network) {
+    if (!passphrase && !network) {
       return 'UNKNOWN';
     }
 
-    const normalized = network.toUpperCase();
-
     if (
-      normalized.includes('TESTNET') ||
-      normalized === StellarSdk.Networks.TESTNET
+      passphrase === StellarSdk.Networks.TESTNET ||
+      (!passphrase &&
+        typeof network === 'string' &&
+        network.trim().toUpperCase() === 'TESTNET')
     ) {
       return 'TESTNET';
     }
     if (
-      normalized.includes('PUBLIC') ||
-      normalized.includes('MAINNET') ||
-      normalized === StellarSdk.Networks.PUBLIC
+      passphrase === StellarSdk.Networks.PUBLIC ||
+      (!passphrase &&
+        typeof network === 'string' &&
+        (network.trim().toUpperCase() === 'PUBLIC' ||
+          network.trim().toUpperCase() === 'MAINNET'))
     ) {
       return 'PUBLIC';
     }

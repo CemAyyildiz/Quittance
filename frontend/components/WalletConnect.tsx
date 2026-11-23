@@ -24,18 +24,32 @@ export default function WalletConnect({ onConnect, onConnectionFailure }: Wallet
   const [loading, setLoading] = useState(false);
   const [monitoringActive, setMonitoringActive] = useState(false);
   const [networkMismatch, setNetworkMismatch] = useState(false);
+  const [walletNetwork, setWalletNetwork] = useState<'TESTNET' | 'PUBLIC' | 'UNKNOWN'>('UNKNOWN');
+  const [configuredNetwork, setConfiguredNetwork] = useState<'TESTNET' | 'PUBLIC'>('TESTNET');
   const { publicKey, balance, connected, setWallet, updateBalance, disconnect } = useWalletStore();
 
   useEffect(() => {
+    const recheckNetwork = async () => {
+      if (!connected || !publicKey) return;
+      const liveWalletNetwork = await getWalletNetwork();
+      const configured = (process.env.NEXT_PUBLIC_STELLAR_NETWORK || 'TESTNET')
+        .trim()
+        .toUpperCase();
+      const expected: 'TESTNET' | 'PUBLIC' =
+        configured === 'TESTNET' ? 'TESTNET' : 'PUBLIC';
+      setWalletNetwork(liveWalletNetwork);
+      setConfiguredNetwork(expected);
+      setNetworkMismatch(liveWalletNetwork !== expected);
+    };
+
     if (connected && publicKey) {
-      (async () => {
-        const walletNetwork = await getWalletNetwork();
-        const configured = (process.env.NEXT_PUBLIC_STELLAR_NETWORK || 'TESTNET')
-          .trim()
-          .toUpperCase();
-        const expected = configured === 'TESTNET' ? 'TESTNET' : 'PUBLIC';
-        setNetworkMismatch(walletNetwork !== 'UNKNOWN' && walletNetwork !== expected);
-      })();
+      recheckNetwork();
+      const interval = window.setInterval(recheckNetwork, 3000);
+      window.addEventListener('focus', recheckNetwork);
+      return () => {
+        window.clearInterval(interval);
+        window.removeEventListener('focus', recheckNetwork);
+      };
     }
   }, [connected, publicKey]);
 
@@ -125,7 +139,10 @@ export default function WalletConnect({ onConnect, onConnectionFailure }: Wallet
         {networkMismatch && (
           <div className="flex items-center gap-2 mb-2 px-3 py-2 bg-red-100 border border-red-200 rounded-lg text-sm text-red-800">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path className="stroke-current" d="M12 9v2m0 6l-6-6m6 6l6-6"/></svg>
-            <span>Network mismatch: Freighter is on a different network than the API. Please connect to the correct network.</span>
+            <span>
+              Network mismatch: Freighter is on {walletNetwork === 'PUBLIC' ? 'Mainnet' : walletNetwork === 'TESTNET' ? 'Testnet' : 'unknown'},
+              but this app is configured for {configuredNetwork === 'PUBLIC' ? 'Mainnet' : 'Testnet'}.
+            </span>
             <button
               onClick={() => setNetworkMismatch(false)}
               className="ml-2 text-red-600 hover underline"
