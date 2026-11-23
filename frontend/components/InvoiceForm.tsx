@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { invoiceApi } from '@/lib/api';
 import { toast } from 'sonner';
 import { Loader2 } from 'lucide-react';
@@ -18,8 +18,19 @@ const amountErrorId = 'amount-error';
 const memoCounterId = 'memo-counter';
 const memoErrorId = 'memo-error';
 
+/** One fresh key per submit attempt, sent as the Idempotency-Key header. */
+function newIdempotencyKey(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+}
+
 export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps) {
   const [loading, setLoading] = useState(false);
+  // `loading` only disables the button after a re-render, so a fast double
+  // click could start two requests; this ref blocks re-entry synchronously.
+  const submittingRef = useRef(false);
   const [amount, setAmount] = useState('');
   const [assetCode, setAssetCode] = useState('XLM');
   const [description, setDescription] = useState('');
@@ -74,6 +85,10 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    if (submittingRef.current) {
+      return;
+    }
+
     if (!userWallet) {
       toast.error('Connect your wallet first');
       return;
@@ -97,7 +112,9 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
       return;
     }
 
+    submittingRef.current = true;
     setLoading(true);
+    const idempotencyKey = newIdempotencyKey();
     try {
       const selectedAsset = getAssetByCode(assetCode);
       const result = await invoiceApi.create({
@@ -110,7 +127,7 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
         memo: memo || undefined,
         customerName: customerName.trim() || undefined,
         customerEmail: customerEmail.trim() || undefined,
-      });
+      }, { idempotencyKey });
 
       toast.success('Invoice created');
       onSuccess?.(result.data);
@@ -125,6 +142,7 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
     } catch (error: any) {
       toast.error(error.response?.data?.error || 'Failed to create invoice');
     } finally {
+      submittingRef.current = false;
       setLoading(false);
     }
   };
