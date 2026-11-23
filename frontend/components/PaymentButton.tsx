@@ -108,6 +108,7 @@ export default function PaymentButton({
         </div>
       )}
       <button
+        type="button"
         onClick={handlePayment}
         disabled={loading}
         aria-busy={loading}

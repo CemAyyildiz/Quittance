@@ -69,6 +69,19 @@ describe('PaymentPage SEP-7 handoff', () => {
     vi.clearAllMocks();
   });
 
+  it('keeps an unavailable email action out of the accessibility tree and tab order', async () => {
+    mockInvoice({ status: 'PAID', paidAt: '2026-11-23T12:00:00Z' });
+    render(<PaymentPage />);
+    await screen.findByRole('button', { name: 'Download Proof' });
+    expect(screen.queryByRole('button', { name: /email payment proof/i })).toBeNull();
+  });
+
+  it('gives the available email proof action an accessible name', async () => {
+    mockInvoice({ status: 'PAID', paidAt: '2026-11-23T12:00:00Z', customerEmail: 'client@example.com' });
+    render(<PaymentPage />);
+    expect(await screen.findByRole('button', { name: /email payment proof/i })).toBeEnabled();
+  });
+
   it('shows an XLM SEP-7 URI with destination, amount, memo and memo type only', async () => {
     mockInvoice({});
     render(<PaymentPage />);

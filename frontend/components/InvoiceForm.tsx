@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { invoiceApi } from '@/lib/api';
 import { toast } from 'sonner';
 import { Loader2 } from 'lucide-react';
@@ -19,6 +19,11 @@ const memoCounterId = 'memo-counter';
 const memoErrorId = 'memo-error';
 
 export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps) {
+  const amountInput = useRef<HTMLInputElement>(null);
+  const emailInput = useRef<HTMLInputElement>(null);
+  const memoInput = useRef<HTMLInputElement>(null);
+  const [submitError, setSubmitError] = useState('');
+  const [memoSubmitted, setMemoSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
   const [amount, setAmount] = useState('');
   const [assetCode, setAssetCode] = useState('XLM');
@@ -73,29 +78,35 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setSubmitError('');
 
     if (!userWallet) {
+      setSubmitError('Connect your wallet first');
       toast.error('Connect your wallet first');
       return;
     }
 
     const amountNum = parseFloat(amount);
-    if (!amount || amountNum <= 0 || isNaN(amountNum)) {
+    if (!amount || amountNum <= 0 || !Number.isFinite(amountNum)) {
       setAmountError('Enter a valid amount');
+      amountInput.current?.focus();
       return;
     }
     setAmountError('');
 
-    if (customerEmail && !isValidEmail(customerEmail)) {
-      setEmailError('Enter a valid client email');
-      return;
-    }
-    setEmailError('');
-
     if (memoTooLong) {
+      setMemoSubmitted(true);
+      memoInput.current?.focus();
       toast.error(`Memo must be at most ${MAX_MEMO_BYTES} bytes`);
       return;
     }
+
+    if (customerEmail && !isValidEmail(customerEmail)) {
+      setEmailError('Enter a valid client email');
+      emailInput.current?.focus();
+      return;
+    }
+    setEmailError('');
 
     setLoading(true);
     try {
@@ -122,8 +133,11 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
       setCustomerEmail('');
       setAmountError('');
       setEmailError('');
+      setMemoSubmitted(false);
     } catch (error: any) {
-      toast.error(error.response?.data?.error || 'Failed to create invoice');
+      const message = error.response?.data?.error || 'Failed to create invoice';
+      setSubmitError(message);
+      toast.error(message);
     } finally {
       setLoading(false);
     }
@@ -131,10 +145,13 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
 
   return (
     <form noValidate onSubmit={handleSubmit} className="space-y-4">
+      {submitError && <p role="alert" className="text-sm text-red-600">{submitError}</p>}
       <div>
-        <label className="label">Invoice Amount *</label>
-        <div className="flex gap-3 flex-col sm:flex-row">
+        <label className="label" htmlFor="invoice-amount">Invoice Amount *</label>
+        <div className="flex gap-3 flex-col sm:flex-row sm:items-end">
           <input
+            id="invoice-amount"
+            ref={amountInput}
             type="number"
             step="0.0000001"
             min="0.0000001"
@@ -147,7 +164,9 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
             aria-describedby={amountError ? amountErrorId : undefined}
           />
           <div className="relative">
+            <label className="label" htmlFor="invoice-asset">Asset</label>
             <select
+              id="invoice-asset"
               value={assetCode}
               onChange={(e) => setAssetCode(e.target.value)}
               className="input w-full sm:w-40 text-sm font-semibold pl-12 pr-3 appearance-none cursor-pointer"
@@ -158,13 +177,13 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
                 </option>
               ))}
             </select>
-            <div className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none">
+            <div className="absolute left-3 bottom-3 pointer-events-none">
               <AssetLogo code={assetCode} size={24} showName={false} />
             </div>
           </div>
         </div>
         {amountError && (
-          <p id={amountErrorId} className="text-sm text-red-600 mt-1">
+          <p id={amountErrorId} role="alert" className="text-sm text-red-600 mt-1">
             {amountError}
           </p>
         )}
@@ -183,8 +202,9 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
       </div>
 
       <div>
-        <label className="label">Description</label>
+        <label className="label" htmlFor="invoice-description">Description</label>
         <textarea
+          id="invoice-description"
           className="input min-h-[80px] resize-none text-sm"
           placeholder="What is this invoice for?"
           value={description}
@@ -199,6 +219,7 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
         </label>
         <input
           id="invoice-memo"
+          ref={memoInput}
           type="text"
           className={`input text-sm ${memoTooLong ? 'border-red-500' : ''}`}
           placeholder="Payment reference, e.g. INV-2026"
@@ -215,7 +236,7 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
           {memoBytes}/{MAX_MEMO_BYTES} bytes
         </p>
         {memoTooLong && (
-          <p id={memoErrorId} className="text-sm text-red-600 mt-1">
+          <p id={memoErrorId} role={memoSubmitted ? 'alert' : undefined} className="text-sm text-red-600 mt-1">
             Memo is {memoBytes} bytes. Stellar allows at most {MAX_MEMO_BYTES} bytes, and
             non-ASCII characters use more than one byte each.
           </p>
@@ -223,8 +244,9 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
       </div>
 
       <div>
-        <label className="label">Client name (optional)</label>
+        <label className="label" htmlFor="invoice-client-name">Client name (optional)</label>
         <input
+          id="invoice-client-name"
           type="text"
           className="input text-sm"
           placeholder="Client or company name"
@@ -235,8 +257,10 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
       </div>
 
       <div>
-        <label className="label">Client email (optional)</label>
+        <label className="label" htmlFor="invoice-client-email">Client email (optional)</label>
         <input
+          id="invoice-client-email"
+          ref={emailInput}
           type="email"
           className={`input text-sm ${emailError ? 'border-red-500' : ''}`}
           placeholder="client@example.com — for sending the invoice"
@@ -247,7 +271,7 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
           aria-describedby={emailError ? 'email-error' : undefined}
         />
         {emailError ? (
-          <p id="email-error" className="text-sm text-red-600 mt-1">
+          <p id="email-error" role="alert" className="text-sm text-red-600 mt-1">
             {emailError}
           </p>
         ) : (
@@ -259,7 +283,7 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
 
       <button
         type="submit"
-        disabled={loading || memoTooLong}
+        disabled={loading}
         aria-busy={loading}
         className="btn btn-primary w-full flex items-center justify-center gap-2 mt-6"
       >
