@@ -2,7 +2,7 @@
  * Storage factory tests for issue #988
  * Tests: DATABASE_URL set but DB refused must fail hard
  */
-import { describe, it, expect, beforeEach, afterEach } from '@jest/globals';
+import { describe, it, expect, afterEach } from 'vitest';
 import { getStorage, resetStorage } from '../storage-factory';
 
 describe('Storage Factory (Issue #988)', () => {

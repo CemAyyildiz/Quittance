@@ -42,6 +42,13 @@ export enum VerifyErrorCode {
   INVOICE_NOT_FOUND = 'INVOICE_NOT_FOUND',
   /** The matched transaction contained no payment operation. */
   NO_PAYMENT_OPERATION = 'NO_PAYMENT_OPERATION',
+  /** The matched transaction did not expose a usable ledger sequence. */
+  MISSING_LEDGER_SEQUENCE = 'MISSING_LEDGER_SEQUENCE',
+  /**
+   * The transaction hash is already stored on a different invoice, so it
+   * cannot settle this one.
+   */
+  TX_HASH_ALREADY_USED = 'TX_HASH_ALREADY_USED',
   /** The transaction memo does not match the invoice memo. */
   MEMO_MISMATCH = 'MEMO_MISMATCH',
   /** The transferred amount does not match the invoice amount. */
@@ -57,6 +64,12 @@ export enum VerifyErrorCode {
    * Reserved for the full-server payment-verification path.
    */
   ASSET_MISMATCH = 'ASSET_MISMATCH',
+  /**
+   * The payment was sent by the invoice seller. Paying yourself produces a
+   * memo/amount match that is not a client payment, so it cannot settle the
+   * invoice.
+   */
+  SELF_PAYMENT = 'SELF_PAYMENT',
   /**
    * The invoice has already been marked paid in our records.
    * Reserved for the full-server payment-verification path.
@@ -95,11 +108,15 @@ export const VerifyErrorMessages: Readonly<Record<VerifyErrorCode, string>> = Ob
   [VerifyErrorCode.TX_HASH_REQUIRED]: 'Transaction hash is required',
   [VerifyErrorCode.INVOICE_NOT_FOUND]: 'Invoice not found',
   [VerifyErrorCode.NO_PAYMENT_OPERATION]: 'No payment operation found',
+  [VerifyErrorCode.MISSING_LEDGER_SEQUENCE]: 'Transaction is missing a ledger sequence',
+  [VerifyErrorCode.TX_HASH_ALREADY_USED]:
+    'This transaction hash has already been used.',
   [VerifyErrorCode.MEMO_MISMATCH]: 'Memo mismatch',
   [VerifyErrorCode.AMOUNT_MISMATCH]: 'Amount mismatch',
   [VerifyErrorCode.DESTINATION_MISMATCH]:
     'Payment destination does not match the invoice seller.',
   [VerifyErrorCode.ASSET_MISMATCH]: 'Payment asset does not match the invoice asset.',
+  [VerifyErrorCode.SELF_PAYMENT]: 'The invoice seller cannot settle their own invoice.',
   [VerifyErrorCode.INVOICE_ALREADY_PAID]: 'Invoice has already been paid.',
   [VerifyErrorCode.INVOICE_NOT_PENDING]: 'Invoice is not pending',
   [VerifyErrorCode.INVOICE_EXPIRED]: 'Invoice settlement window has expired.',

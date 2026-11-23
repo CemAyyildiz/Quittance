@@ -109,3 +109,143 @@ export async function runExpirySweep(sweeper: ExpirySweeper): Promise<number> {
     return 0;
   }
 }
+
+/** Max how far past the *original* expiry a single extension may push. */
+export const MAX_EXPIRY_EXTENSION_DAYS = 30;
+export const MAX_EXPIRY_EXTENSION_MS = MAX_EXPIRY_EXTENSION_DAYS * 24 * 60 * 60 * 1000;
+
+export type ExtendExpiryRejectCode =
+  | 'NOT_OWNER'
+  | 'NOT_EXTENDABLE'
+  | 'ALREADY_EXTENDED'
+  | 'INVALID_EXPIRY'
+  | 'NEW_EXPIRY_NOT_AFTER_OLD'
+  | 'EXTENSION_BEYOND_MAX';
+
+/** Invoice fields the one-time seller extension cares about. */
+export interface ExtendableInvoice {
+  status: string;
+  expiresAt: Date | string;
+  sellerPublicKey: string;
+  originalExpiresAt?: Date | string | null;
+  expiryExtended?: boolean;
+}
+
+export type ExtendExpiryDecision =
+  | {
+      ok: true;
+      originalExpiresAt: Date;
+      newExpiresAt: Date;
+      reviveToPending: boolean;
+    }
+  | { ok: false; code: ExtendExpiryRejectCode; error: string };
+
+function toDateMs(value: Date | string): number {
+  return value instanceof Date ? value.getTime() : new Date(value).getTime();
+}
+
+/**
+ * Pure decision for `POST /api/invoices/:id/extend-expiry`.
+ *
+ * The owning seller may push `expiresAt` later exactly once while the invoice
+ * is still unpaid and either `PENDING` or `EXPIRED`. The new instant must be
+ * strictly after the current expiry and no more than 30 days past the
+ * original. Paid and cancelled (voided) invoices are rejected; extending an
+ * expired invoice may revive it to `PENDING`, but never a voided one.
+ */
+export function assertCanExtendExpiry(
+  invoice: ExtendableInvoice,
+  sellerPublicKey: string,
+  newExpiresAt: Date | string,
+): ExtendExpiryDecision {
+  if (sellerPublicKey !== invoice.sellerPublicKey) {
+    return {
+      ok: false,
+      code: 'NOT_OWNER',
+      error: 'Only the owning seller can extend this invoice',
+    };
+  }
+
+  if (invoice.status === 'PAID') {
+    return {
+      ok: false,
+      code: 'NOT_EXTENDABLE',
+      error: 'A paid invoice cannot be extended',
+    };
+  }
+
+  if (invoice.status === 'CANCELLED') {
+    return {
+      ok: false,
+      code: 'NOT_EXTENDABLE',
+      error: 'A voided invoice cannot be extended',
+    };
+  }
+
+  if (invoice.status !== 'PENDING' && invoice.status !== 'EXPIRED') {
+    return {
+      ok: false,
+      code: 'NOT_EXTENDABLE',
+      error: 'Invoice is not pending or expired',
+    };
+  }
+
+  if (invoice.expiryExtended) {
+    return {
+      ok: false,
+      code: 'ALREADY_EXTENDED',
+      error: 'Invoice expiry has already been extended once',
+    };
+  }
+
+  const newMs = toDateMs(newExpiresAt);
+  if (!Number.isFinite(newMs)) {
+    return {
+      ok: false,
+      code: 'INVALID_EXPIRY',
+      error: 'expiresAt must be a valid date',
+    };
+  }
+
+  const currentMs = toDateMs(invoice.expiresAt);
+  if (!Number.isFinite(currentMs)) {
+    return {
+      ok: false,
+      code: 'INVALID_EXPIRY',
+      error: 'Current invoice expiry is unreadable',
+    };
+  }
+
+  if (newMs <= currentMs) {
+    return {
+      ok: false,
+      code: 'NEW_EXPIRY_NOT_AFTER_OLD',
+      error: 'New expiry must be strictly later than the current expiry',
+    };
+  }
+
+  const originalSource = invoice.originalExpiresAt ?? invoice.expiresAt;
+  const originalMs = toDateMs(originalSource);
+  if (!Number.isFinite(originalMs)) {
+    return {
+      ok: false,
+      code: 'INVALID_EXPIRY',
+      error: 'Original invoice expiry is unreadable',
+    };
+  }
+
+  if (newMs > originalMs + MAX_EXPIRY_EXTENSION_MS) {
+    return {
+      ok: false,
+      code: 'EXTENSION_BEYOND_MAX',
+      error: `New expiry cannot be more than ${MAX_EXPIRY_EXTENSION_DAYS} days past the original expiry`,
+    };
+  }
+
+  return {
+    ok: true,
+    originalExpiresAt: new Date(originalMs),
+    newExpiresAt: new Date(newMs),
+    reviveToPending: invoice.status === 'EXPIRED',
+  };
+}

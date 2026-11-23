@@ -43,6 +43,8 @@ describe('toInvoiceDTO', () => {
       createdAt: '2026-07-28T10:00:00.000Z',
       paidAt: undefined,
       expiresAt: '2026-08-04T10:00:00.000Z',
+      originalExpiresAt: '2026-08-04T10:00:00.000Z',
+      expiryExtended: false,
     });
   });
 
@@ -120,6 +122,8 @@ describe('toInvoiceDTO', () => {
       createdAt: '2026-07-28T10:00:00.000Z',
       paidAt: undefined,
       expiresAt: '2026-07-25T10:00:00.000Z',
+      originalExpiresAt: '2026-07-25T10:00:00.000Z',
+      expiryExtended: false,
     });
   });
 
@@ -145,7 +149,23 @@ describe('toInvoiceDTO', () => {
       createdAt: '2026-07-28T10:00:00.000Z',
       paidAt: undefined,
       expiresAt: '2026-07-20T10:00:00.000Z',
+      originalExpiresAt: '2026-07-20T10:00:00.000Z',
+      expiryExtended: false,
     });
+  });
+
+  it('exposes original and extended expiry after a seller extension', () => {
+    const result = toInvoiceDTO(
+      makeInvoice({
+        expiresAt: new Date('2026-08-20T10:00:00Z'),
+        originalExpiresAt: new Date('2026-08-04T10:00:00Z'),
+        expiryExtended: true,
+      }),
+    );
+
+    expect(result.originalExpiresAt).toBe('2026-08-04T10:00:00.000Z');
+    expect(result.expiresAt).toBe('2026-08-20T10:00:00.000Z');
+    expect(result.expiryExtended).toBe(true);
   });
 
   it('locks the DTO field list to the current invoice-scoped keys', () => {
@@ -160,8 +180,11 @@ describe('toInvoiceDTO', () => {
       'customerName',
       'description',
       'expiresAt',
+      'expiryExtended',
       'id',
+      'ledger',
       'memo',
+      'originalExpiresAt',
       'paidAt',
       'payerPublicKey',
       'paymentTxHash',

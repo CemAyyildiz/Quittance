@@ -14,17 +14,24 @@ interface Invoice {
   status: 'PENDING' | 'PAID' | 'EXPIRED' | 'CANCELLED';
   paymentTxHash?: string;
   payerPublicKey?: string;
+  ledger?: number;
   createdAt: Date;
   paidAt?: Date;
   expiresAt: Date;
+  /** Expiry at creation (or before the one allowed extension). */
+  originalExpiresAt: Date;
+  /** True after the seller has used the one allowed extension. */
+  expiryExtended: boolean;
 }
 
 class MemoryStorage {
   private invoices: Map<string, Invoice> = new Map();
   private invoicesByMemo: Map<string, string> = new Map(); // memo -> invoice id
+  private invoicesByTxHash: Map<string, string> = new Map(); // tx hash -> invoice id
 
   // Create invoice
   createInvoice(data: Partial<Invoice>): Invoice {
+    const expiresAt = data.expiresAt || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
     const invoice: Invoice = {
       id: data.id || uuidv4(),
       sellerPublicKey: data.sellerPublicKey!,
@@ -37,7 +44,9 @@ class MemoryStorage {
       customerEmail: data.customerEmail,
       status: 'PENDING',
       createdAt: new Date(),
-      expiresAt: data.expiresAt || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+      expiresAt,
+      originalExpiresAt: data.originalExpiresAt || expiresAt,
+      expiryExtended: data.expiryExtended ?? false,
     };
 
     this.invoices.set(invoice.id, invoice);
@@ -58,6 +67,12 @@ class MemoryStorage {
     return id ? this.invoices.get(id) : undefined;
   }
 
+  // Get the invoice that already stored this transaction hash, if any
+  getInvoiceByTxHash(txHash: string): Invoice | undefined {
+    const id = this.invoicesByTxHash.get(txHash);
+    return id ? this.invoices.get(id) : undefined;
+  }
+
   // Update invoice
   updateInvoice(id: string, updates: Partial<Invoice>): Invoice | undefined {
     const invoice = this.invoices.get(id);
@@ -71,13 +86,36 @@ class MemoryStorage {
   }
 
   // Mark as paid
-  markAsPaid(id: string, txHash: string, payerPublicKey: string): Invoice | undefined {
-    return this.updateInvoice(id, {
+  markAsPaid(
+    id: string,
+    txHash: string,
+    payerPublicKey: string,
+    meta?: { ledger?: number; paidAt?: Date }
+  ): Invoice | undefined {
+    const existing = this.invoices.get(id);
+    if (!existing) {
+      return undefined;
+    }
+
+    if (meta?.ledger === undefined || meta?.ledger === null || !Number.isFinite(meta.ledger)) {
+      throw new Error('Ledger sequence is required to mark invoice as paid');
+    }
+
+    const paidAtDate = meta?.paidAt ?? new Date();
+    const invoice = this.updateInvoice(id, {
       status: 'PAID',
       paymentTxHash: txHash,
       payerPublicKey,
-      paidAt: new Date(),
+      paidAt: paidAtDate,
+      ledger: meta.ledger,
     });
+
+    // Remember the hash so it cannot settle a second invoice later.
+    if (invoice) {
+      this.invoicesByTxHash.set(txHash, id);
+    }
+
+    return invoice;
   }
 
   // Get all invoices
@@ -132,6 +170,7 @@ class MemoryStorage {
   clear() {
     this.invoices.clear();
     this.invoicesByMemo.clear();
+    this.invoicesByTxHash.clear();
     console.log('🗑️ Memory storage cleared');
   }
 

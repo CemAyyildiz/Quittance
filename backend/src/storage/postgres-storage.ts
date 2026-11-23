@@ -15,24 +15,43 @@ interface Invoice {
   status: 'PENDING' | 'PAID' | 'EXPIRED' | 'CANCELLED';
   paymentTxHash?: string;
   payerPublicKey?: string;
+  ledger?: number;
   createdAt: Date;
   paidAt?: Date;
   expiresAt: Date;
+  originalExpiresAt: Date;
+  expiryExtended: boolean;
 }
 
 class PostgresStorage {
+  private schemaReady: Promise<void> | null = null;
+
+  private ensureSchema(): Promise<void> {
+    if (!this.schemaReady) {
+      this.schemaReady = pool.query(`
+        ALTER TABLE invoices ADD COLUMN IF NOT EXISTS ledger BIGINT;
+        ALTER TABLE invoices ADD COLUMN IF NOT EXISTS original_expires_at TIMESTAMP;
+        ALTER TABLE invoices ADD COLUMN IF NOT EXISTS expiry_extended BOOLEAN NOT NULL DEFAULT false;
+        CREATE INDEX IF NOT EXISTS idx_invoices_payment_tx_hash ON invoices(payment_tx_hash);
+      `).then(() => undefined);
+    }
+    return this.schemaReady;
+  }
+
   // Create invoice
   async createInvoice(data: Partial<Invoice>): Promise<Invoice> {
+    await this.ensureSchema();
     const id = data.id || uuidv4();
     const createdAt = new Date();
     const expiresAt = data.expiresAt || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+    const originalExpiresAt = data.originalExpiresAt || expiresAt;
 
     const result = await pool.query(
       `INSERT INTO invoices (
         id, seller_public_key, amount, asset_code, asset_issuer, 
         memo, description, customer_name, customer_email, 
-        status, created_at, expires_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+        status, created_at, expires_at, original_expires_at, expiry_extended
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
       RETURNING *`,
       [
         id,
@@ -47,6 +66,8 @@ class PostgresStorage {
         'PENDING',
         createdAt,
         expiresAt,
+        originalExpiresAt,
+        data.expiryExtended ?? false,
       ]
     );
 
@@ -56,6 +77,7 @@ class PostgresStorage {
 
   // Get invoice by ID
   async getInvoiceById(id: string): Promise<Invoice | undefined> {
+    await this.ensureSchema();
     const result = await pool.query(
       'SELECT * FROM invoices WHERE id = $1',
       [id]
@@ -66,6 +88,7 @@ class PostgresStorage {
 
   // Get invoice by memo
   async getInvoiceByMemo(memo: string): Promise<Invoice | undefined> {
+    await this.ensureSchema();
     const result = await pool.query(
       'SELECT * FROM invoices WHERE memo = $1',
       [memo]
@@ -74,8 +97,19 @@ class PostgresStorage {
     return result.rows[0] ? this.mapRow(result.rows[0]) : undefined;
   }
 
+  async getInvoiceByTxHash(txHash: string): Promise<Invoice | undefined> {
+    await this.ensureSchema();
+    const result = await pool.query(
+      'SELECT * FROM invoices WHERE payment_tx_hash = $1',
+      [txHash]
+    );
+
+    return result.rows[0] ? this.mapRow(result.rows[0]) : undefined;
+  }
+
   // Update invoice
   async updateInvoice(id: string, updates: Partial<Invoice>): Promise<Invoice | undefined> {
+    await this.ensureSchema();
     const invoice = await this.getInvoiceById(id);
     if (!invoice) return undefined;
 
@@ -99,6 +133,22 @@ class PostgresStorage {
       fields.push(`paid_at = $${paramIndex++}`);
       values.push(updates.paidAt);
     }
+    if (updates.ledger !== undefined) {
+      fields.push(`ledger = $${paramIndex++}`);
+      values.push(updates.ledger);
+    }
+    if (updates.expiresAt !== undefined) {
+      fields.push(`expires_at = $${paramIndex++}`);
+      values.push(updates.expiresAt);
+    }
+    if (updates.originalExpiresAt !== undefined) {
+      fields.push(`original_expires_at = $${paramIndex++}`);
+      values.push(updates.originalExpiresAt);
+    }
+    if (updates.expiryExtended !== undefined) {
+      fields.push(`expiry_extended = $${paramIndex++}`);
+      values.push(updates.expiryExtended);
+    }
 
     if (fields.length === 0) return invoice;
 
@@ -113,17 +163,24 @@ class PostgresStorage {
   }
 
   // Mark as paid
-  async markAsPaid(id: string, txHash: string, payerPublicKey: string): Promise<Invoice | undefined> {
+  async markAsPaid(
+    id: string,
+    txHash: string,
+    payerPublicKey: string,
+    meta?: { ledger?: number; paidAt?: Date }
+  ): Promise<Invoice | undefined> {
     return this.updateInvoice(id, {
       status: 'PAID',
       paymentTxHash: txHash,
       payerPublicKey,
-      paidAt: new Date(),
+      paidAt: meta?.paidAt ?? new Date(),
+      ledger: meta?.ledger,
     });
   }
 
   // Get all invoices
   async getAllInvoices(filter?: { status?: string }): Promise<Invoice[]> {
+    await this.ensureSchema();
     let query = 'SELECT * FROM invoices';
     const values: any[] = [];
 
@@ -140,6 +197,7 @@ class PostgresStorage {
 
   // Get stats
   async getStats(sellerPublicKey: string): Promise<any> {
+    await this.ensureSchema();
     const result = await pool.query(
       `SELECT 
         COUNT(*) as total_invoices,
@@ -166,6 +224,7 @@ class PostgresStorage {
 
   // Mark expired invoices
   async markExpiredInvoices(): Promise<number> {
+    await this.ensureSchema();
     const result = await pool.query(
       `UPDATE invoices 
        SET status = 'EXPIRED' 
@@ -196,9 +255,12 @@ class PostgresStorage {
       status: row.status,
       paymentTxHash: row.payment_tx_hash || undefined,
       payerPublicKey: row.payer_public_key || undefined,
+      ledger: row.ledger === null || row.ledger === undefined ? undefined : Number(row.ledger),
       createdAt: new Date(row.created_at),
       paidAt: row.paid_at ? new Date(row.paid_at) : undefined,
       expiresAt: new Date(row.expires_at),
+      originalExpiresAt: row.original_expires_at ? new Date(row.original_expires_at) : new Date(row.expires_at),
+      expiryExtended: Boolean(row.expiry_extended),
     };
   }
 }

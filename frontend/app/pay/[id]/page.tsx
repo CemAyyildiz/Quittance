@@ -158,6 +158,18 @@ export default function PaymentPage() {
     );
   }
 
+  // The SEP-7 URI is the wallet handoff for this invoice: build it once from the
+  // invoice (issuer only matters for credit assets) and prefer the API's value.
+  const stellarPaymentUri =
+    paymentInfo?.stellarPaymentUri ??
+    buildStellarPaymentUri(
+      invoice.sellerPublicKey,
+      invoice.amount.toString(),
+      invoice.assetCode,
+      invoice.memo,
+      invoice.assetIssuer
+    );
+
   const horizonUrl =
     process.env.NEXT_PUBLIC_STELLAR_NETWORK === 'TESTNET'
       ? 'https://stellar.expert/explorer/testnet'
@@ -259,6 +271,17 @@ export default function PaymentPage() {
                 </div>
               </div>
 
+              {userWallet && userWallet === invoice.sellerPublicKey && (
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-4" role="alert">
+                  <p className="text-sm font-semibold text-amber-900 mb-1">
+                    Seller wallet connected
+                  </p>
+                  <p className="text-sm text-amber-800">
+                    The seller cannot settle their own invoice. Share this payment link with your client.
+                  </p>
+                </div>
+              )}
+
               {invoice.status === 'PENDING' && (
                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                   <p className="text-sm text-blue-800 font-semibold mb-1">Expires In</p>
@@ -352,6 +375,26 @@ export default function PaymentPage() {
                     </button>
                   </div>
                 </div>
+
+                {invoice.status === 'PAID' && (
+                  <div className="border-t pt-4 mt-4">
+                    <p className="text-xs text-gray-600 mb-1">Payment Details</p>
+                    <div className="grid grid-cols-3 gap-2 text-sm">
+                      <div>
+                        <p className="text-gray-500">Payer</p>
+                        <p className="font-medium">{invoice.payerPublicKey || 'N/A'}</p>
+                      </div>
+                      <div>
+                        <p className="text-gray-500">Ledger</p>
+                        <p className="font-medium">{invoice.ledger || 'N/A'}</p>
+                      </div>
+                      <div>
+                        <p className="text-gray-500">Paid At</p>
+                        <p className="font-medium">{invoice.paidAt ? formatDate(invoice.paidAt) : 'N/A'}</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -402,18 +445,40 @@ export default function PaymentPage() {
                   ) : (
                     <PaymentQrCodes
                       paymentUrl={paymentInfo.paymentUrl}
-                      stellarPaymentUri={
-                        paymentInfo.stellarPaymentUri ??
-                        buildStellarPaymentUri(
-                          invoice.sellerPublicKey,
-                          invoice.amount.toString(),
-                          invoice.assetCode,
-                          invoice.memo,
-                          invoice.assetIssuer
-                        )
-                      }
+                      stellarPaymentUri={stellarPaymentUri}
                       size={220}
                     />
+                  )}
+                </div>
+
+                <div className="card">
+                  <h3 className="text-lg font-semibold text-center mb-2">
+                    SEP-7 payment URI
+                  </h3>
+                  <p className="text-sm text-gray-600 text-center mb-4">
+                    Open this invoice in a wallet that supports SEP-0007.
+                  </p>
+                  <code className="block text-xs font-mono text-gray-700 break-all bg-gray-50 border border-gray-200 rounded-lg p-3 mb-4">
+                    {stellarPaymentUri}
+                  </code>
+                  <a
+                    href={stellarPaymentUri}
+                    className="btn btn-primary w-full inline-flex items-center justify-center gap-2"
+                    aria-label="Open SEP-7 payment URI in a Stellar wallet"
+                  >
+                    <ExternalLink className="w-4 h-4" aria-hidden="true" />
+                    Open in Stellar wallet
+                  </a>
+                  {paymentInfo?.paymentUrl && (
+                    <p className="text-xs text-gray-500 text-center mt-4">
+                      No wallet handler?{' '}
+                      <a
+                        href={paymentInfo.paymentUrl}
+                        className="text-cyan-700 underline font-medium"
+                      >
+                        Use the web payment link
+                      </a>
+                    </p>
                   )}
                 </div>
 

@@ -5,14 +5,31 @@ import memoryStorage from './memory-storage';
 import postgresStorage from './postgres-storage';
 import { pool } from '../config/database';
 
-let storageInstance: typeof memoryStorage | typeof postgresStorage | null = null;
+export interface InvoiceStore {
+  createInvoice(data: Record<string, unknown>): Promise<any> | any;
+  getInvoiceById(id: string): Promise<any> | any;
+  getInvoiceByMemo(memo: string): Promise<any> | any;
+  getInvoiceByTxHash(txHash: string): Promise<any> | any;
+  updateInvoice(id: string, updates: Record<string, unknown>): Promise<any> | any;
+  markAsPaid(
+    id: string,
+    txHash: string,
+    payerPublicKey: string,
+    meta?: { ledger?: number; paidAt?: Date }
+  ): Promise<any> | any;
+  getAllInvoices(filter?: { status?: string }): Promise<any[]> | any[];
+  getStats(sellerPublicKey: string): Promise<any> | any;
+  markExpiredInvoices(): Promise<number> | number;
+}
+
+let storageInstance: InvoiceStore | null = null;
 
 /**
  * Get the appropriate storage implementation
  * - With DATABASE_URL set: use Postgres and fail hard if connection fails
  * - Without DATABASE_URL: use memory storage
  */
-export async function getStorage() {
+export async function getStorage(): Promise<InvoiceStore> {
   if (storageInstance) {
     return storageInstance;
   }

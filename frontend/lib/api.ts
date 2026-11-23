@@ -27,6 +27,7 @@ export const invoiceApi = USE_MOCK_API ? mockInvoiceApi : {
     assetCode?: string;
     assetIssuer?: string;
     description?: string;
+    memo?: string;
     customerName?: string;
     customerEmail?: string;
     expiresInDays?: number;
@@ -47,6 +48,7 @@ export const invoiceApi = USE_MOCK_API ? mockInvoiceApi : {
     status?: string;
     limit?: number;
     offset?: number;
+    cursor?: string;
     sellerPublicKey?: string;
   }) => {
     const response = await api.get('/invoices', { params });
@@ -60,6 +62,11 @@ export const invoiceApi = USE_MOCK_API ? mockInvoiceApi : {
 
   cancel: async (id: string) => {
     const response = await api.post(`/invoices/${id}/cancel`);
+    return response.data;
+  },
+
+  extendExpiry: async (id: string, data: { sellerPublicKey: string; expiresAt: string }) => {
+    const response = await api.post(`/invoices/${id}/extend-expiry`, data);
     return response.data;
   },
 

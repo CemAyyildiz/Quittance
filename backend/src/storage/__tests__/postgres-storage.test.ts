@@ -2,7 +2,7 @@
  * Postgres storage tests for issue #988
  * Tests: write, reload store, read same invoice; expired/paid cases
  */
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from '@jest/globals';
+import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import postgresStorage from '../postgres-storage';
 import { pool } from '../../config/database';
 
