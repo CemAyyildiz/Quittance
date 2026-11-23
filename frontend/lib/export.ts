@@ -745,25 +745,6 @@ export function generateInvoicePDF(invoice: Invoice): string {
 
 </body>
 </html>`;
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-</body>
-</html>`;
 }
 
 /**
