@@ -143,12 +143,20 @@ export const mockInvoiceApi = {
       filtered = filtered.filter(inv => inv.status === params.status);
     }
 
+    const limit = params?.limit || 50;
+    const cursorIndex = params?.cursor
+      ? filtered.findIndex(inv => inv.id === params.cursor)
+      : -1;
+    const start = cursorIndex >= 0 ? cursorIndex + 1 : 0;
+    const page = filtered.slice(start, start + limit);
+
     return {
       success: true,
-      data: filtered,
+      data: page,
       pagination: {
-        limit: params?.limit || 50,
-        offset: params?.offset || 0,
+        limit,
+        nextCursor:
+          start + page.length < filtered.length ? page[page.length - 1]?.id : undefined,
         total: filtered.length,
       },
     };

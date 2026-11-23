@@ -5,14 +5,15 @@ import { requestId } from './middleware/request-id';
 import { createInvoiceSchema } from './utils/validation';
 import invoiceService from './services/invoice-memory.service';
 import { generatePaymentQR, generateStellarPaymentQR, buildStellarPaymentUri } from './utils/qrcode';
-import stellarService, {
-  HorizonUnavailableError,
-  UnfundedAccountError,
-} from './services/stellar.service';
-import { rateLimitIfEnabled } from './middleware/rate-limit-stub';
+import stellarService from './services/stellar.service';
+import {
+  rateLimitIfEnabled,
+  sellerCreateRateLimit,
+  invoiceVerifyRateLimit,
+} from './middleware/rate-limit-stub';
 import healthDetailRouter from './routes/health-detail';
-import { toInvoiceDTO, toStatusHistoryDTO } from './utils/invoice-dto';
-import { amountsMatch } from './utils/amount-compare';
+import { toInvoiceDTO as mapInvoiceDTO } from './utils/invoice-dto';
+import { isDecimalEqual } from './utils/amount-compare';
 import { VerifyErrorCode, VerifyErrorMessages } from './utils/verify-errors';
 import {
   assertInvoiceSettleable,
@@ -23,16 +24,9 @@ import {
   isSelfPayment,
   paymentAssetMatchesInvoice,
 } from './utils/verify-invoice-payment';
-import {
-  AnchorError,
-  AnchorErrorCode,
-  canonicalDigestMatches,
-  computeCanonicalDigest,
-  getAnchorContractId,
-} from './utils/canonical-proof';
-import { verifyAnchorTransaction } from './utils/anchor-transaction';
-import { amountToStroops } from './utils/amount-compare';
-import { memosMatch } from './utils/memo-normalize';
+import { parsePaginationQuery } from './utils/parse-pagination';
+import { isSmtpConfigured, sendEmail, generateInvoiceEmail } from './utils/smtp';
+import { STELLAR_NETWORK } from './config/stellar';
 
 // Load environment variables
 dotenv.config();
@@ -41,6 +35,13 @@ const app: Application = express();
 const PORT = process.env.PORT || 3001;
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3000';
 const ALLOW_SIMULATE = process.env.ALLOW_SIMULATE === 'true';
+
+/** Map invoices through the DTO helper with the configured Stellar network. */
+function toInvoiceDTO(
+  invoice: Parameters<typeof mapInvoiceDTO>[0],
+) {
+  return mapInvoiceDTO(invoice, { network: STELLAR_NETWORK });
+}
 
 // Middleware
 app.use(cors({
@@ -69,6 +70,7 @@ app.get('/', (req: Request, res: Response) => {
     status: 'running',
     mode: 'in-memory',
     documentation: '/api/health',
+    smtp: isSmtpConfigured(),
   });
 });
 
@@ -83,11 +85,12 @@ app.get('/api/health', (req: Request, res: Response) => {
     service: 'Quittance API',
     mode: 'MVP - In-Memory Storage (Dynamic Seller)',
     message: 'Each user uses their own wallet for payments',
+    smtp: isSmtpConfigured(),
   });
 });
 
-// Create invoice
-app.post('/api/invoices', async (req: Request, res: Response) => {
+// Create invoice (per-seller rate limit on by default)
+app.post('/api/invoices', sellerCreateRateLimit(), async (req: Request, res: Response) => {
   try {
     const validatedData = createInvoiceSchema.parse(req.body);
 
@@ -232,7 +235,7 @@ app.get('/api/invoices', async (req: Request, res: Response) => {
   try {
     await runExpirySweep(invoiceService);
 
-    const { status, limit = 50, offset = 0, sellerPublicKey } = req.query;
+    const { status, cursor, sellerPublicKey } = req.query;
 
     if (!sellerPublicKey) {
       return res.status(400).json({
@@ -241,25 +244,35 @@ app.get('/api/invoices', async (req: Request, res: Response) => {
       });
     }
 
-    const invoices = await invoiceService.getInvoicesBySeller(
+    if (cursor !== undefined && typeof cursor !== 'string') {
+      return res.status(400).json({
+        success: false,
+        error: 'cursor must be a single string value',
+      });
+    }
+
+    // Reuse the shared parser so a limit above 100 is clamped, not honoured.
+    const { limit } = parsePaginationQuery(req.query);
+
+    const result = await invoiceService.getInvoicesBySeller(
       sellerPublicKey as string,
-      status as string | undefined,
-      parseInt(limit as string),
-      parseInt(offset as string)
+      typeof status === 'string' ? status : undefined,
+      limit,
+      cursor
     );
 
     res.json({
       success: true,
-      data: invoices.map(toInvoiceDTO),
+      data: result.invoices.map(toInvoiceDTO),
       pagination: {
-        limit: parseInt(limit as string),
-        offset: parseInt(offset as string),
-        total: invoices.length,
+        limit: result.limit,
+        nextCursor: result.nextCursor,
       },
     });
   } catch (error: any) {
     console.error('Get invoices error:', error);
-    res.status(500).json({
+    const statusCode = error?.status === 400 ? 400 : 500;
+    res.status(statusCode).json({
       success: false,
       error: error.message || 'Failed to get invoices',
     });
@@ -688,6 +701,59 @@ app.post('/api/invoices/:id/cancel', async (req: Request, res: Response) => {
   }
 });
 
+// Send invoice via email (SMTP). Email is delivery only, not a login.
+app.post('/api/invoices/:id/send', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const invoice = await invoiceService.getInvoiceById(id);
+
+    if (!invoice) {
+      return res.status(404).json({
+        success: false,
+        error: 'Invoice not found',
+      });
+    }
+
+    if (!invoice.customerEmail) {
+      return res.status(400).json({
+        success: false,
+        error: 'Customer email is required',
+      });
+    }
+
+    if (!isSmtpConfigured()) {
+      return res.status(400).json({
+        success: false,
+        error: 'SMTP is not configured on the server',
+      });
+    }
+
+    const paymentUrl = `${FRONTEND_URL}/pay/${invoice.id}`;
+    const emailContent = generateInvoiceEmail(
+      invoice.id,
+      invoice.amount,
+      invoice.assetCode,
+      invoice.memo,
+      paymentUrl,
+      invoice.customerName
+    );
+    emailContent.to = invoice.customerEmail;
+
+    await sendEmail(emailContent);
+
+    res.json({
+      success: true,
+      message: 'Invoice sent successfully',
+    });
+  } catch (error: any) {
+    console.error('Send invoice error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to send invoice',
+    });
+  }
+});
+
 // Extend invoice expiry once (owning seller only; pending or expired unpaid)
 app.post('/api/invoices/:id/extend-expiry', async (req: Request, res: Response) => {
   try {
@@ -727,8 +793,9 @@ app.post('/api/invoices/:id/extend-expiry', async (req: Request, res: Response) 
   }
 });
 
-// Verify payment against Horizon (memo + amount + destination)
-app.post('/api/invoices/:id/verify', async (req: Request, res: Response) => {
+// Verify payment against Horizon (memo + amount + destination).
+// Per-invoice rate limit is on by default and short-circuits before Horizon.
+app.post('/api/invoices/:id/verify', invoiceVerifyRateLimit(), async (req: Request, res: Response) => {
   try {
     await runExpirySweep(invoiceService);
 
@@ -799,6 +866,17 @@ app.post('/api/invoices/:id/verify', async (req: Request, res: Response) => {
       });
     }
 
+    // A payment must carry a ledger sequence; otherwise we would store
+    // Number(undefined) and mark the invoice paid without a real anchor.
+    const ledgerSequence = Number(transaction?.ledger_sequence);
+    if (!Number.isFinite(ledgerSequence) || ledgerSequence <= 0) {
+      return res.status(400).json({
+        success: false,
+        code: VerifyErrorCode.MISSING_LEDGER_SEQUENCE,
+        error: VerifyErrorMessages[VerifyErrorCode.MISSING_LEDGER_SEQUENCE],
+      });
+    }
+
     // A seller can otherwise pay their own invoice and produce a proof that a
     // client paid. The memo and amount match, so this is the only check that
     // catches it. Horizon reports the inner transaction source for a fee-bump,
@@ -862,11 +940,16 @@ app.post('/api/invoices/:id/verify', async (req: Request, res: Response) => {
       });
     }
 
+    // The inner source of a fee-bump is the real payer; `paymentOp.from`
+    // alone would store the outer fee-bump account.
+    const payerPublicKey = paymentOp.source_account ?? paymentOp.from;
+
     const updatedInvoice = await invoiceService.markAsPaid(
       id,
       txHash,
-      paymentOp.from,
-      Number(transaction.ledger ?? 0)
+      payerPublicKey,
+      ledgerSequence,
+      transaction.created_at ? new Date(transaction.created_at) : undefined
     );
 
     res.json({
@@ -921,7 +1004,7 @@ app.post('/api/invoices/:id/simulate-payment', async (req: Request, res: Respons
     const mockTxHash = `MOCK_TX_${Date.now().toString(36).toUpperCase()}_${Math.random().toString(36).substr(2, 8).toUpperCase()}`;
     const mockPayerKey = 'GXXXSIMULATEDPAYERXXXXXXXXXXXXXXXXXXXXXXXXXXXXX';
 
-    const updatedInvoice = await invoiceService.markAsPaid(id, mockTxHash, mockPayerKey);
+    const updatedInvoice = await invoiceService.markAsPaid(id, mockTxHash, mockPayerKey, 1);
 
     res.json({
       success: true,
