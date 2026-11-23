@@ -13,9 +13,12 @@ export interface InvoiceDTO {
   status: 'PENDING' | 'PAID' | 'EXPIRED' | 'CANCELLED';
   paymentTxHash?: string;
   payerPublicKey?: string;
+  ledger?: number;
   createdAt: string;
   paidAt?: string;
   expiresAt: string;
+  originalExpiresAt: string;
+  expiryExtended: boolean;
   /** Hex SHA-256 of the canonical proof string; only set when the invoice is paid. */
   proofDigest?: string;
   /** Documented canonical field string used to compute proofDigest; only set when paid. */
@@ -74,8 +77,9 @@ export function buildProofCanonicalString(fields: ProofDigestFields): string {
  * Same inputs always produce the same digest; changing payer or hash differs.
  */
 export function computeProofDigest(fields: ProofDigestFields): string {
-  const canonical = buildProofCanonicalString(fields);
-  return createHash('sha256').update(canonical, 'utf8').digest('hex');
+  return createHash('sha256')
+    .update(buildProofCanonicalString(fields), 'utf8')
+    .digest('hex');
 }
 
 function resolveNetwork(options?: ToInvoiceDTOOptions): string {
@@ -96,12 +100,16 @@ export function toInvoiceDTO(
     status: 'PENDING' | 'PAID' | 'EXPIRED' | 'CANCELLED';
     paymentTxHash?: string;
     payerPublicKey?: string;
+    ledger?: number;
     createdAt: Date;
     paidAt?: Date;
     expiresAt: Date;
+    originalExpiresAt?: Date;
+    expiryExtended?: boolean;
   },
   options?: ToInvoiceDTOOptions,
 ): InvoiceDTO {
+  const originalExpiresAt = invoice.originalExpiresAt ?? invoice.expiresAt;
   const dto: InvoiceDTO = {
     id: invoice.id,
     sellerPublicKey: invoice.sellerPublicKey,
@@ -115,9 +123,12 @@ export function toInvoiceDTO(
     status: invoice.status,
     paymentTxHash: invoice.paymentTxHash,
     payerPublicKey: invoice.payerPublicKey,
+    ledger: invoice.ledger,
     createdAt: invoice.createdAt.toISOString(),
     paidAt: invoice.paidAt?.toISOString(),
     expiresAt: invoice.expiresAt.toISOString(),
+    originalExpiresAt: originalExpiresAt.toISOString(),
+    expiryExtended: invoice.expiryExtended ?? false,
   };
 
   if (

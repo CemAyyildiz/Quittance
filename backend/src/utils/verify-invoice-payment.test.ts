@@ -7,6 +7,7 @@
 
 import { describe, it, expect } from 'vitest';
 import {
+  isSelfPayment,
   paymentAssetMatchesInvoice,
   verifyInvoicePayment,
 } from './verify-invoice-payment';
@@ -110,6 +111,39 @@ describe('verifyInvoicePayment', () => {
         invoiceAssetCode: 'USDC',
       });
       expect(result).toEqual({ ok: false, code: VerifyErrorCode.ASSET_MISMATCH });
+    });
+  });
+
+  describe('self-payment', () => {
+    it('rejects a payment whose source is the invoice seller', () => {
+      expect(
+        verifyInvoicePayment({ ...validInput(), paymentSource: 'GSELLER' }),
+      ).toEqual({ ok: false, code: VerifyErrorCode.SELF_PAYMENT });
+    });
+
+    it('rejects a self-payment before any field comparison', () => {
+      expect(
+        verifyInvoicePayment({
+          ...validInput(),
+          paymentSource: 'GSELLER',
+          txMemo: 'WRONG',
+        }),
+      ).toEqual({ ok: false, code: VerifyErrorCode.SELF_PAYMENT });
+    });
+
+    it('accepts a different payer whose source is not the seller', () => {
+      expect(
+        verifyInvoicePayment({ ...validInput(), paymentSource: 'GPAYER' }),
+      ).toEqual({ ok: true });
+    });
+
+    it('leaves callers that cannot supply a source unchanged', () => {
+      expect(
+        verifyInvoicePayment({ ...validInput(), paymentSource: undefined }),
+      ).toEqual({ ok: true });
+      expect(
+        verifyInvoicePayment({ ...validInput(), paymentSource: '   ' }),
+      ).toEqual({ ok: true });
     });
   });
 
@@ -235,6 +269,26 @@ describe('asset identity: code plus issuer', () => {
       paymentIsNative: undefined,
     };
     expect(verifyInvoicePayment(withoutNativeFlag)).toEqual({ ok: true });
+  });
+});
+
+describe('isSelfPayment', () => {
+  it('treats the seller as the payer', () => {
+    expect(isSelfPayment('GSELLER', 'GSELLER')).toBe(true);
+  });
+
+  it('ignores surrounding whitespace on either key', () => {
+    expect(isSelfPayment(' GSELLER ', 'GSELLER')).toBe(true);
+  });
+
+  it('accepts a different payer', () => {
+    expect(isSelfPayment('GPAYER', 'GSELLER')).toBe(false);
+  });
+
+  it('does not flag a missing source', () => {
+    expect(isSelfPayment(undefined, 'GSELLER')).toBe(false);
+    expect(isSelfPayment(null, 'GSELLER')).toBe(false);
+    expect(isSelfPayment('', 'GSELLER')).toBe(false);
   });
 });
 
