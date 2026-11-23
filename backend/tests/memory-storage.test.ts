@@ -215,7 +215,7 @@ beforeEach(() => {
 
   expect(memoryStorage.getInvoiceByTxHash('tx-hash-index')).toBe(undefined);
 
-  memoryStorage.markAsPaid(invoice.id, 'tx-hash-index', payer);
+  memoryStorage.markAsPaid(invoice.id, 'tx-hash-index', payer, { ledger: 1 });
 
   expect(memoryStorage.getInvoiceByTxHash('tx-hash-index')?.id).toBe(invoice.id);
   expect(memoryStorage.getInvoiceByTxHash('a-different-hash')).toBe(undefined);
@@ -241,7 +241,7 @@ beforeEach(() => {
   const paidInvoice = memoryStorage.createInvoice(
     buildSeed({ memo: nextMemo('paid') }),
   );
-  memoryStorage.markAsPaid(paidInvoice.id, 'tx-hash-001', 'G' + 'P'.repeat(55));
+  memoryStorage.markAsPaid(paidInvoice.id, 'tx-hash-001', 'G' + 'P'.repeat(55), { ledger: 1 });
   const paidFetched = memoryStorage.getInvoiceById(paidInvoice.id);
   expect(paidFetched?.status).toBe('PAID', 'starts as PAID');
 
@@ -282,7 +282,7 @@ describe('InvoiceMemoryService cancel, markAsPaid, and stats', () => {
 
   it('cancelInvoice throws for a PAID invoice and leaves it PAID', async () => {
     const invoice = memoryStorage.createInvoice(buildSeed({ memo: nextMemo('cancel-paid') }));
-    await invoiceMemoryService.markAsPaid(invoice.id, 'tx-hash-cancel-paid', PAYER);
+    await invoiceMemoryService.markAsPaid(invoice.id, 'tx-hash-cancel-paid', PAYER, 1);
     expect(memoryStorage.getInvoiceById(invoice.id)?.status).toBe('PAID', 'setup: invoice is PAID');
 
     await expect(invoiceMemoryService.cancelInvoice(invoice.id)).rejects.toThrow(
@@ -329,7 +329,7 @@ describe('InvoiceMemoryService cancel, markAsPaid, and stats', () => {
     );
 
     memoryStorage.markExpiredInvoices(); // past-dated PENDING -> EXPIRED
-    await invoiceMemoryService.markAsPaid(toPay.id, 'tx-hash-stats', PAYER);
+    await invoiceMemoryService.markAsPaid(toPay.id, 'tx-hash-stats', PAYER, 1);
     await invoiceMemoryService.cancelInvoice(toCancel.id);
 
     expect(memoryStorage.getInvoiceById(toExpire.id)?.status).toBe('EXPIRED');
