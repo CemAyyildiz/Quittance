@@ -6,7 +6,7 @@ import { toast } from 'sonner';
 import { Loader2 } from 'lucide-react';
 import { STELLAR_ASSETS, getAssetByCode } from '@/lib/assets';
 import { checkAssetReadiness } from '@/lib/stellar';
-import { isValidEmail } from '@/lib/utils';
+import { MAX_MEMO_BYTES, getUtf8ByteLength, isValidEmail } from '@/lib/utils';
 import AssetLogo from './AssetLogo';
 
 interface InvoiceFormProps {
@@ -23,12 +23,15 @@ interface InvoiceDraft {
   description: string;
   customerName: string;
 }
+const memoCounterId = 'memo-counter';
+const memoErrorId = 'memo-error';
 
 export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps) {
   const [loading, setLoading] = useState(false);
   const [amount, setAmount] = useState('');
   const [assetCode, setAssetCode] = useState('XLM');
   const [description, setDescription] = useState('');
+  const [memo, setMemo] = useState('');
   const [customerName, setCustomerName] = useState('');
   const [customerEmail, setCustomerEmail] = useState('');
   const [trustlineWarning, setTrustlineWarning] = useState<string | null>(null);
@@ -37,6 +40,8 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
   const [draftReadyFor, setDraftReadyFor] = useState<string | null>(null);
 
   const selectedAsset = getAssetByCode(assetCode);
+  const memoBytes = getUtf8ByteLength(memo);
+  const memoTooLong = memoBytes > MAX_MEMO_BYTES;
 
   useEffect(() => {
     setDraftReadyFor(null);
@@ -144,6 +149,11 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
     }
     setEmailError('');
 
+    if (memoTooLong) {
+      toast.error(`Memo must be at most ${MAX_MEMO_BYTES} bytes`);
+      return;
+    }
+
     setLoading(true);
     try {
       const selectedAsset = getAssetByCode(assetCode);
@@ -154,6 +164,7 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
         expiresInDays: 7,
         sellerPublicKey: userWallet,
         description: description || undefined,
+        memo: memo || undefined,
         customerName: customerName.trim() || undefined,
         customerEmail: customerEmail.trim() || undefined,
       });
@@ -170,6 +181,7 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
       setAmount('');
       setAssetCode('XLM');
       setDescription('');
+      setMemo('');
       setCustomerName('');
       setCustomerEmail('');
       setAmountError('');
@@ -246,6 +258,35 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
       </div>
 
       <div>
+        <label className="label" htmlFor="invoice-memo">
+          Memo (optional)
+        </label>
+        <input
+          id="invoice-memo"
+          type="text"
+          className={`input text-sm ${memoTooLong ? 'border-red-500' : ''}`}
+          placeholder="Payment reference, e.g. INV-2026"
+          value={memo}
+          onChange={(e) => setMemo(e.target.value)}
+          aria-invalid={memoTooLong}
+          aria-describedby={memoTooLong ? `${memoCounterId} ${memoErrorId}` : memoCounterId}
+        />
+        <p
+          id={memoCounterId}
+          aria-live="polite"
+          className={`text-xs mt-1 ${memoTooLong ? 'text-red-600 font-semibold' : 'text-gray-500'}`}
+        >
+          {memoBytes}/{MAX_MEMO_BYTES} bytes
+        </p>
+        {memoTooLong && (
+          <p id={memoErrorId} className="text-sm text-red-600 mt-1">
+            Memo is {memoBytes} bytes. Stellar allows at most {MAX_MEMO_BYTES} bytes, and
+            non-ASCII characters use more than one byte each.
+          </p>
+        )}
+      </div>
+
+      <div>
         <label className="label">Client name (optional)</label>
         <input
           type="text"
@@ -282,7 +323,7 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
 
       <button
         type="submit"
-        disabled={loading}
+        disabled={loading || memoTooLong}
         aria-busy={loading}
         className="btn btn-primary w-full flex items-center justify-center gap-2 mt-6"
       >

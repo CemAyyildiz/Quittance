@@ -1,8 +1,9 @@
 // Invoice service with in-memory storage
-import { generateInvoiceMemo } from '../utils/memo';
+import { generateInvoiceMemo, validateMemoByteLength } from '../utils/memo';
 import { CreateInvoiceInput } from '../utils/validation';
 import { assertCanExtendExpiry } from '../utils/invoice-expiry';
 import memoryStorage from '../storage/memory-storage';
+import { DEFAULT_PAGE_LIMIT, MAX_PAGE_LIMIT } from '../utils/parse-pagination';
 
 class InvoiceMemoryService {
   /**
@@ -14,7 +15,16 @@ class InvoiceMemoryService {
       throw new Error('Seller public key is required');
     }
 
-    const memo = generateInvoiceMemo();
+    let memo = generateInvoiceMemo();
+
+    if (input.memo) {
+      const memoValidation = validateMemoByteLength(input.memo);
+      if (!memoValidation.valid) {
+        throw new Error(memoValidation.error);
+      }
+      memo = input.memo;
+    }
+
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + (input.expiresInDays || 7));
 
@@ -58,8 +68,16 @@ class InvoiceMemoryService {
   /**
    * Update invoice status to PAID
    */
-  async markAsPaid(invoiceId: string, txHash: string, payerPublicKey: string): Promise<any> {
-    const invoice = memoryStorage.markAsPaid(invoiceId, txHash, payerPublicKey);
+  async markAsPaid(invoiceId: string, txHash: string, payerPublicKey: string, ledgerSeq?: number, paidAt?: Date): Promise<any> {
+    if (!memoryStorage.getInvoiceById(invoiceId)) {
+      throw new Error('Invoice not found');
+    }
+
+    if (ledgerSeq === undefined || ledgerSeq === null || !Number.isFinite(ledgerSeq)) {
+      throw new Error('Ledger sequence is required to mark invoice as paid');
+    }
+
+    const invoice = memoryStorage.markAsPaid(invoiceId, txHash, payerPublicKey, { ledger: ledgerSeq, paidAt: paidAt });
 
     if (!invoice) {
       throw new Error('Invoice not found');
@@ -70,21 +88,52 @@ class InvoiceMemoryService {
   }
 
   /**
-   * Get all invoices for a seller
+   * Get all invoices for a seller with cursor-based pagination
    */
   async getInvoicesBySeller(
     sellerPublicKey: string,
     status?: string,
-    limit: number = 50,
-    offset: number = 0
-  ): Promise<any[]> {
+    limit: number = DEFAULT_PAGE_LIMIT,
+    cursor?: string
+  ): Promise<{ invoices: any[]; nextCursor?: string; limit: number }> {
+    const pageLimit = Number.isFinite(limit)
+      ? Math.min(Math.max(Math.floor(limit), 1), MAX_PAGE_LIMIT)
+      : DEFAULT_PAGE_LIMIT;
+
     let invoices = memoryStorage.getAllInvoices(status ? { status } : undefined);
 
     if (sellerPublicKey) {
       invoices = invoices.filter((inv) => inv.sellerPublicKey === sellerPublicKey);
     }
 
-    return invoices.slice(offset, offset + limit);
+    // Sort by createdAt descending for consistent pagination
+    invoices.sort((a: any, b: any) => (b.createdAt || 0) - (a.createdAt || 0));
+
+    let startIndex = 0;
+    if (cursor) {
+      const cursorIndex = invoices.findIndex(
+        (inv) => inv.id === cursor
+      );
+      // A cursor that does not belong to this seller-scoped list cannot be
+      // honoured; silently starting over would hide the mistake from callers.
+      if (cursorIndex === -1) {
+        throw Object.assign(new Error('Unknown cursor'), {
+          status: 400,
+          code: 'INVALID_CURSOR',
+        });
+      }
+      startIndex = cursorIndex + 1;
+    }
+
+    const page = invoices.slice(startIndex, startIndex + pageLimit);
+    const hasMore = startIndex + page.length < invoices.length;
+
+    let nextCursor;
+    if (hasMore && page.length > 0) {
+      nextCursor = page[page.length - 1].id;
+    }
+
+    return { invoices: page, nextCursor, limit: pageLimit };
   }
 
   /**

@@ -1,5 +1,12 @@
 import { describe, it, expect } from 'vitest';
-import { isValidMemo, generateShortReference, generateInvoiceMemo } from '../memo';
+import {
+  isValidMemo,
+  generateShortReference,
+  generateInvoiceMemo,
+  getMemoByteLength,
+  validateMemoByteLength,
+  MAX_MEMO_BYTES,
+} from '../memo';
 
 describe('isValidMemo', () => {
   it('returns true for a standard valid memo', () => {
@@ -86,6 +93,29 @@ describe('isValidMemo', () => {
   });
 });
 
+describe('validateMemoByteLength', () => {
+  it('accepts a memo of exactly 28 bytes', () => {
+    expect(validateMemoByteLength('a'.repeat(MAX_MEMO_BYTES)).valid).toBe(true);
+  });
+
+  it('rejects a memo of 29 bytes', () => {
+    const result = validateMemoByteLength('a'.repeat(MAX_MEMO_BYTES + 1));
+    expect(result.valid).toBe(false);
+    expect(result.error).toContain(String(MAX_MEMO_BYTES));
+  });
+
+  it('counts UTF-8 bytes, not characters', () => {
+    const memo = 'é'.repeat(15);
+    expect(memo).toHaveLength(15);
+    expect(getMemoByteLength(memo)).toBe(30);
+    expect(validateMemoByteLength(memo).valid).toBe(false);
+  });
+
+  it('accepts a 14-character string of two-byte characters (28 bytes)', () => {
+    expect(validateMemoByteLength('é'.repeat(14)).valid).toBe(true);
+  });
+});
+
 describe('generateShortReference', () => {
   it('generates a string of length 10', () => {
     const ref = generateShortReference();
@@ -134,6 +164,14 @@ describe('generateInvoiceMemo integration', () => {
     expect(parts.length).toBe(3);
     expect(parts[1].length).toBeGreaterThan(0);
     expect(parts[2].length).toBe(8); // nanoid(8)
+  });
+
+  it('generateInvoiceMemo always fits the 28-byte text memo limit', () => {
+    for (let i = 0; i < 20; i++) {
+      const memo = generateInvoiceMemo();
+      expect(getMemoByteLength(memo)).toBeLessThanOrEqual(MAX_MEMO_BYTES);
+      expect(validateMemoByteLength(memo).valid).toBe(true);
+    }
   });
 
   it('generateInvoiceMemo produces unique memos', () => {

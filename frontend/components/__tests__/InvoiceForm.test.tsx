@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import React from 'react';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import InvoiceForm from '../InvoiceForm';
 
 vi.mock('@/lib/api', () => ({
@@ -13,6 +13,7 @@ vi.mock('sonner', () => ({
 
 afterEach(() => {
   cleanup();
+  vi.clearAllMocks();
 });
 
 /**
@@ -30,6 +31,56 @@ function changeEmailTo(input: HTMLElement, value: string) {
   });
   fireEvent.change(input, { bubbles: true });
 }
+
+const MEMO_PLACEHOLDER = 'Payment reference, e.g. INV-2026';
+
+describe('InvoiceForm memo byte limit', () => {
+  it('shows a live byte count for the memo', () => {
+    render(<InvoiceForm />);
+    const memoInput = screen.getByPlaceholderText(MEMO_PLACEHOLDER);
+
+    expect(screen.getByText('0/28 bytes')).toBeTruthy();
+
+    fireEvent.change(memoInput, { target: { value: 'hello' } });
+    expect(screen.getByText('5/28 bytes')).toBeTruthy();
+    expect(memoInput.getAttribute('aria-invalid')).toBe('false');
+  });
+
+  it('counts UTF-8 bytes and blocks submission over 28 bytes', async () => {
+    const { invoiceApi } = await import('@/lib/api');
+    render(<InvoiceForm userWallet="GABC1234567890" />);
+
+    fireEvent.change(screen.getByPlaceholderText('10.00'), { target: { value: '5' } });
+    const memoInput = screen.getByPlaceholderText(MEMO_PLACEHOLDER);
+    fireEvent.change(memoInput, { target: { value: 'é'.repeat(15) } });
+
+    expect(screen.getByText('30/28 bytes')).toBeTruthy();
+    expect(memoInput.getAttribute('aria-invalid')).toBe('true');
+    expect(screen.getByText(/Stellar allows at most 28 bytes/i)).toBeTruthy();
+
+    const submit = screen.getByRole('button', { name: /create invoice/i }) as HTMLButtonElement;
+    expect(submit.disabled).toBe(true);
+    fireEvent.click(submit);
+    expect(invoiceApi.create).not.toHaveBeenCalled();
+  });
+
+  it('submits a memo of exactly 28 bytes', async () => {
+    const { invoiceApi } = await import('@/lib/api');
+    render(<InvoiceForm userWallet="GABC1234567890" />);
+
+    fireEvent.change(screen.getByPlaceholderText('10.00'), { target: { value: '5' } });
+    fireEvent.change(screen.getByPlaceholderText(MEMO_PLACEHOLDER), {
+      target: { value: 'a'.repeat(28) },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /create invoice/i }));
+
+    await waitFor(() =>
+      expect(invoiceApi.create).toHaveBeenCalledWith(
+        expect.objectContaining({ memo: 'a'.repeat(28) }),
+      ),
+    );
+  });
+});
 
 describe('InvoiceForm client email validation', () => {
   it('shows no error while the field is empty', () => {

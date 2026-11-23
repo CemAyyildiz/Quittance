@@ -11,6 +11,7 @@ export interface InvoiceDTO {
   status: 'PENDING' | 'PAID' | 'EXPIRED' | 'CANCELLED';
   paymentTxHash?: string;
   payerPublicKey?: string;
+  ledger?: number;
   createdAt: string;
   paidAt?: string;
   expiresAt: string;
@@ -31,6 +32,7 @@ export function toInvoiceDTO(invoice: {
   status: 'PENDING' | 'PAID' | 'EXPIRED' | 'CANCELLED';
   paymentTxHash?: string;
   payerPublicKey?: string;
+  ledger?: number;
   createdAt: Date;
   paidAt?: Date;
   expiresAt: Date;
@@ -51,6 +53,7 @@ export function toInvoiceDTO(invoice: {
     status: invoice.status,
     paymentTxHash: invoice.paymentTxHash,
     payerPublicKey: invoice.payerPublicKey,
+    ledger: invoice.ledger,
     createdAt: invoice.createdAt.toISOString(),
     paidAt: invoice.paidAt?.toISOString(),
     expiresAt: invoice.expiresAt.toISOString(),
