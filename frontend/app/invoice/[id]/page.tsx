@@ -259,6 +259,27 @@ export default function InvoiceDetailPage() {
                   <p className="text-gray-900">{formatDate(invoice.createdAt)}</p>
                 </div>
 
+                {invoice.paidAt && (
+                  <div className="border-b pb-4">
+                    <p className="text-sm text-gray-600 mb-1">Paid At</p>
+                    <p className="text-gray-900">{formatDate(invoice.paidAt)}</p>
+                  </div>
+                )}
+
+                {invoice.ledger && (
+                  <div className="border-b pb-4">
+                    <p className="text-sm text-gray-600 mb-1">Ledger</p>
+                    <p className="font-mono text-sm text-gray-900">{invoice.ledger}</p>
+                  </div>
+                )}
+
+                {invoice.payerPublicKey && (
+                  <div className="border-b pb-4">
+                    <p className="text-sm text-gray-600 mb-1">Payer</p>
+                    <p className="font-mono text-sm text-gray-900">{invoice.payerPublicKey}</p>
+                  </div>
+                )}
+
                 {invoice.status === 'PENDING' && (
                   <div className="border-b pb-4">
                     <p className="text-sm text-gray-600 mb-1">Expires In</p>

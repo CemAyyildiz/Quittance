@@ -50,7 +50,7 @@ function seedInvoice(expiresAt: Date) {
 
 function matchingHorizonTx(memo: string) {
   return {
-    transaction: { memo },
+    transaction: { memo, ledger_sequence: 12345 },
     operations: [
       {
         type: 'payment',
@@ -186,7 +186,7 @@ describe('MVP invoice expiry', () => {
     // The handler answers INVOICE_ALREADY_PAID before the expiry check runs;
     // this pins that the new check did not take that answer over.
     const invoice = seedInvoice(nextWeek());
-    memoryStorage.markAsPaid(invoice.id, TX_HASH, PAYER);
+    memoryStorage.markAsPaid(invoice.id, TX_HASH, PAYER, { ledger: 1 });
 
     const { body } = await call('GET', `/api/invoices/${invoice.id}`);
     expect(body.data.status).toBe('PAID');
