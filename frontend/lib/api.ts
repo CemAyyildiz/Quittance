@@ -23,7 +23,7 @@ api.interceptors.response.use(
 );
 export const invoiceApi = USE_MOCK_API ? mockInvoiceApi : {
   create: async (data: {
-    amount: number;
+    amount: string | number;
     assetCode?: string;
     assetIssuer?: string;
     description?: string;

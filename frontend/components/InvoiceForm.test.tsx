@@ -5,7 +5,7 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import InvoiceForm from './InvoiceForm';
 
 function amountInput(html: string) {
-  const match = html.match(/<input[^>]*type="number"[^>]*>/);
+  const match = html.match(/<input[^>]*type="text"[^>]*>/);
   expect(match).not.toBeNull();
   return match![0];
 }

@@ -8,6 +8,7 @@ import { STELLAR_ASSETS, getAssetByCode } from '@/lib/assets';
 import { checkAssetReadiness } from '@/lib/stellar';
 import { isValidEmail } from '@/lib/utils';
 import AssetLogo from './AssetLogo';
+import { parseAmount } from '@/lib/amountParse';
 
 interface InvoiceFormProps {
   onSuccess?: (invoice: any) => void;
@@ -50,7 +51,8 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
 
   const handleAmountChange = (value: string) => {
     setAmount(value);
-    if (value && (isNaN(parseFloat(value)) || parseFloat(value) <= 0)) {
+    const parsed = parseAmount(value);
+    if (value && (!parsed || Number(parsed) <= 0)) {
       setAmountError('Amount must be greater than 0');
     } else {
       setAmountError('');
@@ -74,8 +76,8 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
       return;
     }
 
-    const amountNum = parseFloat(amount);
-    if (!amount || amountNum <= 0 || isNaN(amountNum)) {
+    const normalizedAmount = parseAmount(amount);
+    if (!normalizedAmount || Number(normalizedAmount) <= 0) {
       setAmountError('Enter a valid amount');
       return;
     }
@@ -91,7 +93,7 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
     try {
       const selectedAsset = getAssetByCode(assetCode);
       const result = await invoiceApi.create({
-        amount: amountNum,
+        amount: normalizedAmount,
         assetCode: assetCode,
         assetIssuer: selectedAsset?.issuer,
         expiresInDays: 7,
@@ -123,7 +125,8 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
         <label className="label">Invoice Amount *</label>
         <div className="flex gap-3 flex-col sm:flex-row">
           <input
-            type="number"
+            type="text"
+            inputMode="decimal"
             step="0.0000001"
             min="0.0000001"
             required

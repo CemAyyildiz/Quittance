@@ -1,5 +1,22 @@
 import { z } from 'zod';
 
+export interface ParsedAmount { decimal: string; stroops: bigint; }
+export function parseAmount(input: string | number): ParsedAmount | undefined {
+  const raw = typeof input === 'number' ? String(input) : input.trim();
+  if (!/^\d+(?:[.,]\d+)?$/.test(raw) || (raw.match(/[.,]/g) ?? []).length > 1) return undefined;
+  const decimal = raw.replace(',', '.');
+  const [whole, fraction = ''] = decimal.split('.');
+  if (fraction.length > 7) return undefined;
+  const stroops = BigInt(whole) * 10_000_000n + BigInt(fraction.padEnd(7, '0') || '0');
+  if (stroops <= 0n || stroops > 10_000_000_000_000_000n) return undefined;
+  return { decimal, stroops };
+}
+const amountSchema = z.preprocess((value) => {
+  if (typeof value !== 'string' && typeof value !== 'number') return value;
+  const parsed = parseAmount(value);
+  return parsed ? Number(parsed.decimal) : value;
+}, z.number().positive().max(1000000000));
+
 // Stellar public key validation
 export const stellarPublicKeySchema = z.string()
   .length(56)
@@ -12,7 +29,7 @@ export const verifyTxHashSchema = z.string()
 
 // Invoice creation schema
 export const createInvoiceSchema = z.object({
-  amount: z.number().positive().max(1000000000),
+  amount: amountSchema,
   assetCode: z.string().default('XLM').optional(),
   assetIssuer: z.string().optional(),
   description: z.string().max(500).optional(),

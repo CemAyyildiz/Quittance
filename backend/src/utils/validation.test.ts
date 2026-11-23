@@ -1,12 +1,21 @@
 import { describe, it, expect } from 'vitest';
 
-import { createInvoiceSchema, paymentSchema, stellarPublicKeySchema } from './validation';
+import { createInvoiceSchema, parseAmount, paymentSchema, stellarPublicKeySchema } from './validation';
 
 const validSellerPublicKey = 'G' + 'A'.repeat(55);
 const validInvoiceId = '123e4567-e89b-12d3-a456-426614174000';
 const validTxHash = 'a'.repeat(64);
 
 describe('createInvoiceSchema', () => {
+  it('normalizes comma and dot inputs to the same stroops', () => {
+    expect(parseAmount('10,5')).toEqual({ decimal: '10.5', stroops: 105000000n });
+    expect(parseAmount('10.5')).toEqual({ decimal: '10.5', stroops: 105000000n });
+    expect(createInvoiceSchema.parse({ amount: '10,5', sellerPublicKey: validSellerPublicKey }).amount).toBe(10.5);
+  });
+  it.each(['1.2.3', '1,2,3', '1,2.3', '', '   '])('rejects malformed amount %j', (amount) => {
+    expect(parseAmount(amount)).toBeUndefined();
+    expect(createInvoiceSchema.safeParse({ amount, sellerPublicKey: validSellerPublicKey }).success).toBe(false);
+  });
   it('accepts a valid invoice payload', () => {
     const result = createInvoiceSchema.safeParse({
       amount: 125,
