@@ -93,19 +93,13 @@ class InvoiceMemoryService {
   async getInvoicesBySeller(
     sellerPublicKey: string,
     status?: string,
-    limit: number = 50,
-    offset: number = 0,
+    limit: number = DEFAULT_PAGE_LIMIT,
+    cursor?: string,
     filters: {
       assetCode?: string;
       createdFrom?: Date;
       createdTo?: Date;
     } = {}
-  ): Promise<any[]> {
-    let invoices = memoryStorage
-      .getAllInvoices()
-      .filter((invoice) => invoice.sellerPublicKey === sellerPublicKey);
-    limit: number = DEFAULT_PAGE_LIMIT,
-    cursor?: string
   ): Promise<{ invoices: any[]; nextCursor?: string; limit: number }> {
     const pageLimit = Number.isFinite(limit)
       ? Math.min(Math.max(Math.floor(limit), 1), MAX_PAGE_LIMIT)
@@ -113,6 +107,9 @@ class InvoiceMemoryService {
 
     let invoices = memoryStorage.getAllInvoices(status ? { status } : undefined);
 
+    invoices = invoices.filter(
+      (invoice) => invoice.sellerPublicKey === sellerPublicKey
+    );
     if (status) {
       invoices = invoices.filter((invoice) => invoice.status === status);
     }

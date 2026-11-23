@@ -183,16 +183,8 @@ app.get('/api/invoices', async (req: Request, res: Response) => {
   try {
     await runExpirySweep(invoiceService);
 
-    const {
-      status,
-      assetCode,
-      createdFrom,
-      createdTo,
-      limit = 50,
-      offset = 0,
-      sellerPublicKey,
-    } = req.query;
-    const { status, cursor, sellerPublicKey } = req.query;
+    const { status, assetCode, createdFrom, createdTo, cursor, sellerPublicKey } =
+      req.query;
 
     if (!sellerPublicKey) {
       return res.status(400).json({
@@ -263,17 +255,6 @@ app.get('/api/invoices', async (req: Request, res: Response) => {
       });
     }
 
-    const invoices = await invoiceService.getInvoicesBySeller(
-      sellerPublicKey as string,
-      typeof status === 'string' ? status.toUpperCase() : undefined,
-      parseInt(limit as string),
-      parseInt(offset as string),
-      {
-        assetCode:
-          typeof assetCode === 'string' ? assetCode.trim().toUpperCase() : undefined,
-        createdFrom: startDate,
-        createdTo: endDate,
-      }
     if (cursor !== undefined && typeof cursor !== 'string') {
       return res.status(400).json({
         success: false,
@@ -286,9 +267,17 @@ app.get('/api/invoices', async (req: Request, res: Response) => {
 
     const result = await invoiceService.getInvoicesBySeller(
       sellerPublicKey as string,
-      typeof status === 'string' ? status : undefined,
+      typeof status === 'string' ? status.toUpperCase() : undefined,
       limit,
-      cursor
+      cursor,
+      {
+        assetCode:
+          typeof assetCode === 'string'
+            ? assetCode.trim().toUpperCase()
+            : undefined,
+        createdFrom: startDate,
+        createdTo: endDate,
+      }
     );
 
     res.json({
