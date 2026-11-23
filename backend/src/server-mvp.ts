@@ -12,7 +12,7 @@ import {
   invoiceVerifyRateLimit,
 } from './middleware/rate-limit-stub';
 import healthDetailRouter from './routes/health-detail';
-import { toInvoiceDTO } from './utils/invoice-dto';
+import { toInvoiceDTO as mapInvoiceDTO } from './utils/invoice-dto';
 import { isDecimalEqual } from './utils/amount-compare';
 import { VerifyErrorCode, VerifyErrorMessages } from './utils/verify-errors';
 import {
@@ -26,6 +26,7 @@ import {
 } from './utils/verify-invoice-payment';
 import { parsePaginationQuery } from './utils/parse-pagination';
 import { isSmtpConfigured, sendEmail, generateInvoiceEmail } from './utils/smtp';
+import { STELLAR_NETWORK } from './config/stellar';
 
 // Load environment variables
 dotenv.config();
@@ -34,6 +35,13 @@ const app: Application = express();
 const PORT = process.env.PORT || 3001;
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3000';
 const ALLOW_SIMULATE = process.env.ALLOW_SIMULATE === 'true';
+
+/** Map invoices through the DTO helper with the configured Stellar network. */
+function toInvoiceDTO(
+  invoice: Parameters<typeof mapInvoiceDTO>[0],
+) {
+  return mapInvoiceDTO(invoice, { network: STELLAR_NETWORK });
+}
 
 // Middleware
 app.use(cors({

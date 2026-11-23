@@ -299,6 +299,39 @@ export default function PaymentPage() {
                   </p>
                 </div>
               )}
+
+              {invoice.status === 'PAID' && invoice.proofDigest && (
+                <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 space-y-3">
+                  <div>
+                    <p className="text-sm text-slate-600 font-semibold mb-1">Proof Digest</p>
+                    <code className="block text-xs font-mono text-slate-900 break-all bg-white border rounded p-2">
+                      {invoice.proofDigest}
+                    </code>
+                    <button
+                      type="button"
+                      onClick={() => copyInfo(invoice.proofDigest, 'Proof digest')}
+                      className="mt-2 text-xs text-cyan-700 hover:underline"
+                    >
+                      Copy digest
+                    </button>
+                  </div>
+                  {invoice.proofCanonical && (
+                    <div>
+                      <p className="text-sm text-slate-600 font-semibold mb-1">Canonical String</p>
+                      <pre className="text-xs font-mono text-slate-800 whitespace-pre-wrap break-all bg-white border rounded p-2">
+                        {invoice.proofCanonical}
+                      </pre>
+                      <button
+                        type="button"
+                        onClick={() => copyInfo(invoice.proofCanonical, 'Canonical string')}
+                        className="mt-2 text-xs text-cyan-700 hover:underline"
+                      >
+                        Copy canonical string
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             {invoice.status === 'PAID' && (
