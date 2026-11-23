@@ -183,6 +183,31 @@ export default function InvoiceDetailPage() {
                   </div>
                 </div>
 
+                {invoice.lineItems?.length > 0 && (
+                  <div className="bg-white border border-gray-200 rounded-2xl p-5">
+                    <p className="text-xs text-gray-600 mb-3 font-semibold uppercase tracking-wide">Line Items</p>
+                    <div className="space-y-3">
+                      {invoice.lineItems.map((line: any, index: number) => (
+                        <div key={`${line.label}-${index}`} className="grid grid-cols-[1fr_auto] gap-3 border-b last:border-b-0 pb-3 last:pb-0">
+                          <div>
+                            <p className="font-medium text-gray-900">{line.label}</p>
+                            <p className="text-xs text-gray-500">
+                              {line.quantity} × {formatAmount(line.unitPrice, 7)} {invoice.assetCode}
+                            </p>
+                          </div>
+                          <p className="font-semibold text-gray-900">
+                            {formatAmount(Number(line.quantity) * Number(line.unitPrice), 7)} {invoice.assetCode}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="border-t mt-3 pt-3 flex justify-between font-bold">
+                      <span>Total</span>
+                      <span>{formatAmount(invoice.amount, 7)} {invoice.assetCode}</span>
+                    </div>
+                  </div>
+                )}
+
                 {invoice.status === 'PAID' && (
                   <button
                     type="button"

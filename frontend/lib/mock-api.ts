@@ -7,6 +7,7 @@ const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 type MockInvoice = {
   id: string;
   amount: number;
+  lineItems?: Array<{ label: string; quantity: number; unitPrice: number }>;
   assetCode: string;
   assetIssuer?: string;
   description: string;

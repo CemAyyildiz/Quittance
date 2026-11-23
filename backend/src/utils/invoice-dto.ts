@@ -2,6 +2,7 @@ export interface InvoiceDTO {
   id: string;
   sellerPublicKey: string;
   amount: number;
+  lineItems?: Array<{ label: string; quantity: number; unitPrice: number }>;
   assetCode: string;
   assetIssuer?: string;
   memo: string;
@@ -23,6 +24,7 @@ export function toInvoiceDTO(invoice: {
   id: string;
   sellerPublicKey: string;
   amount: number;
+  lineItems?: Array<{ label: string; quantity: number; unitPrice: number }>;
   assetCode: string;
   assetIssuer?: string;
   memo: string;
@@ -44,6 +46,13 @@ export function toInvoiceDTO(invoice: {
     id: invoice.id,
     sellerPublicKey: invoice.sellerPublicKey,
     amount: invoice.amount,
+    lineItems: invoice.lineItems ?? [
+      {
+        label: invoice.description?.trim() || 'Item',
+        quantity: 1,
+        unitPrice: invoice.amount,
+      },
+    ],
     assetCode: invoice.assetCode,
     assetIssuer: invoice.assetIssuer,
     memo: invoice.memo,
