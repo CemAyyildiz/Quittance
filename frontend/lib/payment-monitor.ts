@@ -20,6 +20,52 @@ export interface PaymentNotification {
 
 type PaymentCallback = (payment: PaymentNotification) => void;
 
+export const streamInvoicePayments = (
+  sellerPublicKey: string,
+  memo: string,
+  onPayment: (txHash: string) => void,
+  onError: (error: unknown) => void
+): (() => void) => {
+  const seenHashes = new Set<string>();
+  let closeStream: () => void = () => {};
+  closeStream = server
+    .payments()
+    .forAccount(sellerPublicKey)
+    .cursor('now')
+    .stream({
+      onmessage: async (record: any) => {
+        const txHash = record.transaction_hash;
+        if (
+          record.type !== 'payment' ||
+          record.to !== sellerPublicKey ||
+          typeof txHash !== 'string' ||
+          seenHashes.has(txHash)
+        ) {
+          return;
+        }
+
+        seenHashes.add(txHash);
+        try {
+          const transaction = await server
+            .transactions()
+            .transaction(txHash)
+            .call();
+          if (transaction.memo === memo) {
+            onPayment(txHash);
+          }
+        } catch (error) {
+          console.error('Error checking streamed invoice payment:', error);
+        }
+      },
+      onerror: (error: unknown) => {
+        closeStream();
+        onError(error);
+      },
+    });
+
+  return closeStream;
+};
+
 class PaymentMonitor {
   private activeStreams: Map<string, () => void> = new Map();
   private callbacks: Map<string, PaymentCallback[]> = new Map();

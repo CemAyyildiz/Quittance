@@ -21,6 +21,7 @@ let streamOnerror: ((error: any) => void) | undefined;
 const mockStream = vi.hoisted(() => vi.fn());
 const mockPayments = vi.hoisted(() => vi.fn());
 const mockTransactions = vi.hoisted(() => vi.fn());
+const mockTransactionCall = vi.hoisted(() => vi.fn());
 
 // Set up the mock implementations now that hoisted refs exist
 mockStream.mockReturnValue(vi.fn()); // returns close handler
@@ -41,7 +42,7 @@ mockPayments.mockReturnValue({
 
 mockTransactions.mockReturnValue({
   transaction: vi.fn(() => ({
-    call: vi.fn().mockResolvedValue({ memo: 'test-memo' }),
+    call: mockTransactionCall,
   })),
 });
 
@@ -54,7 +55,7 @@ vi.mock('../stellar', () => ({
 }));
 
 // Import after mocks are set up
-import { paymentMonitor } from '../payment-monitor';
+import { paymentMonitor, streamInvoicePayments } from '../payment-monitor';
 import { toast } from 'sonner';
 
 describe('paymentMonitor.isMonitoring()', () => {
@@ -63,6 +64,7 @@ describe('paymentMonitor.isMonitoring()', () => {
     paymentMonitor.stopAll();
     streamOnmessage = undefined;
     streamOnerror = undefined;
+    mockTransactionCall.mockResolvedValue({ memo: 'test-memo' });
   });
 
   afterEach(() => {
@@ -111,6 +113,7 @@ describe('paymentMonitor.getActiveCount()', () => {
     paymentMonitor.stopAll();
     streamOnmessage = undefined;
     streamOnerror = undefined;
+    mockTransactionCall.mockResolvedValue({ memo: 'test-memo' });
   });
 
   afterEach(() => {
@@ -161,6 +164,7 @@ describe('paymentMonitor.startMonitoring() – stream integration', () => {
     paymentMonitor.stopAll();
     streamOnmessage = undefined;
     streamOnerror = undefined;
+    mockTransactionCall.mockResolvedValue({ memo: 'test-memo' });
   });
 
   afterEach(() => {
@@ -237,5 +241,63 @@ describe('paymentMonitor.startMonitoring() – stream integration', () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+describe('streamInvoicePayments()', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockTransactionCall.mockResolvedValue({ memo: 'test-memo' });
+  });
+
+  it('opens the seller stream, emits only matching payments, and closes it', async () => {
+    const close = vi.fn();
+    mockStream.mockReturnValue(close);
+    const onPayment = vi.fn();
+    const onError = vi.fn();
+
+    const closeStream = streamInvoicePayments(
+      'GBDEST',
+      'test-memo',
+      onPayment,
+      onError
+    );
+    expect(mockForAccount).toHaveBeenCalledWith('GBDEST');
+
+    const payment = {
+      type: 'payment',
+      to: 'GBDEST',
+      transaction_hash: 'matching-hash',
+    };
+    await streamOnmessage!(payment);
+    expect(onPayment).toHaveBeenCalledWith('matching-hash');
+
+    mockTransactionCall.mockResolvedValueOnce({ memo: 'different-memo' });
+    await streamOnmessage!({ ...payment, transaction_hash: 'other-hash' });
+    await streamOnmessage!({
+      ...payment,
+      to: 'GBOTHER',
+      transaction_hash: 'wrong-destination',
+    });
+    expect(onPayment).toHaveBeenCalledTimes(1);
+
+    closeStream();
+    expect(close).toHaveBeenCalledOnce();
+  });
+
+  it('verifies a duplicate transaction hash only once', async () => {
+    const onPayment = vi.fn();
+    streamInvoicePayments('GBDEST', 'test-memo', onPayment, vi.fn());
+    const payment = {
+      type: 'payment',
+      to: 'GBDEST',
+      transaction_hash: 'same-hash',
+    };
+
+    await streamOnmessage!(payment);
+    await streamOnmessage!(payment);
+
+    expect(mockTransactionCall).toHaveBeenCalledOnce();
+    expect(onPayment).toHaveBeenCalledOnce();
   });
 });
