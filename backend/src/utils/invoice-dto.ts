@@ -8,7 +8,7 @@ export interface InvoiceDTO {
   description?: string;
   customerName?: string;
   customerEmail?: string;
-  status: 'PENDING' | 'PAID' | 'EXPIRED' | 'CANCELLED';
+  status: 'PENDING' | 'PAID' | 'EXPIRED' | 'CANCELLED' | 'UNCOLLECTIBLE';
   paymentTxHash?: string;
   payerPublicKey?: string;
   createdAt: string;
@@ -28,7 +28,7 @@ export function toInvoiceDTO(invoice: {
   description?: string;
   customerName?: string;
   customerEmail?: string;
-  status: 'PENDING' | 'PAID' | 'EXPIRED' | 'CANCELLED';
+  status: 'PENDING' | 'PAID' | 'EXPIRED' | 'CANCELLED' | 'UNCOLLECTIBLE';
   paymentTxHash?: string;
   payerPublicKey?: string;
   createdAt: Date;

@@ -198,6 +198,15 @@ export const mockInvoiceApi = {
     };
   },
 
+  markUncollectible: async (id: string, sellerPublicKey: string) => {
+    await delay(500);
+    const invoice = mockInvoices.find(inv => inv.id === id && inv.sellerPublicKey === sellerPublicKey);
+    if (invoice && (invoice.status === 'PENDING' || invoice.status === 'UNCOLLECTIBLE')) {
+      invoice.status = 'UNCOLLECTIBLE';
+    }
+    return { success: true, data: invoice };
+  },
+
   verify: async (id: string, txHash: string) => {
     await delay(1000);
     const invoice = mockInvoices.find(inv => inv.id === id);

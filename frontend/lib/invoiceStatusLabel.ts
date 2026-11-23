@@ -3,7 +3,7 @@
  *
  * This is a pure, additive helper that returns a human-readable label
  * for each invoice status. It handles the four canonical statuses:
- * `'PENDING'`, `'PAID'`, `'EXPIRED'`, and `'CANCELLED'` (also accepts US spelling `'CANCELED'`). Unknown
+ * `'PENDING'`, `'PAID'`, `'EXPIRED'`, `'CANCELLED'`, and `'UNCOLLECTIBLE'` (also accepts US spelling `'CANCELED'`). Unknown
  * inputs return the fallback label `'Unknown'`.
  *
  * The input is normalised by trimming whitespace and lower-casing so
@@ -20,7 +20,7 @@
 // ---------------------------------------------------------------------------
 
 /** The canonical invoice statuses used across the backend and frontend. */
-export type InvoiceStatus = 'PENDING' | 'PAID' | 'EXPIRED' | 'CANCELLED';
+export type InvoiceStatus = 'PENDING' | 'PAID' | 'EXPIRED' | 'CANCELLED' | 'UNCOLLECTIBLE';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -32,6 +32,7 @@ const STATUS_LABELS: Readonly<Record<string, string>> = {
   paid: 'Paid',
   expired: 'Expired',
   cancelled: 'Cancelled',
+  uncollectible: 'Uncollectible',
   // US spelling variant sometimes seen in JSON payloads
   canceled: 'Cancelled',
 };

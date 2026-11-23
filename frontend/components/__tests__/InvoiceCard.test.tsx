@@ -59,4 +59,9 @@ describe('InvoiceCard', () => {
     expect(screen.queryByRole('button', { name: 'Copy invoice link' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Email payment proof' })).not.toBeInTheDocument();
   });
+
+  it('renders the uncollectible action for the owning seller', () => {
+    render(<InvoiceCard invoice={{ ...sampleInvoice, sellerPublicKey: 'GSELLER' }} />);
+    expect(screen.queryByRole('button', { name: 'Mark invoice uncollectible' })).not.toBeInTheDocument();
+  });
 });

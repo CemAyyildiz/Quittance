@@ -11,7 +11,7 @@ interface Invoice {
   description?: string;
   customerName?: string;
   customerEmail?: string;
-  status: 'PENDING' | 'PAID' | 'EXPIRED' | 'CANCELLED';
+  status: 'PENDING' | 'PAID' | 'EXPIRED' | 'CANCELLED' | 'UNCOLLECTIBLE';
   paymentTxHash?: string;
   payerPublicKey?: string;
   createdAt: Date;
@@ -101,6 +101,10 @@ class MemoryStorage {
     return invoice;
   }
 
+  markUncollectible(id: string): Invoice | undefined {
+    return this.updateInvoice(id, { status: 'UNCOLLECTIBLE' });
+  }
+
   // Get all invoices
   getAllInvoices(filter?: { status?: string }): Invoice[] {
     let invoices = Array.from(this.invoices.values());
@@ -123,6 +127,7 @@ class MemoryStorage {
       paid_invoices: invoices.filter(inv => inv.status === 'PAID').length,
       pending_invoices: invoices.filter(inv => inv.status === 'PENDING').length,
       expired_invoices: invoices.filter(inv => inv.status === 'EXPIRED').length,
+      uncollectible_invoices: invoices.filter(inv => inv.status === 'UNCOLLECTIBLE').length,
       total_revenue: invoices
         .filter(inv => inv.status === 'PAID')
         .reduce((sum, inv) => sum + inv.amount, 0),

@@ -284,6 +284,24 @@ app.post('/api/invoices/:id/cancel', async (req: Request, res: Response) => {
   }
 });
 
+// Mark an invoice uncollectible (owning seller only; idempotent).
+app.post('/api/invoices/:id/uncollectible', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { sellerPublicKey } = req.body ?? {};
+
+    if (!sellerPublicKey || typeof sellerPublicKey !== 'string') {
+      return res.status(404).json({ success: false, error: 'Invoice not found' });
+    }
+
+    const invoice = await invoiceService.markUncollectible(id, sellerPublicKey);
+    res.json({ success: true, data: toInvoiceDTO(invoice) });
+  } catch (error: any) {
+    const status = typeof error.status === 'number' ? error.status : 400;
+    res.status(status).json({ success: false, code: error.code, error: error.message || 'Failed to mark invoice uncollectible' });
+  }
+});
+
 // Extend invoice expiry once (owning seller only; pending or expired unpaid)
 app.post('/api/invoices/:id/extend-expiry', async (req: Request, res: Response) => {
   try {
@@ -354,6 +372,14 @@ app.post('/api/invoices/:id/verify', async (req: Request, res: Response) => {
         success: false,
         code: VerifyErrorCode.INVOICE_ALREADY_PAID,
         error: VerifyErrorMessages[VerifyErrorCode.INVOICE_ALREADY_PAID],
+      });
+    }
+
+    if (invoice.status === 'UNCOLLECTIBLE') {
+      return res.status(400).json({
+        success: false,
+        code: VerifyErrorCode.INVOICE_NOT_PENDING,
+        error: VerifyErrorMessages[VerifyErrorCode.INVOICE_NOT_PENDING],
       });
     }
 

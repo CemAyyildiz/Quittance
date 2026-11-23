@@ -1,4 +1,4 @@
-export type InvoiceStatus = 'PENDING' | 'PAID' | 'EXPIRED' | 'CANCELLED';
+export type InvoiceStatus = 'PENDING' | 'PAID' | 'EXPIRED' | 'CANCELLED' | 'UNCOLLECTIBLE';
 
 export function canCancel(status: InvoiceStatus): boolean {
   return status === 'PENDING';
@@ -17,4 +17,8 @@ export function isExpired(status: InvoiceStatus): boolean {
 }
 export function isCancelled(status: InvoiceStatus): boolean {
   return status === 'CANCELLED';
+}
+
+export function isUncollectible(status: InvoiceStatus): boolean {
+  return status === 'UNCOLLECTIBLE';
 }
