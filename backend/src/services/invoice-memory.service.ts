@@ -59,6 +59,14 @@ class InvoiceMemoryService {
    * Update invoice status to PAID
    */
   async markAsPaid(invoiceId: string, txHash: string, payerPublicKey: string, ledgerSeq?: number, paidAt?: Date): Promise<any> {
+    if (!memoryStorage.getInvoiceById(invoiceId)) {
+      throw new Error('Invoice not found');
+    }
+
+    if (ledgerSeq === undefined || ledgerSeq === null || !Number.isFinite(ledgerSeq)) {
+      throw new Error('Ledger sequence is required to mark invoice as paid');
+    }
+
     const invoice = memoryStorage.markAsPaid(invoiceId, txHash, payerPublicKey, { ledger: ledgerSeq, paidAt: paidAt });
 
     if (!invoice) {

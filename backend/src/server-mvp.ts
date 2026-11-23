@@ -395,6 +395,17 @@ app.post('/api/invoices/:id/verify', async (req: Request, res: Response) => {
       });
     }
 
+    // A payment must carry a ledger sequence; otherwise we would store
+    // Number(undefined) and mark the invoice paid without a real anchor.
+    const ledgerSequence = Number(transaction?.ledger_sequence);
+    if (!Number.isFinite(ledgerSequence) || ledgerSequence <= 0) {
+      return res.status(400).json({
+        success: false,
+        code: VerifyErrorCode.MISSING_LEDGER_SEQUENCE,
+        error: VerifyErrorMessages[VerifyErrorCode.MISSING_LEDGER_SEQUENCE],
+      });
+    }
+
     // A seller can otherwise pay their own invoice and produce a proof that a
     // client paid. The memo and amount match, so this is the only check that
     // catches it. Horizon reports the inner transaction source for a fee-bump,
@@ -458,11 +469,15 @@ app.post('/api/invoices/:id/verify', async (req: Request, res: Response) => {
       });
     }
 
+    // The inner source of a fee-bump is the real payer; `paymentOp.from`
+    // alone would store the outer fee-bump account.
+    const payerPublicKey = paymentOp.source_account ?? paymentOp.from;
+
     const updatedInvoice = await invoiceService.markAsPaid(
       id,
       txHash,
-      paymentOp.from,
-      Number(transaction.ledger_sequence),
+      payerPublicKey,
+      ledgerSequence,
       transaction.created_at ? new Date(transaction.created_at) : undefined
     );
 
@@ -518,7 +533,7 @@ app.post('/api/invoices/:id/simulate-payment', async (req: Request, res: Respons
     const mockTxHash = `MOCK_TX_${Date.now().toString(36).toUpperCase()}_${Math.random().toString(36).substr(2, 8).toUpperCase()}`;
     const mockPayerKey = 'GXXXSIMULATEDPAYERXXXXXXXXXXXXXXXXXXXXXXXXXXXXX';
 
-    const updatedInvoice = await invoiceService.markAsPaid(id, mockTxHash, mockPayerKey);
+    const updatedInvoice = await invoiceService.markAsPaid(id, mockTxHash, mockPayerKey, 1);
 
     res.json({
       success: true,
