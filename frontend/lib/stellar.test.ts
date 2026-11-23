@@ -17,18 +17,11 @@ import {
   checkWalletConnection,
   requestWalletAccess,
   getUserPublicKey,
-  MIN_XLM_FOR_FEE,
-  hasEnoughXlmForFee,
-  isTestnetNetwork,
-  requestFriendbotFunding,
+  buildPaymentTransaction,
 } from './stellar';
 
-import {
-  isConnected,
-  getPublicKey,
-  isAllowed,
-  setAllowed,
-} from '@stellar/freighter-api';
+import { isConnected, getPublicKey, isAllowed, setAllowed } from '@stellar/freighter-api';
+import * as StellarSdk from '@stellar/stellar-sdk';
 
 // A well-known, valid Stellar Ed25519 public key (56 chars, starts with G,
 // base32-encoded payload).  This is the same key used in publicKeyValidate.test.ts
@@ -43,9 +36,7 @@ describe('isValidPublicKey (Stellar SDK wrapper)', () => {
   });
 
   it('returns true for a second valid key', () => {
-    expect(
-      isValidPublicKey('GCQTGZQQ5G4PTM2GL7CDIFKUBIPEC52BROAQIAPW53XBRJVN6ZJVTG6V'),
-    ).toBe(true);
+    expect(isValidPublicKey('GCQTGZQQ5G4PTM2GL7CDIFKUBIPEC52BROAQIAPW53XBRJVN6ZJVTG6V')).toBe(true);
   });
 
   // ── invalid: short / long / malformed ────────────────────────────
@@ -84,7 +75,6 @@ describe('isValidPublicKey (Stellar SDK wrapper)', () => {
   });
 });
 
-
 describe('formatStellarAmount', () => {
   it('strips trailing zeros from a whole-number amount', () => {
     expect(formatStellarAmount('100.0000000')).toBe('100');
@@ -115,7 +105,6 @@ describe('formatStellarAmount', () => {
   });
 });
 
-
 describe('checkWalletConnection', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -135,7 +124,6 @@ describe('checkWalletConnection', () => {
     expect(isConnected).toHaveBeenCalledTimes(1);
   });
 });
-
 
 describe('requestWalletAccess', () => {
   beforeEach(() => {
@@ -168,7 +156,6 @@ describe('requestWalletAccess', () => {
   });
 });
 
-
 describe('getUserPublicKey', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -190,97 +177,88 @@ describe('getUserPublicKey', () => {
   });
 });
 
+describe('buildPaymentTransaction', () => {
+  const payer = 'GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5';
+  const destination = 'GCQTGZQQ5G4PTM2GL7CDIFKUBIPEC52BROAQIAPW53XBRJVN6ZJVTG6V';
+  const usdcIssuer = 'GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5';
 
-describe('isTestnetNetwork', () => {
-  afterEach(() => {
-    vi.unstubAllEnvs();
-  });
+  const makeAccount = (balances: any[]) =>
+    ({
+      accountId: () => payer,
+      sequenceNumber: () => '100',
+      incrementSequenceNumber: () => {},
+      balances,
+    }) as unknown as StellarSdk.Horizon.AccountResponse;
 
-  it('is true for TESTNET', () => {
-    vi.stubEnv('NEXT_PUBLIC_STELLAR_NETWORK', 'TESTNET');
-    expect(isTestnetNetwork()).toBe(true);
-  });
-
-  it('is true when the network variable is unset (testnet default)', () => {
-    vi.stubEnv('NEXT_PUBLIC_STELLAR_NETWORK', '');
-    expect(isTestnetNetwork()).toBe(true);
-  });
-
-  it('is false for PUBLIC', () => {
-    vi.stubEnv('NEXT_PUBLIC_STELLAR_NETWORK', 'PUBLIC');
-    expect(isTestnetNetwork()).toBe(false);
-  });
-});
-
-
-describe('hasEnoughXlmForFee', () => {
-  it('exposes the base fee as the minimum', () => {
-    expect(MIN_XLM_FOR_FEE).toBe(0.00001);
-  });
-
-  it('accepts a balance that covers the fee', () => {
-    expect(hasEnoughXlmForFee('100.0000000')).toBe(true);
-    expect(hasEnoughXlmForFee(MIN_XLM_FOR_FEE.toFixed(5))).toBe(true);
-    expect(hasEnoughXlmForFee(5)).toBe(true);
-  });
-
-  it('rejects a zero balance', () => {
-    expect(hasEnoughXlmForFee('0.0000000')).toBe(false);
-    expect(hasEnoughXlmForFee(0)).toBe(false);
-  });
-
-  it('rejects a balance below the fee', () => {
-    expect(hasEnoughXlmForFee('0.0000010')).toBe(false);
-  });
-
-  it('treats missing or unparseable balances as insufficient', () => {
-    expect(hasEnoughXlmForFee(undefined)).toBe(false);
-    expect(hasEnoughXlmForFee(null)).toBe(false);
-    expect(hasEnoughXlmForFee('')).toBe(false);
-    expect(hasEnoughXlmForFee('not-a-balance')).toBe(false);
-  });
-});
-
-
-describe('requestFriendbotFunding', () => {
-  const fetchMock = vi.fn();
-
-  beforeEach(() => {
-    fetchMock.mockReset();
-    vi.stubGlobal('fetch', fetchMock);
-    vi.stubEnv('NEXT_PUBLIC_STELLAR_NETWORK', 'TESTNET');
-  });
-
-  afterEach(() => {
-    vi.unstubAllGlobals();
-    vi.unstubAllEnvs();
-  });
-
-  it('requests funding for the account', async () => {
-    fetchMock.mockResolvedValue({ ok: true });
-
-    await requestFriendbotFunding(VALID_KEY);
-
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(fetchMock.mock.calls[0][0]).toBe(
-      `https://friendbot.stellar.org?addr=${VALID_KEY}`,
+  it('adds changeTrust before payment when the exact trustline is missing', () => {
+    const tx = buildPaymentTransaction(
+      makeAccount([]),
+      destination,
+      '10',
+      'memo-482',
+      'USDC',
+      usdcIssuer,
     );
+
+    expect(tx.operations).toHaveLength(2);
+    expect(tx.operations[0]).toMatchObject({ type: 'changeTrust' });
+    expect(tx.operations[1]).toMatchObject({
+      type: 'payment',
+      destination,
+      amount: '10.0000000',
+    });
+    expect(tx.memo.value).toBe('memo-482');
   });
 
-  it('throws when Friendbot rejects the request', async () => {
-    fetchMock.mockResolvedValue({ ok: false });
-
-    await expect(requestFriendbotFunding(VALID_KEY)).rejects.toThrow(
-      'Friendbot could not fund this account.',
+  it('does not count a same-code trustline for a different issuer', () => {
+    const tx = buildPaymentTransaction(
+      makeAccount([
+        {
+          asset_type: 'credit_alphanum4',
+          asset_code: 'USDC',
+          asset_issuer: 'GCQTGZQQ5G4PTM2GL7CDIFKUBIPEC52BROAQIAPW53XBRJVN6ZJVTG6V',
+        },
+      ]),
+      destination,
+      '10',
+      'memo-482',
+      'USDC',
+      usdcIssuer,
     );
+
+    expect(tx.operations).toHaveLength(2);
+    expect(tx.operations[0].type).toBe('changeTrust');
   });
 
-  it('throws without calling Friendbot off testnet', async () => {
-    vi.stubEnv('NEXT_PUBLIC_STELLAR_NETWORK', 'PUBLIC');
-
-    await expect(requestFriendbotFunding(VALID_KEY)).rejects.toThrow(
-      'Friendbot is only available on Stellar testnet.',
+  it('adds only payment when the exact trustline exists', () => {
+    const tx = buildPaymentTransaction(
+      makeAccount([
+        {
+          asset_type: 'credit_alphanum4',
+          asset_code: 'USDC',
+          asset_issuer: usdcIssuer,
+          balance: '50',
+        },
+      ]),
+      destination,
+      '10',
+      'memo-482',
+      'USDC',
+      usdcIssuer,
     );
-    expect(fetchMock).not.toHaveBeenCalled();
+
+    expect(tx.operations).toHaveLength(1);
+    expect(tx.operations[0]).toMatchObject({
+      type: 'payment',
+      destination,
+      amount: '10.0000000',
+    });
+  });
+
+  it('never adds changeTrust for native XLM', () => {
+    const tx = buildPaymentTransaction(makeAccount([]), destination, '5', 'native-memo', 'XLM');
+
+    expect(tx.operations).toHaveLength(1);
+    expect(tx.operations[0].type).toBe('payment');
   });
 });

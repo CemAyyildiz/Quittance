@@ -6,6 +6,7 @@ import {
   isAllowed,
   setAllowed,
 } from '@stellar/freighter-api';
+import { hasAssetTrustline } from './assets';
 
 // Network configuration
 const STELLAR_NETWORK = process.env.NEXT_PUBLIC_STELLAR_NETWORK || 'TESTNET';
@@ -171,6 +172,54 @@ export const checkAssetReadiness = async (
   return getAssetReadiness(account.balances as any[], assetCode, assetIssuer, amount);
 };
 
+export const buildPaymentTransaction = (
+  account: StellarSdk.Horizon.AccountResponse,
+  destination: string,
+  amount: string,
+  memo: string,
+  assetCode: string = 'XLM',
+  assetIssuer?: string
+): StellarSdk.Transaction => {
+  if (assetCode !== 'XLM' && !assetIssuer) {
+    throw new Error(`An issuer is required for ${assetCode} payments.`);
+  }
+
+  const asset =
+    assetCode === 'XLM'
+      ? StellarSdk.Asset.native()
+      : new StellarSdk.Asset(assetCode, assetIssuer);
+
+  const builder = new StellarSdk.TransactionBuilder(account, {
+    fee: StellarSdk.BASE_FEE,
+    networkPassphrase: NETWORK_PASSPHRASE,
+  });
+
+  if (
+    assetCode !== 'XLM' &&
+    assetIssuer &&
+    !hasAssetTrustline(account.balances as any[], assetCode, assetIssuer)
+  ) {
+    builder.addOperation(
+      StellarSdk.Operation.changeTrust({
+        asset,
+      })
+    );
+  }
+
+  builder
+    .addOperation(
+      StellarSdk.Operation.payment({
+        destination,
+        asset,
+        amount,
+      })
+    )
+    .addMemo(StellarSdk.Memo.text(memo))
+    .setTimeout(180);
+
+  return builder.build();
+};
+
 /**
  * Send payment with memo
  */
@@ -205,7 +254,8 @@ export const sendPayment = async (
       throw error;
     }
 
-    // Fail fast with clear guidance instead of an opaque Horizon error
+    // Existing trustlines with insufficient balances should still fail with
+    // clear guidance. Missing trustlines are opened in the transaction below.
     if (assetCode !== 'XLM' && assetIssuer) {
       const readiness = getAssetReadiness(
         account.balances as any[],
@@ -213,11 +263,6 @@ export const sendPayment = async (
         assetIssuer,
         amount
       );
-      if (readiness === 'no-trustline') {
-        throw new Error(
-          `Your wallet has no ${assetCode} trustline. Add ${assetCode} (issuer ${assetIssuer}) as an asset in Freighter, then try again.`
-        );
-      }
       if (readiness === 'insufficient-balance') {
         throw new Error(
           `Insufficient ${assetCode} balance to send ${amount} ${assetCode}. Fund your wallet with testnet ${assetCode}, then try again.`
@@ -225,27 +270,14 @@ export const sendPayment = async (
       }
     }
 
-    // Create asset
-    const asset =
-      assetCode === 'XLM'
-        ? StellarSdk.Asset.native()
-        : new StellarSdk.Asset(assetCode, assetIssuer!);
-
-    // Build transaction
-    const transaction = new StellarSdk.TransactionBuilder(account, {
-      fee: StellarSdk.BASE_FEE,
-      networkPassphrase: NETWORK_PASSPHRASE,
-    })
-      .addOperation(
-        StellarSdk.Operation.payment({
-          destination,
-          asset,
-          amount,
-        })
-      )
-      .addMemo(StellarSdk.Memo.text(memo))
-      .setTimeout(180)
-      .build();
+    const transaction = buildPaymentTransaction(
+      account,
+      destination,
+      amount,
+      memo,
+      assetCode,
+      assetIssuer
+    );
 
     // Sign with Freighter
     const signedTxXdr = await signTransaction(transaction.toXDR(), {
@@ -364,9 +396,7 @@ export default {
   loadAccount,
   getAccountBalance,
   checkAssetReadiness,
-  isTestnetNetwork,
-  hasEnoughXlmForFee,
-  requestFriendbotFunding,
+  buildPaymentTransaction,
   sendPayment,
   getTransaction,
   checkTransactionStatus,

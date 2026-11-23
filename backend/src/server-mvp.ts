@@ -16,7 +16,10 @@ import {
   runExpirySweep,
   startExpirySweep,
 } from './utils/invoice-expiry';
-import { paymentAssetMatchesInvoice } from './utils/verify-invoice-payment';
+import {
+  isSelfPayment,
+  paymentAssetMatchesInvoice,
+} from './utils/verify-invoice-payment';
 
 // Load environment variables
 dotenv.config();
@@ -281,6 +284,45 @@ app.post('/api/invoices/:id/cancel', async (req: Request, res: Response) => {
   }
 });
 
+// Extend invoice expiry once (owning seller only; pending or expired unpaid)
+app.post('/api/invoices/:id/extend-expiry', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { sellerPublicKey, expiresAt } = req.body ?? {};
+
+    if (!sellerPublicKey || typeof sellerPublicKey !== 'string') {
+      return res.status(400).json({
+        success: false,
+        code: 'SELLER_REQUIRED',
+        error: 'sellerPublicKey is required',
+      });
+    }
+
+    if (!expiresAt) {
+      return res.status(400).json({
+        success: false,
+        code: 'INVALID_EXPIRY',
+        error: 'expiresAt is required',
+      });
+    }
+
+    const invoice = await invoiceService.extendExpiry(id, sellerPublicKey, expiresAt);
+
+    res.json({
+      success: true,
+      data: toInvoiceDTO(invoice),
+    });
+  } catch (error: any) {
+    console.error('Extend invoice expiry error:', error);
+    const status = typeof error.status === 'number' ? error.status : 400;
+    res.status(status).json({
+      success: false,
+      code: error.code,
+      error: error.message || 'Failed to extend invoice expiry',
+    });
+  }
+});
+
 // Verify payment against Horizon (memo + amount + destination)
 app.post('/api/invoices/:id/verify', async (req: Request, res: Response) => {
   try {
@@ -315,6 +357,20 @@ app.post('/api/invoices/:id/verify', async (req: Request, res: Response) => {
       });
     }
 
+    // A hash that already settled another invoice cannot settle this one, no
+    // matter that the memo and amount match. Checked after the already-paid
+    // guard so retrying this invoice is not reported as a reuse, and before
+    // Horizon so a known hash never costs a round trip. The response names the
+    // problem only: no other invoice (or its customer email) is returned.
+    const invoiceWithSameHash = await invoiceService.getInvoiceByTxHash(txHash);
+    if (invoiceWithSameHash && invoiceWithSameHash.id !== invoice.id) {
+      return res.status(400).json({
+        success: false,
+        code: VerifyErrorCode.TX_HASH_ALREADY_USED,
+        error: VerifyErrorMessages[VerifyErrorCode.TX_HASH_ALREADY_USED],
+      });
+    }
+
     // Expiry is decided before Horizon is contacted: a stale invoice is not
     // settleable no matter what the chain says, and there is no reason to
     // spend a Horizon round trip finding that out.
@@ -336,6 +392,22 @@ app.post('/api/invoices/:id/verify', async (req: Request, res: Response) => {
         success: false,
         code: VerifyErrorCode.NO_PAYMENT_OPERATION,
         error: VerifyErrorMessages[VerifyErrorCode.NO_PAYMENT_OPERATION],
+      });
+    }
+
+    // A seller can otherwise pay their own invoice and produce a proof that a
+    // client paid. The memo and amount match, so this is the only check that
+    // catches it. Horizon reports the inner transaction source for a fee-bump,
+    // so a fee-bumped self-payment is still rejected.
+    const paymentSource = paymentOp.source_account ?? paymentOp.from;
+    if (
+      isSelfPayment(transaction.source_account, invoice.sellerPublicKey) ||
+      isSelfPayment(paymentSource, invoice.sellerPublicKey)
+    ) {
+      return res.status(400).json({
+        success: false,
+        code: VerifyErrorCode.SELF_PAYMENT,
+        error: VerifyErrorMessages[VerifyErrorCode.SELF_PAYMENT],
       });
     }
 
