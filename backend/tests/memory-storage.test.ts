@@ -173,8 +173,8 @@ beforeEach(() => {
   memoryStorage.createInvoice(buildSeed({ sellerPublicKey: SELLER_A, memo: nextMemo('svc-A'), amount: 22 }));
   memoryStorage.createInvoice(buildSeed({ sellerPublicKey: SELLER_B, memo: nextMemo('svc-B'), amount: 33 }));
 
-  const sellerAList = await invoiceMemoryService.getInvoicesBySeller(SELLER_A);
-  const sellerBList = await invoiceMemoryService.getInvoicesBySeller(SELLER_B);
+  const sellerAList = (await invoiceMemoryService.getInvoicesBySeller(SELLER_A)).invoices;
+  const sellerBList = (await invoiceMemoryService.getInvoicesBySeller(SELLER_B)).invoices;
 
   expect(sellerAList.length).toBe(2, 'service returns two invoices for seller A');
   expect(sellerBList.length).toBe(1, 'service returns exactly one invoice for seller B');

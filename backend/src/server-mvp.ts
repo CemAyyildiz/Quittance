@@ -20,6 +20,7 @@ import {
   isSelfPayment,
   paymentAssetMatchesInvoice,
 } from './utils/verify-invoice-payment';
+import { parsePaginationQuery } from './utils/parse-pagination';
 
 // Load environment variables
 dotenv.config();
@@ -182,7 +183,7 @@ app.get('/api/invoices', async (req: Request, res: Response) => {
   try {
     await runExpirySweep(invoiceService);
 
-    const { status, limit = 50, offset = 0, sellerPublicKey } = req.query;
+    const { status, cursor, sellerPublicKey } = req.query;
 
     if (!sellerPublicKey) {
       return res.status(400).json({
@@ -191,25 +192,35 @@ app.get('/api/invoices', async (req: Request, res: Response) => {
       });
     }
 
-    const invoices = await invoiceService.getInvoicesBySeller(
+    if (cursor !== undefined && typeof cursor !== 'string') {
+      return res.status(400).json({
+        success: false,
+        error: 'cursor must be a single string value',
+      });
+    }
+
+    // Reuse the shared parser so a limit above 100 is clamped, not honoured.
+    const { limit } = parsePaginationQuery(req.query);
+
+    const result = await invoiceService.getInvoicesBySeller(
       sellerPublicKey as string,
-      status as string | undefined,
-      parseInt(limit as string),
-      parseInt(offset as string)
+      typeof status === 'string' ? status : undefined,
+      limit,
+      cursor
     );
 
     res.json({
       success: true,
-      data: invoices.map(toInvoiceDTO),
+      data: result.invoices.map(toInvoiceDTO),
       pagination: {
-        limit: parseInt(limit as string),
-        offset: parseInt(offset as string),
-        total: invoices.length,
+        limit: result.limit,
+        nextCursor: result.nextCursor,
       },
     });
   } catch (error: any) {
     console.error('Get invoices error:', error);
-    res.status(500).json({
+    const statusCode = error?.status === 400 ? 400 : 500;
+    res.status(statusCode).json({
       success: false,
       error: error.message || 'Failed to get invoices',
     });

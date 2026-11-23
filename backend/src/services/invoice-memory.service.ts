@@ -3,6 +3,7 @@ import { generateInvoiceMemo, validateMemoByteLength } from '../utils/memo';
 import { CreateInvoiceInput } from '../utils/validation';
 import { assertCanExtendExpiry } from '../utils/invoice-expiry';
 import memoryStorage from '../storage/memory-storage';
+import { DEFAULT_PAGE_LIMIT, MAX_PAGE_LIMIT } from '../utils/parse-pagination';
 
 class InvoiceMemoryService {
   /**
@@ -79,21 +80,52 @@ class InvoiceMemoryService {
   }
 
   /**
-   * Get all invoices for a seller
+   * Get all invoices for a seller with cursor-based pagination
    */
   async getInvoicesBySeller(
     sellerPublicKey: string,
     status?: string,
-    limit: number = 50,
-    offset: number = 0
-  ): Promise<any[]> {
+    limit: number = DEFAULT_PAGE_LIMIT,
+    cursor?: string
+  ): Promise<{ invoices: any[]; nextCursor?: string; limit: number }> {
+    const pageLimit = Number.isFinite(limit)
+      ? Math.min(Math.max(Math.floor(limit), 1), MAX_PAGE_LIMIT)
+      : DEFAULT_PAGE_LIMIT;
+
     let invoices = memoryStorage.getAllInvoices(status ? { status } : undefined);
 
     if (sellerPublicKey) {
       invoices = invoices.filter((inv) => inv.sellerPublicKey === sellerPublicKey);
     }
 
-    return invoices.slice(offset, offset + limit);
+    // Sort by createdAt descending for consistent pagination
+    invoices.sort((a: any, b: any) => (b.createdAt || 0) - (a.createdAt || 0));
+
+    let startIndex = 0;
+    if (cursor) {
+      const cursorIndex = invoices.findIndex(
+        (inv) => inv.id === cursor
+      );
+      // A cursor that does not belong to this seller-scoped list cannot be
+      // honoured; silently starting over would hide the mistake from callers.
+      if (cursorIndex === -1) {
+        throw Object.assign(new Error('Unknown cursor'), {
+          status: 400,
+          code: 'INVALID_CURSOR',
+        });
+      }
+      startIndex = cursorIndex + 1;
+    }
+
+    const page = invoices.slice(startIndex, startIndex + pageLimit);
+    const hasMore = startIndex + page.length < invoices.length;
+
+    let nextCursor;
+    if (hasMore && page.length > 0) {
+      nextCursor = page[page.length - 1].id;
+    }
+
+    return { invoices: page, nextCursor, limit: pageLimit };
   }
 
   /**
