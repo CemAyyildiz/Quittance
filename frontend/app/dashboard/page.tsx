@@ -21,6 +21,7 @@ import {
 import { toast } from 'sonner';
 import { downloadInvoiceCSV } from '@/lib/export';
 import { invoiceStatusLabel } from '@/lib/invoiceStatusLabel';
+import InvoiceBackupExport from '@/components/InvoiceBackupExport';
 
 const PAGE_SIZE = 50;
 
@@ -273,6 +274,8 @@ export default function DashboardPage() {
             </div>
           </div>
             )}
+
+            <InvoiceBackupExport key={publicKey} sellerPublicKey={publicKey!} />
 
             <div className="flex gap-3 mb-4">
               <div className="card flex-1 mb-0">
