@@ -76,12 +76,34 @@ class InvoiceMemoryService {
     sellerPublicKey: string,
     status?: string,
     limit: number = 50,
-    offset: number = 0
+    offset: number = 0,
+    filters: {
+      assetCode?: string;
+      createdFrom?: Date;
+      createdTo?: Date;
+    } = {}
   ): Promise<any[]> {
-    let invoices = memoryStorage.getAllInvoices(status ? { status } : undefined);
+    let invoices = memoryStorage
+      .getAllInvoices()
+      .filter((invoice) => invoice.sellerPublicKey === sellerPublicKey);
 
-    if (sellerPublicKey) {
-      invoices = invoices.filter((inv) => inv.sellerPublicKey === sellerPublicKey);
+    if (status) {
+      invoices = invoices.filter((invoice) => invoice.status === status);
+    }
+    if (filters.assetCode) {
+      invoices = invoices.filter(
+        (invoice) => invoice.assetCode === filters.assetCode
+      );
+    }
+    if (filters.createdFrom) {
+      invoices = invoices.filter(
+        (invoice) => invoice.createdAt >= filters.createdFrom!
+      );
+    }
+    if (filters.createdTo) {
+      invoices = invoices.filter(
+        (invoice) => invoice.createdAt <= filters.createdTo!
+      );
     }
 
     return invoices.slice(offset, offset + limit);

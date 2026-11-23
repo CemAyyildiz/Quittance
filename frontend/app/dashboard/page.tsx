@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { invoiceApi } from '@/lib/api';
 import InvoiceCard from '@/components/InvoiceCard';
 import WalletConnect from '@/components/WalletConnect';
@@ -29,35 +29,50 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [filter, setFilter] = useState<string>('all');
+  const [assetCode, setAssetCode] = useState('');
+  const [createdFrom, setCreatedFrom] = useState('');
+  const [createdTo, setCreatedTo] = useState('');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [filteredInvoices, setFilteredInvoices] = useState<any[]>([]);
   const [viewMode, setViewMode] = useState<'invoices' | 'transactions'>('invoices');
+  const loadRequestId = useRef(0);
 
   const loadData = useCallback(async () => {
     if (!publicKey) return;
+    const requestId = ++loadRequestId.current;
     try {
       setLoading(true);
       setLoadError(false);
       const [invoicesResult, statsResult] = await Promise.all([
         invoiceApi.getAll({
           status: filter === 'all' ? undefined : filter.toUpperCase(),
+          assetCode: assetCode || undefined,
+          createdFrom: createdFrom || undefined,
+          createdTo: createdTo || undefined,
           limit: 50,
           sellerPublicKey: publicKey,
         }),
         invoiceApi.getStats(publicKey),
       ]);
-      setInvoices(invoicesResult.data);
-      setStats(statsResult.data[0] || {});
+      if (requestId === loadRequestId.current) {
+        setInvoices(invoicesResult.data);
+        setStats(statsResult.data[0] || {});
+      }
     } catch (error) {
-      setLoadError(true);
-      toast.error('Failed to load data');
+      if (requestId === loadRequestId.current) {
+        setLoadError(true);
+        toast.error('Failed to load data');
+      }
     } finally {
-      setLoading(false);
+      if (requestId === loadRequestId.current) {
+        setLoading(false);
+      }
     }
-  }, [filter, publicKey]);
+  }, [assetCode, createdFrom, createdTo, filter, publicKey]);
 
   useEffect(() => {
     if (!connected || !publicKey) {
+      loadRequestId.current += 1;
       setInvoices([]);
       setStats(null);
       setLoading(false);
@@ -95,6 +110,21 @@ export default function DashboardPage() {
     }
     downloadInvoiceCSV(filteredInvoices as any);
     toast.success(`Exported ${filteredInvoices.length} invoices to CSV`);
+  };
+
+  const hasActiveFilters =
+    filter !== 'all' ||
+    assetCode !== '' ||
+    createdFrom !== '' ||
+    createdTo !== '' ||
+    searchQuery.trim() !== '';
+
+  const clearFilters = () => {
+    setFilter('all');
+    setAssetCode('');
+    setCreatedFrom('');
+    setCreatedTo('');
+    setSearchQuery('');
   };
 
   return (
@@ -279,6 +309,49 @@ export default function DashboardPage() {
               ))}
             </div>
 
+            <div className="card mb-6 grid grid-cols-1 gap-4 sm:grid-cols-4">
+              <label className="text-sm font-medium text-gray-700">
+                Asset code
+                <input
+                  type="text"
+                  value={assetCode}
+                  onChange={(event) => setAssetCode(event.target.value.trim().toUpperCase())}
+                  placeholder="Any asset"
+                  aria-label="Filter by asset code"
+                  className="input mt-1 w-full"
+                />
+              </label>
+              <label className="text-sm font-medium text-gray-700">
+                Created from
+                <input
+                  type="date"
+                  value={createdFrom}
+                  onChange={(event) => setCreatedFrom(event.target.value)}
+                  aria-label="Created from"
+                  className="input mt-1 w-full"
+                />
+              </label>
+              <label className="text-sm font-medium text-gray-700">
+                Created to
+                <input
+                  type="date"
+                  value={createdTo}
+                  onChange={(event) => setCreatedTo(event.target.value)}
+                  aria-label="Created to"
+                  className="input mt-1 w-full"
+                />
+              </label>
+              {hasActiveFilters && (
+                <button
+                  type="button"
+                  onClick={clearFilters}
+                  className="btn btn-outline self-end"
+                >
+                  Clear filters
+                </button>
+              )}
+            </div>
+
             {loading ? (
               <div className="card py-10" role="status" aria-live="polite" aria-busy="true">
                 <div className="text-center mb-8">
@@ -331,14 +404,14 @@ export default function DashboardPage() {
               <div className="card text-center py-12">
                 <FileText className="w-16 h-16 text-gray-400 mx-auto mb-4" />
                 <h3 className="text-xl font-semibold text-gray-700 mb-2">
-                  {searchQuery ? 'No matching invoices' : 'No invoices yet'}
+                  {hasActiveFilters ? 'No matching invoices' : 'No invoices yet'}
                 </h3>
                 <p className="text-gray-600 mb-6">
-                  {searchQuery
-                    ? 'Try a different search term.'
+                  {hasActiveFilters
+                    ? 'Try adjusting or clearing your filters.'
                     : 'Create your first invoice to start tracking payments.'}
                 </p>
-                {!searchQuery && (
+                {!hasActiveFilters && (
                   <Link href="/" className="btn btn-primary inline-flex items-center gap-2">
                     <Plus className="w-5 h-5" aria-hidden="true" />
                     Create invoice

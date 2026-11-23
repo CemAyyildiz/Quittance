@@ -182,7 +182,15 @@ app.get('/api/invoices', async (req: Request, res: Response) => {
   try {
     await runExpirySweep(invoiceService);
 
-    const { status, limit = 50, offset = 0, sellerPublicKey } = req.query;
+    const {
+      status,
+      assetCode,
+      createdFrom,
+      createdTo,
+      limit = 50,
+      offset = 0,
+      sellerPublicKey,
+    } = req.query;
 
     if (!sellerPublicKey) {
       return res.status(400).json({
@@ -191,11 +199,79 @@ app.get('/api/invoices', async (req: Request, res: Response) => {
       });
     }
 
+    const validStatuses = new Set([
+      'PENDING',
+      'PAID',
+      'EXPIRED',
+      'CANCELLED',
+    ]);
+    if (
+      status !== undefined &&
+      (typeof status !== 'string' ||
+        !validStatuses.has(status.toUpperCase()))
+    ) {
+      return res.status(400).json({
+        success: false,
+        error: 'status must be PENDING, PAID, EXPIRED, or CANCELLED',
+      });
+    }
+    if (
+      assetCode !== undefined &&
+      (typeof assetCode !== 'string' || assetCode.trim().length === 0)
+    ) {
+      return res.status(400).json({
+        success: false,
+        error: 'assetCode must be a non-empty string',
+      });
+    }
+
+    const parseDateFilter = (
+      value: string | string[] | undefined,
+      endOfDay = false
+    ): Date | undefined => {
+      if (value === undefined) return undefined;
+      if (typeof value !== 'string' || value.length === 0) {
+        throw new Error('Date filters must be valid date strings');
+      }
+
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) {
+        throw new Error('Date filters must be valid date strings');
+      }
+
+      if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+        if (date.toISOString().slice(0, 10) !== value) {
+          throw new Error('Date filters must be valid date strings');
+        }
+        if (endOfDay) date.setUTCHours(23, 59, 59, 999);
+      }
+
+      return date;
+    };
+
+    const startDate = parseDateFilter(createdFrom as string | string[] | undefined);
+    const endDate = parseDateFilter(
+      createdTo as string | string[] | undefined,
+      true
+    );
+    if (startDate && endDate && startDate > endDate) {
+      return res.status(400).json({
+        success: false,
+        error: 'createdFrom must be on or before createdTo',
+      });
+    }
+
     const invoices = await invoiceService.getInvoicesBySeller(
       sellerPublicKey as string,
-      status as string | undefined,
+      typeof status === 'string' ? status.toUpperCase() : undefined,
       parseInt(limit as string),
-      parseInt(offset as string)
+      parseInt(offset as string),
+      {
+        assetCode:
+          typeof assetCode === 'string' ? assetCode.trim().toUpperCase() : undefined,
+        createdFrom: startDate,
+        createdTo: endDate,
+      }
     );
 
     res.json({
@@ -208,6 +284,12 @@ app.get('/api/invoices', async (req: Request, res: Response) => {
       },
     });
   } catch (error: any) {
+    if (error.message === 'Date filters must be valid date strings') {
+      return res.status(400).json({
+        success: false,
+        error: error.message,
+      });
+    }
     console.error('Get invoices error:', error);
     res.status(500).json({
       success: false,
