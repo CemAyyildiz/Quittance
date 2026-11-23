@@ -1,10 +1,23 @@
 import { z } from 'zod';
+import { StrKey } from '@stellar/stellar-sdk';
 import { MAX_MEMO_BYTES, getMemoByteLength } from './memo';
 
 // Stellar public key validation
 export const stellarPublicKeySchema = z.string()
   .length(56)
   .regex(/^G[A-Z2-7]{55}$/, 'Invalid Stellar public key format');
+
+// M addresses include a checksum and an encoded muxed id; validate both with
+// the Stellar SDK rather than accepting a string with the right prefix.
+export const sellerAddressSchema = z.string().superRefine((address, ctx) => {
+  if (StrKey.isValidMed25519PublicKey(address)) return;
+  const base = stellarPublicKeySchema.safeParse(address);
+  if (!base.success) {
+    for (const issue of base.error.issues) {
+      ctx.addIssue({ code: 'custom', message: issue.message });
+    }
+  }
+});
 
 // Stellar transaction hash validation (64-char hex)
 export const verifyTxHashSchema = z.string()
@@ -29,7 +42,7 @@ export const createInvoiceSchema = z.object({
   sellerName: z.string().max(255).optional(),
   sellerEmail: z.string().email().optional(),
   expiresInDays: z.number().min(1).max(365).default(7).optional(),
-  sellerPublicKey: stellarPublicKeySchema, // Dinamik seller!
+  sellerPublicKey: sellerAddressSchema,
   memo: memoByteLengthSchema.optional(),
 });
 

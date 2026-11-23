@@ -4,6 +4,7 @@ import { CreateInvoiceInput } from '../utils/validation';
 import { assertCanExtendExpiry } from '../utils/invoice-expiry';
 import { getStorage } from '../storage/storage-factory';
 import { DEFAULT_PAGE_LIMIT, MAX_PAGE_LIMIT } from '../utils/parse-pagination';
+import { extractBaseAddress, StrKey } from '@stellar/stellar-sdk';
 
 class InvoiceMemoryService {
   /**
@@ -29,8 +30,12 @@ class InvoiceMemoryService {
     expiresAt.setDate(expiresAt.getDate() + (input.expiresInDays || 7));
 
     const storage = await getStorage();
+    const sellerMuxedAddress = StrKey.isValidMed25519PublicKey(input.sellerPublicKey)
+      ? input.sellerPublicKey
+      : undefined;
     const invoice = await storage.createInvoice({
-      sellerPublicKey: input.sellerPublicKey, // Dynamic wallet of the caller.
+      sellerPublicKey: sellerMuxedAddress ? extractBaseAddress(sellerMuxedAddress) : input.sellerPublicKey,
+      sellerMuxedAddress,
       amount: input.amount,
       assetCode: input.assetCode || 'XLM',
       assetIssuer: input.assetIssuer,

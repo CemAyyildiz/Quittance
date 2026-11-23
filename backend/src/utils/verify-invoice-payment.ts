@@ -17,6 +17,7 @@ import { isDecimalEqual } from './amount-compare';
 import { memosMatch } from './memo-normalize';
 import { NATIVE_ASSET_CODE } from './asset-helpers';
 import { VerifyErrorCode } from './verify-errors';
+import { extractBaseAddress, MuxedAccount, StrKey } from '@stellar/stellar-sdk';
 
 /**
  * Normalised inputs for a single payment-to-invoice verification.
@@ -33,8 +34,12 @@ export interface VerifyInvoicePaymentInput {
   invoiceMemo: string | null | undefined;
   /** Payment destination address (`paymentOp.to`). */
   paymentTo: string;
+  /** Horizon's muxed destination fields, when the payment targets an M address. */
+  paymentToMuxed?: string | null;
+  paymentToMuxedId?: string | number | null;
   /** Invoice seller public key (`invoice.sellerPublicKey`). */
   invoiceSellerPublicKey: string;
+  invoiceSellerMuxedAddress?: string | null;
   /**
    * Account that sent the payment (`paymentOp.from`, i.e. the transaction or
    * operation source). When it is the seller, the payment is a self-payment
@@ -113,6 +118,26 @@ export function isSelfPayment(
   const source = (paymentSource ?? '').trim();
   const seller = (invoiceSellerPublicKey ?? '').trim();
   return source !== '' && seller !== '' && source === seller;
+}
+
+/** Match the base account and, when Horizon reports one, the exact muxed id. */
+export function paymentDestinationMatchesInvoice(input: Pick<VerifyInvoicePaymentInput,
+  'paymentTo' | 'paymentToMuxed' | 'paymentToMuxedId' | 'invoiceSellerPublicKey' | 'invoiceSellerMuxedAddress'
+>): boolean {
+  const toIsMuxed = StrKey.isValidMed25519PublicKey(input.paymentTo);
+  const paymentBase = toIsMuxed ? extractBaseAddress(input.paymentTo) : input.paymentTo;
+  if (paymentBase !== input.invoiceSellerPublicKey) return false;
+
+  const muxedAddress = input.paymentToMuxed ?? (toIsMuxed ? input.paymentTo : undefined);
+  const expected = input.invoiceSellerMuxedAddress;
+  if (toIsMuxed && input.paymentTo !== expected) return false;
+  if (muxedAddress && muxedAddress !== expected) return false;
+  if (input.paymentToMuxedId !== undefined && input.paymentToMuxedId !== null) {
+    if (!expected || String(input.paymentToMuxedId) !== MuxedAccount.fromAddress(expected, '0').id()) {
+      return false;
+    }
+  }
+  return true;
 }
 
 /**
@@ -204,7 +229,7 @@ export function verifyInvoicePayment(
     return { ok: false, code: VerifyErrorCode.MEMO_MISMATCH };
   }
 
-  if (input.paymentTo !== input.invoiceSellerPublicKey) {
+  if (!paymentDestinationMatchesInvoice(input)) {
     return { ok: false, code: VerifyErrorCode.DESTINATION_MISMATCH };
   }
 

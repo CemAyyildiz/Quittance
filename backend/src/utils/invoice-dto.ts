@@ -1,6 +1,7 @@
 export interface InvoiceDTO {
   id: string;
   sellerPublicKey: string;
+  sellerMuxedAddress?: string;
   amount: number;
   assetCode: string;
   assetIssuer?: string;
@@ -22,6 +23,7 @@ export interface InvoiceDTO {
 export function toInvoiceDTO(invoice: {
   id: string;
   sellerPublicKey: string;
+  sellerMuxedAddress?: string;
   amount: number;
   assetCode: string;
   assetIssuer?: string;
@@ -43,6 +45,7 @@ export function toInvoiceDTO(invoice: {
   return {
     id: invoice.id,
     sellerPublicKey: invoice.sellerPublicKey,
+    ...(invoice.sellerMuxedAddress ? { sellerMuxedAddress: invoice.sellerMuxedAddress } : {}),
     amount: invoice.amount,
     assetCode: invoice.assetCode,
     assetIssuer: invoice.assetIssuer,

@@ -5,6 +5,7 @@ import { pool } from '../config/database';
 interface Invoice {
   id: string;
   sellerPublicKey: string;
+  sellerMuxedAddress?: string;
   amount: number;
   assetCode: string;
   assetIssuer?: string;
@@ -30,6 +31,7 @@ class PostgresStorage {
     if (!this.schemaReady) {
       this.schemaReady = pool.query(`
         ALTER TABLE invoices ADD COLUMN IF NOT EXISTS ledger BIGINT;
+        ALTER TABLE invoices ADD COLUMN IF NOT EXISTS seller_muxed_address VARCHAR(69);
         ALTER TABLE invoices ADD COLUMN IF NOT EXISTS original_expires_at TIMESTAMP;
         ALTER TABLE invoices ADD COLUMN IF NOT EXISTS expiry_extended BOOLEAN NOT NULL DEFAULT false;
         CREATE INDEX IF NOT EXISTS idx_invoices_payment_tx_hash ON invoices(payment_tx_hash);
@@ -48,14 +50,15 @@ class PostgresStorage {
 
     const result = await pool.query(
       `INSERT INTO invoices (
-        id, seller_public_key, amount, asset_code, asset_issuer, 
+        id, seller_public_key, seller_muxed_address, amount, asset_code, asset_issuer,
         memo, description, customer_name, customer_email, 
         status, created_at, expires_at, original_expires_at, expiry_extended
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
       RETURNING *`,
       [
         id,
         data.sellerPublicKey,
+        data.sellerMuxedAddress || null,
         data.amount,
         data.assetCode || 'XLM',
         data.assetIssuer || null,
@@ -245,6 +248,7 @@ class PostgresStorage {
     return {
       id: row.id,
       sellerPublicKey: row.seller_public_key,
+      sellerMuxedAddress: row.seller_muxed_address || undefined,
       amount: parseFloat(row.amount),
       assetCode: row.asset_code,
       assetIssuer: row.asset_issuer || undefined,

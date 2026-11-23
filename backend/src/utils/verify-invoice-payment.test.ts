@@ -12,6 +12,10 @@ import {
   verifyInvoicePayment,
 } from './verify-invoice-payment';
 import { VerifyErrorCode } from './verify-errors';
+import { encodeMuxedAccount, encodeMuxedAccountToAddress } from '@stellar/stellar-sdk';
+
+const BASE = 'GC4VWBK5QSJCBSRWIZJYWCF2SJAPCKU3OFHH4XK7ZBTZ5HCK7VYLU6FL';
+const muxed = (id: string) => encodeMuxedAccountToAddress(encodeMuxedAccount(BASE, id), true);
 
 /** A fully-matching baseline so individual fields can be mutated per case. */
 function validInput() {
@@ -58,6 +62,18 @@ describe('verifyInvoicePayment', () => {
         ok: false,
         code: VerifyErrorCode.DESTINATION_MISMATCH,
       });
+    });
+
+    it('accepts an exact M address or a bare base account for a muxed invoice', () => {
+      const invoice = { ...validInput(), invoiceSellerPublicKey: BASE, invoiceSellerMuxedAddress: muxed('42') };
+      expect(verifyInvoicePayment({ ...invoice, paymentTo: muxed('42') })).toEqual({ ok: true });
+      expect(verifyInvoicePayment({ ...invoice, paymentTo: BASE })).toEqual({ ok: true });
+    });
+
+    it('rejects another muxed id even when Horizon reports the base in to', () => {
+      const invoice = { ...validInput(), paymentTo: BASE, invoiceSellerPublicKey: BASE, invoiceSellerMuxedAddress: muxed('42') };
+      expect(verifyInvoicePayment({ ...invoice, paymentToMuxed: muxed('43') })).toEqual({ ok: false, code: VerifyErrorCode.DESTINATION_MISMATCH });
+      expect(verifyInvoicePayment({ ...invoice, paymentToMuxedId: '43' })).toEqual({ ok: false, code: VerifyErrorCode.DESTINATION_MISMATCH });
     });
   });
 

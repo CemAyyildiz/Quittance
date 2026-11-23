@@ -7,6 +7,7 @@ import { Loader2 } from 'lucide-react';
 import { STELLAR_ASSETS, getAssetByCode } from '@/lib/assets';
 import { checkAssetReadiness } from '@/lib/stellar';
 import { MAX_MEMO_BYTES, getUtf8ByteLength, isValidEmail } from '@/lib/utils';
+import { extractBaseAddress, StrKey } from '@stellar/stellar-sdk';
 import AssetLogo from './AssetLogo';
 
 interface InvoiceFormProps {
@@ -26,6 +27,8 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
   const [memo, setMemo] = useState('');
   const [customerName, setCustomerName] = useState('');
   const [customerEmail, setCustomerEmail] = useState('');
+  const [muxedAddress, setMuxedAddress] = useState('');
+  const [muxedAddressError, setMuxedAddressError] = useState('');
   const [trustlineWarning, setTrustlineWarning] = useState<string | null>(null);
   const [amountError, setAmountError] = useState('');
   const [emailError, setEmailError] = useState('');
@@ -97,6 +100,17 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
       return;
     }
 
+    const destination = muxedAddress.trim();
+    if (
+      destination &&
+      (!StrKey.isValidMed25519PublicKey(destination) ||
+        extractBaseAddress(destination) !== userWallet)
+    ) {
+      setMuxedAddressError('Enter a valid M address for your connected wallet');
+      return;
+    }
+    setMuxedAddressError('');
+
     setLoading(true);
     try {
       const selectedAsset = getAssetByCode(assetCode);
@@ -105,7 +119,7 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
         assetCode: assetCode,
         assetIssuer: selectedAsset?.issuer,
         expiresInDays: 7,
-        sellerPublicKey: userWallet,
+        sellerPublicKey: destination || userWallet,
         description: description || undefined,
         memo: memo || undefined,
         customerName: customerName.trim() || undefined,
@@ -120,6 +134,7 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
       setMemo('');
       setCustomerName('');
       setCustomerEmail('');
+      setMuxedAddress('');
       setAmountError('');
       setEmailError('');
     } catch (error: any) {
@@ -180,6 +195,33 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
             )}
           </div>
         )}
+      </div>
+
+      <div>
+        <label className="label" htmlFor="seller-muxed-address">
+          Muxed payment address (optional)
+        </label>
+        <input
+          id="seller-muxed-address"
+          type="text"
+          className={`input text-sm ${muxedAddressError ? 'border-red-500' : ''}`}
+          placeholder="M... address for this invoice"
+          value={muxedAddress}
+          onChange={(e) => {
+            setMuxedAddress(e.target.value);
+            setMuxedAddressError('');
+          }}
+          aria-invalid={Boolean(muxedAddressError)}
+          aria-describedby={muxedAddressError ? 'muxed-address-error' : undefined}
+        />
+        {muxedAddressError && (
+          <p id="muxed-address-error" className="text-sm text-red-600 mt-1">
+            {muxedAddressError}
+          </p>
+        )}
+        <p className="text-xs text-gray-500 mt-1">
+          The payment address must belong to your connected wallet.
+        </p>
       </div>
 
       <div>

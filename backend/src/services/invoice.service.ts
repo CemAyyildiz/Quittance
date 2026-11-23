@@ -2,12 +2,13 @@ import { v4 as uuidv4 } from 'uuid';
 import { pool } from '../config/database';
 import { generateInvoiceMemo } from '../utils/memo';
 import { CreateInvoiceInput } from '../utils/validation';
-import { SELLER_PUBLIC_KEY } from '../config/stellar';
+import { extractBaseAddress, StrKey } from '@stellar/stellar-sdk';
 
 export interface Invoice {
   id: string;
   userId?: string;
   sellerPublicKey: string;
+  sellerMuxedAddress?: string;
   sellerName?: string;
   sellerEmail?: string;
   amount: number;
@@ -37,19 +38,23 @@ class InvoiceService {
     const memo = generateInvoiceMemo();
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + (input.expiresInDays || 7));
+    const sellerMuxedAddress = StrKey.isValidMed25519PublicKey(input.sellerPublicKey)
+      ? input.sellerPublicKey
+      : undefined;
 
     const query = `
       INSERT INTO invoices (
-        id, user_id, seller_public_key, amount, asset_code, asset_issuer,
+        id, user_id, seller_public_key, seller_muxed_address, amount, asset_code, asset_issuer,
         memo, description, customer_name, customer_email, status, expires_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
       RETURNING *
     `;
 
     const values = [
       id,
       userId || null,
-      SELLER_PUBLIC_KEY,
+      sellerMuxedAddress ? extractBaseAddress(sellerMuxedAddress) : input.sellerPublicKey,
+      sellerMuxedAddress || null,
       input.amount,
       input.assetCode || 'XLM',
       input.assetIssuer || null,
@@ -240,6 +245,7 @@ class InvoiceService {
       id: row.id,
       userId: row.user_id,
       sellerPublicKey: row.seller_public_key,
+      sellerMuxedAddress: row.seller_muxed_address || undefined,
       sellerName: row.seller_name,
       sellerEmail: row.seller_email,
       amount: parseFloat(row.amount),
