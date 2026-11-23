@@ -268,10 +268,18 @@ export default function PaymentPage() {
                       <span className="text-red-700 font-semibold">Expired</span>
                     </>
                   )}
+                  {invoice.status === 'CANCELLED' && (
+                    <>
+                      <div className="w-2 h-2 bg-gray-500 rounded-full"></div>
+                      <span className="text-gray-700 font-semibold">Voided</span>
+                    </>
+                  )}
                 </div>
               </div>
 
-              {userWallet && userWallet === invoice.sellerPublicKey && (
+              {invoice.status === 'PENDING' &&
+                userWallet &&
+                userWallet === invoice.sellerPublicKey && (
                 <div className="bg-amber-50 border border-amber-200 rounded-lg p-4" role="alert">
                   <p className="text-sm font-semibold text-amber-900 mb-1">
                     Seller wallet connected
@@ -393,6 +401,17 @@ export default function PaymentPage() {
                 </div>
                 <h3 className="text-2xl font-bold text-red-700 mb-2">Payment Expired</h3>
                 <p className="text-gray-600">This invoice has expired</p>
+              </div>
+            )}
+
+            {invoice.status === 'CANCELLED' && (
+              <div className="card text-center py-8">
+                <h3 className="text-2xl font-bold text-gray-800 mb-2">
+                  Invoice Voided
+                </h3>
+                <p className="text-gray-600">
+                  This invoice is no longer accepting payments.
+                </p>
               </div>
             )}
 

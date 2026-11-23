@@ -184,13 +184,22 @@ export const mockInvoiceApi = {
     };
   },
 
-  cancel: async (id: string) => {
+  cancel: async (id: string, sellerPublicKey: string) => {
     await delay(500);
     const invoice = mockInvoices.find(inv => inv.id === id);
-    
-    if (invoice) {
-      invoice.status = 'CANCELLED';
+
+    if (!invoice || invoice.sellerPublicKey !== sellerPublicKey) {
+      throw new Error('Only the owning seller can void this invoice');
     }
+
+    if (invoice.status === 'CANCELLED') {
+      return { success: true, data: invoice };
+    }
+    if (invoice.status !== 'PENDING') {
+      throw new Error('Only a pending invoice can be voided');
+    }
+
+    invoice.status = 'CANCELLED';
 
     return {
       success: true,

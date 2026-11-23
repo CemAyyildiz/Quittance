@@ -164,7 +164,10 @@ describe('mockInvoiceApi', () => {
       const created = await createPromise;
       const invoiceId = created.data.invoice.id;
 
-      const cancelPromise = mockInvoiceApi.cancel(invoiceId);
+      const cancelPromise = mockInvoiceApi.cancel(
+        invoiceId,
+        created.data.invoice.sellerPublicKey
+      );
       await vi.advanceTimersByTimeAsync(500);
       const cancelled = await cancelPromise;
 
@@ -173,12 +176,15 @@ describe('mockInvoiceApi', () => {
       expect(cancelled.data.id).toBe(invoiceId);
       expect(cancelled.data.status).toBe('CANCELLED');
 
-      const missingCancelPromise = mockInvoiceApi.cancel('missing-invoice-id');
+      const missingCancelPromise = mockInvoiceApi.cancel(
+        'missing-invoice-id',
+        created.data.invoice.sellerPublicKey
+      );
+      const missingCancelAssertion = expect(missingCancelPromise).rejects.toThrow(
+        'Only the owning seller can void this invoice'
+      );
       await vi.advanceTimersByTimeAsync(500);
-      const missingCancel = await missingCancelPromise;
-
-      expect(missingCancel.success).toBe(true);
-      expect(missingCancel.data).toBeUndefined();
+      await missingCancelAssertion;
     });
 
     it('verifies a created invoice and stores the payment tx hash', async () => {

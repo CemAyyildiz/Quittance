@@ -14,7 +14,7 @@ import AssetLogo from '@/components/AssetLogo';
 import { formatAmount, formatDate, copyToClipboard } from '@/lib/utils';
 import { openInvoicePDF } from '@/lib/export';
 import { useCountdown } from '@/lib/useCountdown';
-import { ArrowLeft, Share2, Loader2, Download } from 'lucide-react';
+import { ArrowLeft, Share2, Loader2, Download, Ban } from 'lucide-react';
 import { toast } from 'sonner';
 
 export default function InvoiceDetailPage() {
@@ -25,6 +25,7 @@ export default function InvoiceDetailPage() {
   const [invoice, setInvoice] = useState<any>(null);
   const [paymentInfo, setPaymentInfo] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [voiding, setVoiding] = useState(false);
   const [userWallet, setUserWallet] = useState<string | null>(null);
   const timeRemaining = useCountdown(invoice?.status === 'PENDING' ? invoice.expiresAt : null);
 
@@ -75,6 +76,22 @@ export default function InvoiceDetailPage() {
   const handleDownloadProof = () => {
     openInvoicePDF(invoice);
     toast.success('Opening payment proof');
+  };
+
+  const handleVoidInvoice = async () => {
+    if (!userWallet || userWallet !== invoice.sellerPublicKey) return;
+
+    setVoiding(true);
+    try {
+      const result = await invoiceApi.cancel(id, userWallet);
+      setInvoice(result.data);
+      toast.success('Invoice voided');
+    } catch (error) {
+      console.error('Failed to void invoice:', error);
+      toast.error('Failed to void invoice');
+    } finally {
+      setVoiding(false);
+    }
   };
 
   if (loading) {
@@ -147,6 +164,22 @@ export default function InvoiceDetailPage() {
                   <span className="hidden sm:inline">Share</span>
                 </button>
               )}
+              {invoice.status === 'PENDING' &&
+                userWallet === invoice.sellerPublicKey && (
+                  <button
+                    type="button"
+                    onClick={() => void handleVoidInvoice()}
+                    disabled={voiding}
+                    className="btn btn-outline flex items-center gap-2 text-red-700"
+                  >
+                    {voiding ? (
+                      <Loader2 className="w-5 h-5 animate-spin" aria-hidden="true" />
+                    ) : (
+                      <Ban className="w-5 h-5" aria-hidden="true" />
+                    )}
+                    <span>Void Invoice</span>
+                  </button>
+                )}
               {invoice.status === 'PAID' && (
                 <button
                   onClick={handleDownloadProof}

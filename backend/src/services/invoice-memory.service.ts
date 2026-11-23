@@ -90,11 +90,30 @@ class InvoiceMemoryService {
   /**
    * Cancel an invoice
    */
-  async cancelInvoice(invoiceId: string): Promise<any> {
+  async cancelInvoice(invoiceId: string, sellerPublicKey: string): Promise<any> {
     const invoice = memoryStorage.getInvoiceById(invoiceId);
 
-    if (!invoice || invoice.status !== 'PENDING') {
-      throw new Error('Invoice not found or already processed');
+    if (!invoice) {
+      throw Object.assign(new Error('Invoice not found'), {
+        code: 'NOT_FOUND',
+        status: 404,
+      });
+    }
+
+    if (invoice.sellerPublicKey !== sellerPublicKey) {
+      throw Object.assign(new Error('Only the owning seller can void this invoice'), {
+        code: 'NOT_OWNER',
+        status: 403,
+      });
+    }
+
+    if (invoice.status === 'CANCELLED') return invoice;
+
+    if (invoice.status !== 'PENDING') {
+      throw Object.assign(new Error('Only a pending invoice can be voided'), {
+        code: 'NOT_VOIDABLE',
+        status: 400,
+      });
     }
 
     return memoryStorage.updateInvoice(invoiceId, { status: 'CANCELLED' });

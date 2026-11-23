@@ -268,8 +268,19 @@ app.get('/api/invoices/:id/payment-info', async (req: Request, res: Response) =>
 // Cancel invoice
 app.post('/api/invoices/:id/cancel', async (req: Request, res: Response) => {
   try {
+    await runExpirySweep(invoiceService);
+
     const { id } = req.params;
-    const invoice = await invoiceService.cancelInvoice(id);
+    const { sellerPublicKey } = req.body ?? {};
+    if (!sellerPublicKey || typeof sellerPublicKey !== 'string') {
+      return res.status(400).json({
+        success: false,
+        code: 'SELLER_REQUIRED',
+        error: 'sellerPublicKey is required',
+      });
+    }
+
+    const invoice = await invoiceService.cancelInvoice(id, sellerPublicKey);
 
     res.json({
       success: true,
@@ -277,8 +288,10 @@ app.post('/api/invoices/:id/cancel', async (req: Request, res: Response) => {
     });
   } catch (error: any) {
     console.error('Cancel invoice error:', error);
-    res.status(400).json({
+    const status = typeof error.status === 'number' ? error.status : 400;
+    res.status(status).json({
       success: false,
+      code: error.code,
       error: error.message || 'Failed to cancel invoice',
     });
   }
