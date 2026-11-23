@@ -1,7 +1,7 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
-import { invoiceApi } from '@/lib/api';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { importInvoiceBackup, invoiceApi } from '@/lib/api';
 import InvoiceCard from '@/components/InvoiceCard';
 import WalletConnect from '@/components/WalletConnect';
 import UserProfile from '@/components/UserProfile';
@@ -37,6 +37,9 @@ export default function DashboardPage() {
   const [cursorStack, setCursorStack] = useState<Array<string | undefined>>([undefined]);
   const [pageIndex, setPageIndex] = useState(0);
   const [nextCursor, setNextCursor] = useState<string | undefined>(undefined);
+  const importInput = useRef<HTMLInputElement>(null);
+  const [importing, setImporting] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   const loadPage = useCallback(async (cursor?: string) => {
     if (!publicKey) return;
@@ -129,6 +132,52 @@ export default function DashboardPage() {
     }
     downloadInvoiceCSV(filteredInvoices as any);
     toast.success(`Exported ${filteredInvoices.length} invoices to CSV`);
+  };
+
+  const handleExportJSON = async () => {
+    if (!publicKey) return;
+    setExporting(true);
+    try {
+      const backup: any[] = [];
+      let cursor: string | undefined;
+      do {
+        const result = await invoiceApi.getAll({ sellerPublicKey: publicKey, limit: 100, cursor });
+        backup.push(...result.data);
+        cursor = result.pagination?.nextCursor;
+      } while (cursor);
+      const url = URL.createObjectURL(new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' }));
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `quittance-invoices-${publicKey.slice(0, 8)}.json`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      toast.success(`Backed up ${backup.length} invoices`);
+    } catch {
+      toast.error('Failed to export invoice backup');
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const handleImportJSON = async (file?: File) => {
+    if (!file || !publicKey) return;
+    setImporting(true);
+    try {
+      const backup = JSON.parse(await file.text());
+      const result = await importInvoiceBackup(publicKey, backup);
+      const skipped = result.data.skippedIds.length;
+      toast.success(`Imported ${result.data.imported} invoices; skipped ${skipped} existing IDs`);
+      setCursorStack([undefined]);
+      setPageIndex(0);
+      await loadPage(undefined);
+    } catch (error: any) {
+      toast.error(error?.response?.data?.error || 'Invalid invoice backup');
+    } finally {
+      if (importInput.current) importInput.current.value = '';
+      setImporting(false);
+    }
   };
 
   return (
@@ -293,6 +342,31 @@ export default function DashboardPage() {
               >
                 <Download className="w-5 h-5" aria-hidden="true" />
                 <span className="hidden sm:inline">Export CSV</span>
+              </button>
+              <button
+                type="button"
+                onClick={handleExportJSON}
+                disabled={exporting}
+                className="btn btn-primary whitespace-nowrap"
+              >
+                {exporting ? 'Exporting...' : 'Back up JSON'}
+              </button>
+              <input
+                ref={importInput}
+                type="file"
+                accept=".json,application/json"
+                aria-label="Import invoice JSON backup"
+                disabled={importing}
+                onChange={(event) => handleImportJSON(event.target.files?.[0])}
+                className="sr-only"
+              />
+              <button
+                type="button"
+                onClick={() => importInput.current?.click()}
+                disabled={importing}
+                className="btn btn-primary whitespace-nowrap"
+              >
+                {importing ? 'Importing...' : 'Import JSON'}
               </button>
             </div>
 

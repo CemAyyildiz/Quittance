@@ -22,6 +22,9 @@ import {
 } from './utils/verify-invoice-payment';
 import { parsePaginationQuery } from './utils/parse-pagination';
 import { isSmtpConfigured, sendEmail, generateInvoiceEmail } from './utils/smtp';
+import { z } from 'zod';
+import { memoByteLengthSchema, stellarPublicKeySchema } from './utils/validation';
+import memoryStorage, { type Invoice } from './storage/memory-storage';
 
 // Load environment variables
 dotenv.config();
@@ -117,6 +120,85 @@ app.post('/api/invoices', async (req: Request, res: Response) => {
       error: error.message || 'Failed to create invoice',
     });
   }
+});
+
+const backupDate = z.string().refine((value) => !Number.isNaN(Date.parse(value)), 'Invalid date');
+const backupInvoice = z.object({
+  id: z.string().min(1),
+  sellerPublicKey: stellarPublicKeySchema,
+  amount: z.number().positive().finite(),
+  assetCode: z.string().min(1),
+  assetIssuer: z.string().optional(),
+  memo: memoByteLengthSchema.min(1),
+  description: z.string().optional(),
+  customerName: z.string().optional(),
+  customerEmail: z.string().optional(),
+  status: z.enum(['PENDING', 'PAID', 'EXPIRED', 'CANCELLED']),
+  paymentTxHash: z.string().min(1).optional(),
+  payerPublicKey: z.string().optional(),
+  ledger: z.number().int().positive().optional(),
+  createdAt: backupDate,
+  paidAt: backupDate.optional(),
+  expiresAt: backupDate,
+  originalExpiresAt: backupDate.optional(),
+  expiryExtended: z.boolean().optional(),
+}).refine((invoice) => invoice.status !== 'PAID' || !!invoice.paymentTxHash, {
+  message: 'Paid invoices require a paymentTxHash',
+});
+
+// The request body is the JSON array saved by the dashboard. Validate every
+// row and every conflict before writing any row to the in-memory store.
+app.post('/api/invoices/import', (req: Request, res: Response) => {
+  const seller = stellarPublicKeySchema.safeParse(req.query.sellerPublicKey);
+  const parsed = z.array(backupInvoice).safeParse(req.body);
+  if (!seller.success || !parsed.success) {
+    return res.status(400).json({ success: false, error: 'Invalid invoice backup or sellerPublicKey' });
+  }
+
+  const rows = parsed.data;
+  if (rows.some((row) => row.sellerPublicKey !== seller.data)) {
+    return res.status(400).json({ success: false, error: 'Backup contains invoices for another seller' });
+  }
+
+  const ids = new Set<string>();
+  const memos = new Set<string>();
+  const hashes = new Set<string>();
+  const skippedIds: string[] = [];
+  const newRows: Invoice[] = [];
+  for (const row of rows) {
+    if (ids.has(row.id)) {
+      return res.status(400).json({ success: false, error: 'Backup contains duplicate invoice IDs' });
+    }
+    ids.add(row.id);
+
+    if (memoryStorage.getInvoiceById(row.id)) {
+      skippedIds.push(row.id);
+      continue;
+    }
+
+    if (memos.has(row.memo) || memoryStorage.getInvoiceByMemo(row.memo)) {
+      return res.status(400).json({ success: false, error: 'Backup contains a memo already in use' });
+    }
+    memos.add(row.memo);
+    if (row.paymentTxHash) {
+      if (hashes.has(row.paymentTxHash) || memoryStorage.getInvoiceByTxHash(row.paymentTxHash)) {
+        return res.status(400).json({ success: false, error: 'Backup contains a payment hash already in use' });
+      }
+      hashes.add(row.paymentTxHash);
+    }
+    const expiresAt = new Date(row.expiresAt);
+    newRows.push({
+      ...row,
+      createdAt: new Date(row.createdAt),
+      paidAt: row.paidAt ? new Date(row.paidAt) : undefined,
+      expiresAt,
+      originalExpiresAt: row.originalExpiresAt ? new Date(row.originalExpiresAt) : expiresAt,
+      expiryExtended: row.expiryExtended ?? false,
+    });
+  }
+
+  memoryStorage.importInvoices(newRows);
+  res.json({ success: true, data: { imported: newRows.length, skippedIds } });
 });
 
 // Registered before `/api/invoices/:id`: Express matches in registration
@@ -635,6 +717,9 @@ app.get('/api/stellar/account', (req: Request, res: Response) => {
 
 // Error handling middleware
 app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
+  if ((err as Error & { status?: number }).status === 400) {
+    return res.status(400).json({ success: false, error: 'Malformed request body' });
+  }
   console.error('Unhandled error:', err);
   res.status(500).json({
     success: false,
