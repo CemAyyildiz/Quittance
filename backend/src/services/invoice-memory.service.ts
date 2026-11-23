@@ -1,5 +1,5 @@
 // Invoice service with in-memory storage
-import { generateInvoiceMemo } from '../utils/memo';
+import { generateInvoiceMemo, validateMemoByteLength } from '../utils/memo';
 import { CreateInvoiceInput } from '../utils/validation';
 import { assertCanExtendExpiry } from '../utils/invoice-expiry';
 import memoryStorage from '../storage/memory-storage';
@@ -14,7 +14,16 @@ class InvoiceMemoryService {
       throw new Error('Seller public key is required');
     }
 
-    const memo = generateInvoiceMemo();
+    let memo = generateInvoiceMemo();
+
+    if (input.memo) {
+      const memoValidation = validateMemoByteLength(input.memo);
+      if (!memoValidation.valid) {
+        throw new Error(memoValidation.error);
+      }
+      memo = input.memo;
+    }
+
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + (input.expiresInDays || 7));
 

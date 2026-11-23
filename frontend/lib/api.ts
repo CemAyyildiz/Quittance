@@ -27,6 +27,7 @@ export const invoiceApi = USE_MOCK_API ? mockInvoiceApi : {
     assetCode?: string;
     assetIssuer?: string;
     description?: string;
+    memo?: string;
     customerName?: string;
     customerEmail?: string;
     expiresInDays?: number;
