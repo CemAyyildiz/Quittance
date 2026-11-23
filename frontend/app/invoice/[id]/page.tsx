@@ -32,6 +32,14 @@ export default function InvoiceDetailPage() {
     loadInvoice();
   }, [id]);
 
+  useEffect(() => {
+    if (!invoice || invoice.status !== 'PENDING') return;
+    const intervalId = setInterval(() => {
+      void loadInvoice();
+    }, 3000);
+    return () => clearInterval(intervalId);
+  }, [id, invoice?.status]);
+
   const loadInvoice = async () => {
     try {
       const [invoiceResult, paymentResult] = await Promise.all([

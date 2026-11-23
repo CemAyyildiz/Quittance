@@ -136,6 +136,10 @@ class InvoiceMemoryService {
     return { invoices: page, nextCursor, limit: pageLimit };
   }
 
+  getPendingInvoices(): any[] {
+    return memoryStorage.getAllInvoices({ status: 'PENDING' });
+  }
+
   /**
    * Cancel an invoice
    */

@@ -82,6 +82,14 @@ export default function DashboardPage() {
     loadPage(undefined);
   }, [connected, publicKey, filter, loadPage]);
 
+  useEffect(() => {
+    if (!connected || !publicKey) return;
+    const intervalId = setInterval(() => {
+      void loadPage(cursorStack[pageIndex]);
+    }, 3000);
+    return () => clearInterval(intervalId);
+  }, [connected, publicKey, cursorStack, pageIndex, loadPage]);
+
   // Filter and search the invoices on the current page
   useEffect(() => {
     if (!searchQuery.trim()) {

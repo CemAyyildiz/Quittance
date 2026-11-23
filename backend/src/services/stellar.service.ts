@@ -217,7 +217,11 @@ class StellarService {
             assetIssuer: record.asset_issuer,
             memo: transaction.memo || undefined,
             memoType: transaction.memo_type || undefined,
-            ledger: Number((record as any).ledger_attr ?? 0),
+            ledger: Number(
+              (record as unknown as { ledger_attr?: unknown }).ledger_attr ??
+              (record as unknown as { ledger?: unknown }).ledger ??
+              0
+            ),
             createdAt: record.created_at,
           });
         }

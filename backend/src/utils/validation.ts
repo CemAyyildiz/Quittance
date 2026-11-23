@@ -31,6 +31,16 @@ export const createInvoiceSchema = z.object({
   expiresInDays: z.number().min(1).max(365).default(7).optional(),
   sellerPublicKey: stellarPublicKeySchema, // Dinamik seller!
   memo: memoByteLengthSchema.optional(),
+}).superRefine((invoice, ctx) => {
+  if (invoice.assetCode && invoice.assetCode !== 'XLM') {
+    if (!invoice.assetIssuer || !/^G[A-Z2-7]{55}$/.test(invoice.assetIssuer)) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['assetIssuer'],
+        message: 'Credit assets require a valid Stellar issuer public key',
+      });
+    }
+  }
 });
 
 // Payment verification schema
