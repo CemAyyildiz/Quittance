@@ -45,7 +45,9 @@
     "@types/node": "^20.11.19",
     "@types/pg": "^8.11.0",
     "@types/qrcode": "^1.5.6",
+    "@types/supertest": "^7.2.1",
     "@types/uuid": "^9.0.8",
+    "supertest": "^7.3.2",
     "typescript": "^5.3.3",
     "vitest": "^4.1.10"
   }
