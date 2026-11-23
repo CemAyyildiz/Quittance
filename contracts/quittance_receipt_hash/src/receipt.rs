@@ -1,5 +1,7 @@
 //! Receipt proof field definitions plus a builder for ergonomic construction.
 
+use alloc::string::{String, ToString};
+
 /// Asset identifier carried by a Stellar payment.
 ///
 /// Native XLM is represented as [`Asset::native`]. Non-native assets use
@@ -114,8 +116,6 @@ impl core::fmt::Display for BuildError {
     }
 }
 
-impl std::error::Error for BuildError {}
-
 /// Fluent builder for [`ReceiptFields`].
 #[derive(Debug, Default, Clone)]
 pub struct ReceiptFieldsBuilder {
@@ -190,9 +190,7 @@ impl ReceiptFieldsBuilder {
     /// field has not been set.
     pub fn build(self) -> Result<ReceiptFields, BuildError> {
         Ok(ReceiptFields {
-            network_passphrase: self
-                .network_passphrase
-                .ok_or(BuildError::MissingNetwork)?,
+            network_passphrase: self.network_passphrase.ok_or(BuildError::MissingNetwork)?,
             tx_hash: self.tx_hash.ok_or(BuildError::MissingTxHash)?,
             ledger: self.ledger.ok_or(BuildError::MissingLedger)?,
             seller: self.seller.ok_or(BuildError::MissingSeller)?,

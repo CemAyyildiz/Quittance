@@ -2,20 +2,37 @@
 name = "quittance-receipt-hash"
 version = "0.1.0"
 edition = "2021"
-rust-version = "1.74"
-description = "Domain-separated SHA-256 receipt hash for Quittance payment proofs on Stellar."
+description = "Domain-separated SHA-256 receipt hash and Soroban anchor record for Quittance payment proofs on Stellar."
 license = "MIT"
 readme = "README.md"
 keywords = ["stellar", "soroban", "sha256", "receipt", "quittance"]
 categories = ["cryptography"]
 publish = false
 
+# Declare this crate as its own workspace root so it compiles independently of
+# the parent contracts/ workspace.
+[workspace]
+
 [lib]
 name = "quittance_receipt_hash"
 path = "src/lib.rs"
+crate-type = ["rlib", "cdylib"]
 
 [dependencies]
-sha2 = "0.10"
-hex = "0.4"
+sha2 = { version = "0.10", default-features = false }
+hex = { version = "0.4", default-features = false, features = ["alloc"] }
+# `alloc` registers the SDK's wasm global allocator, required because this crate
+# uses `alloc`-backed `String`/`Vec` for the hashing primitives.
+soroban-sdk = { version = "25.0.0", features = ["alloc"] }
 
 [dev-dependencies]
+soroban-sdk = { version = "25.0.0", features = ["alloc", "testutils"] }
+
+[profile.release]
+opt-level = "z"
+overflow-checks = true
+debug = 0
+strip = "symbols"
+panic = "abort"
+codegen-units = 1
+lto = true
