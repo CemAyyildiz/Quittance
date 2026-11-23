@@ -12,7 +12,7 @@ interface Invoice {
   description?: string;
   customerName?: string;
   customerEmail?: string;
-  status: 'PENDING' | 'PAID' | 'EXPIRED' | 'CANCELLED';
+  status: 'PENDING' | 'PAID' | 'EXPIRED' | 'CANCELLED' | 'UNCOLLECTIBLE';
   paymentTxHash?: string;
   payerPublicKey?: string;
   ledger?: number;
