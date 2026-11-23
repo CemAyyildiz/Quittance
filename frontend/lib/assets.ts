@@ -37,8 +37,15 @@ export const STELLAR_ASSETS: StellarAsset[] = [
 
 // Get asset by code
 export const getAssetByCode = (code: string): StellarAsset | undefined => {
-  return STELLAR_ASSETS.find(asset => asset.code === code);
+  return STELLAR_ASSETS.find((asset) => asset.code === code);
 };
+
+export const hasAssetTrustline = (
+  balances: Array<{ asset_code?: string; asset_issuer?: string }>,
+  code: string,
+  issuer: string,
+): boolean =>
+  balances.some((balance) => balance.asset_code === code && balance.asset_issuer === issuer);
 
 // Format asset display name
 export const formatAssetName = (code: string): string => {
@@ -53,4 +60,3 @@ export interface AssetLogoProps {
   showName?: boolean;
   className?: string;
 }
-

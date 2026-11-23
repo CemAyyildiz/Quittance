@@ -30,9 +30,12 @@ CREATE TABLE IF NOT EXISTS invoices (
   payer_public_key VARCHAR(56),
   payer_name VARCHAR(255),
   payer_email VARCHAR(255),
+  ledger BIGINT,
   created_at TIMESTAMP DEFAULT NOW(),
   paid_at TIMESTAMP,
   expires_at TIMESTAMP DEFAULT NOW() + INTERVAL '7 days',
+  original_expires_at TIMESTAMP,
+  expiry_extended BOOLEAN NOT NULL DEFAULT false,
   metadata JSONB
 );
 

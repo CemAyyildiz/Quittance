@@ -47,6 +47,8 @@ describe('buildStellarPaymentUri', () => {
   it('omits asset params when assetCode is non-native but no issuer is provided', () => {
     const uri = buildStellarPaymentUri(DESTINATION, '3', 'USDC');
     expect(uri).toBe(`web+stellar:pay?destination=${DESTINATION}&amount=3`);
+    expect(uri).not.toContain('asset_code');
+    expect(uri).not.toContain('asset_issuer');
   });
 
   it('appends asset_code and asset_issuer for lowercase xlm with an issuer', () => {
@@ -73,6 +75,13 @@ describe('buildStellarPaymentUri', () => {
   it('URL-encodes a memo with reserved characters', () => {
     const uri = buildStellarPaymentUri(DESTINATION, '1', 'XLM', 'a&b=c?d/e');
     expect(uri).toContain('&memo=a%26b%3Dc%3Fd%2Fe&memo_type=MEMO_TEXT');
+  });
+
+  it('URL-encodes a memo with spaces and ampersands exactly once', () => {
+    const uri = buildStellarPaymentUri(DESTINATION, '1', 'XLM', 'thanks & regards');
+    expect(uri).toContain('&memo=thanks%20%26%20regards&memo_type=MEMO_TEXT');
+    expect(uri).not.toContain('%2520');
+    expect(uri).not.toContain('%2526');
   });
 
   it('URL-encodes a memo with non-ASCII characters', () => {
