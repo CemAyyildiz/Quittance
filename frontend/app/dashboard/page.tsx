@@ -354,7 +354,7 @@ export default function DashboardPage() {
                 )}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                   {filteredInvoices.map((invoice) => (
-                    <InvoiceCard key={invoice.id} invoice={invoice} onUpdated={loadData} />
+                    <InvoiceCard key={invoice.id} invoice={invoice} onUpdated={() => void loadData()} />
                   ))}
                 </div>
               </>
