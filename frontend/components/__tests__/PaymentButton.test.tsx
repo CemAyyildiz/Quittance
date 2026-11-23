@@ -8,12 +8,14 @@ const {
   mockCheckWalletConnection,
   mockRequestWalletAccess,
   mockVerify,
+  mockGetWalletNetwork,
   mockToast,
 } = vi.hoisted(() => ({
   mockSendPayment: vi.fn(),
   mockCheckWalletConnection: vi.fn(),
   mockRequestWalletAccess: vi.fn(),
   mockVerify: vi.fn(),
+  mockGetWalletNetwork: vi.fn(),
   mockToast: {
     error: vi.fn(),
     loading: vi.fn(),
@@ -28,6 +30,10 @@ vi.mock('@/lib/stellar', () => ({
   sendPayment: mockSendPayment,
   checkWalletConnection: mockCheckWalletConnection,
   requestWalletAccess: mockRequestWalletAccess,
+  getWalletNetwork: mockGetWalletNetwork,
+  getConfiguredNetwork: () => 'TESTNET',
+  getNetworkMismatch: (wallet: string, configured: string) =>
+    wallet !== 'UNKNOWN' && wallet !== configured,
 }));
 
 vi.mock('@/lib/api', () => ({
@@ -73,6 +79,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   mockCheckWalletConnection.mockResolvedValue(true);
   mockRequestWalletAccess.mockResolvedValue(true);
+  mockGetWalletNetwork.mockResolvedValue('TESTNET');
   mockSendPayment.mockResolvedValue(TX_HASH);
   mockVerify.mockResolvedValue({ verified: true });
 });
@@ -192,5 +199,25 @@ describe('PaymentButton', () => {
 
     expect(screen.queryByText(/Paying with/)).not.toBeInTheDocument();
     expect(screen.queryByText(/trustline/)).not.toBeInTheDocument();
+  });
+
+  it('blocks mismatch, names both networks, and clears after switching', async () => {
+    mockGetWalletNetwork.mockResolvedValue('PUBLIC');
+    renderButton();
+
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: PAY_IDLE_LABEL })).toBeDisabled(),
+    );
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'Freighter is on PUBLIC, but the API is configured for TESTNET',
+    );
+
+    mockGetWalletNetwork.mockResolvedValue('TESTNET');
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: PAY_IDLE_LABEL })).toBeEnabled(),
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: PAY_IDLE_LABEL }));
+    await waitFor(() => expect(mockSendPayment).toHaveBeenCalled());
   });
 });

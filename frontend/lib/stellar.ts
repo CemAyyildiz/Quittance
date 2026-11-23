@@ -5,6 +5,7 @@ import {
   signTransaction,
   isAllowed,
   setAllowed,
+  getNetworkDetails,
 } from '@stellar/freighter-api';
 import { hasAssetTrustline } from './assets';
 
@@ -22,6 +23,36 @@ export const NETWORK_PASSPHRASE =
     : StellarSdk.Networks.PUBLIC;
 
 export const server = new StellarSdk.Horizon.Server(HORIZON_URL);
+
+export type WalletNetwork = 'TESTNET' | 'PUBLIC' | 'UNKNOWN';
+
+export const getConfiguredNetwork = (): 'TESTNET' | 'PUBLIC' =>
+  (process.env.NEXT_PUBLIC_STELLAR_NETWORK || 'TESTNET')
+    .trim()
+    .toUpperCase() === 'PUBLIC'
+    ? 'PUBLIC'
+    : 'TESTNET';
+
+export const getWalletNetwork = async (): Promise<WalletNetwork> => {
+  try {
+    const details = await getNetworkDetails();
+    const passphrase = details.networkPassphrase?.trim();
+    if (passphrase === StellarSdk.Networks.TESTNET) return 'TESTNET';
+    if (passphrase === StellarSdk.Networks.PUBLIC) return 'PUBLIC';
+
+    // Some locked or older wallets do not expose a passphrase. Do not guess:
+    // UNKNOWN only blocks actions that explicitly require a confirmed match.
+    return 'UNKNOWN';
+  } catch {
+    return 'UNKNOWN';
+  }
+};
+
+export const getNetworkMismatch = (
+  walletNetwork: WalletNetwork,
+  configuredNetwork: 'TESTNET' | 'PUBLIC' = getConfiguredNetwork(),
+): boolean =>
+  walletNetwork !== 'UNKNOWN' && walletNetwork !== configuredNetwork;
 
 /**
  * Check if Freighter wallet is available and connected

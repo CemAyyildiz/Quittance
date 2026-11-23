@@ -1,7 +1,15 @@
 'use client';
 
-import { useState } from 'react';
-import { sendPayment, checkWalletConnection, requestWalletAccess } from '@/lib/stellar';
+import { useEffect, useState } from 'react';
+import {
+  sendPayment,
+  checkWalletConnection,
+  requestWalletAccess,
+  getWalletNetwork,
+  getConfiguredNetwork,
+  getNetworkMismatch,
+  type WalletNetwork,
+} from '@/lib/stellar';
 import { toast } from 'sonner';
 import { Wallet, Loader2 } from 'lucide-react';
 import { invoiceApi } from '@/lib/api';
@@ -36,12 +44,44 @@ export default function PaymentButton({
   onError,
 }: PaymentButtonProps) {
   const [loading, setLoading] = useState(false);
+  const [walletNetwork, setWalletNetwork] = useState<WalletNetwork>('UNKNOWN');
+  const [networkMismatch, setNetworkMismatch] = useState(false);
+  const configuredNetwork = getConfiguredNetwork();
+
+  useEffect(() => {
+    let cancelled = false;
+    const recheckNetwork = async () => {
+      const wallet = await getWalletNetwork();
+      if (!cancelled) {
+        setWalletNetwork(wallet);
+        setNetworkMismatch(getNetworkMismatch(wallet, configuredNetwork));
+      }
+    };
+    void recheckNetwork();
+    const interval = window.setInterval(recheckNetwork, 500);
+    window.addEventListener('focus', recheckNetwork);
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+      window.removeEventListener('focus', recheckNetwork);
+    };
+  }, [configuredNetwork]);
 
   const issuer = assetIssuer || getAssetByCode(assetCode)?.issuer;
 
   const handlePayment = async () => {
     setLoading(true);
     try {
+      const liveWalletNetwork = await getWalletNetwork();
+      const mismatch = getNetworkMismatch(liveWalletNetwork, configuredNetwork);
+      setWalletNetwork(liveWalletNetwork);
+      setNetworkMismatch(mismatch);
+      if (mismatch) {
+        toast.error(
+          `Network mismatch: Freighter is on ${liveWalletNetwork}, but the API is configured for ${configuredNetwork}.`,
+        );
+        return;
+      }
       const connected = await checkWalletConnection();
       if (!connected) {
         const allowed = await requestWalletAccess();
@@ -96,6 +136,11 @@ export default function PaymentButton({
 
   return (
     <div>
+      {networkMismatch && (
+        <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 mb-4 text-sm text-red-800">
+          Network mismatch: Freighter is on {walletNetwork}, but the API is configured for {configuredNetwork}.
+        </div>
+      )}
       {assetCode !== 'XLM' && issuer && (
         <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-4">
           <p className="text-sm text-amber-800 font-semibold mb-1">
@@ -109,7 +154,7 @@ export default function PaymentButton({
       )}
       <button
         onClick={handlePayment}
-        disabled={loading}
+        disabled={loading || networkMismatch}
         aria-busy={loading}
         className="btn btn-primary w-full flex items-center justify-center gap-2 text-lg py-4"
       >

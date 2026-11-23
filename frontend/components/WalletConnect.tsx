@@ -6,6 +6,10 @@ import {
   requestWalletAccess,
   getUserPublicKey,
   getAccountBalance,
+  getConfiguredNetwork,
+  getNetworkMismatch,
+  getWalletNetwork,
+  type WalletNetwork,
 } from '@/lib/stellar';
 import { useWalletStore } from '@/lib/store';
 import { paymentMonitor } from '@/lib/payment-monitor';
@@ -22,7 +26,33 @@ interface WalletConnectProps {
 export default function WalletConnect({ onConnect, onConnectionFailure }: WalletConnectProps = {}) {
   const [loading, setLoading] = useState(false);
   const [monitoringActive, setMonitoringActive] = useState(false);
+  const [walletNetwork, setWalletNetwork] = useState<WalletNetwork>('UNKNOWN');
+  const [networkMismatch, setNetworkMismatch] = useState(false);
+  const configuredNetwork = getConfiguredNetwork();
   const { publicKey, balance, connected, setWallet, updateBalance, disconnect } = useWalletStore();
+
+  useEffect(() => {
+    let cancelled = false;
+    const recheckNetwork = async () => {
+      if (!connected || !publicKey) {
+        if (!cancelled) setNetworkMismatch(false);
+        return;
+      }
+      const wallet = await getWalletNetwork();
+      if (!cancelled) {
+        setWalletNetwork(wallet);
+        setNetworkMismatch(getNetworkMismatch(wallet, configuredNetwork));
+      }
+    };
+    void recheckNetwork();
+    const interval = window.setInterval(recheckNetwork, 500);
+    window.addEventListener('focus', recheckNetwork);
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+      window.removeEventListener('focus', recheckNetwork);
+    };
+  }, [connected, publicKey, configuredNetwork]);
 
   useEffect(() => {
     if (connected && publicKey && !paymentMonitor.isMonitoring(publicKey)) {
@@ -106,6 +136,20 @@ export default function WalletConnect({ onConnect, onConnectionFailure }: Wallet
   if (connected && publicKey) {
     return (
       <div className="flex items-center gap-2">
+        {networkMismatch && (
+          <div role="alert" className="flex items-center gap-2 mb-2 px-3 py-2 bg-red-100 border border-red-200 rounded-lg text-sm text-red-800">
+            <span>
+              Network mismatch: Freighter is on {walletNetwork}, but the API is configured for {configuredNetwork}.
+            </span>
+            <button
+              type="button"
+              onClick={() => setNetworkMismatch(false)}
+              className="ml-2 text-red-600 hover:underline"
+            >
+              Dismiss
+            </button>
+          </div>
+        )}
         {/* Balance */}
         <div className="hidden md:flex flex-col items-end mr-2">
           <span className="text-xs text-gray-500 font-medium">Balance</span>

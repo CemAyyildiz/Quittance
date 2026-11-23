@@ -9,6 +9,7 @@ vi.mock('@stellar/freighter-api', () => ({
   signTransaction: vi.fn(),
   isAllowed: vi.fn(),
   setAllowed: vi.fn(),
+  getNetworkDetails: vi.fn(),
 }));
 
 import {
@@ -18,9 +19,18 @@ import {
   requestWalletAccess,
   getUserPublicKey,
   buildPaymentTransaction,
+  getWalletNetwork,
+  getConfiguredNetwork,
+  getNetworkMismatch,
 } from './stellar';
 
-import { isConnected, getPublicKey, isAllowed, setAllowed } from '@stellar/freighter-api';
+import {
+  isConnected,
+  getPublicKey,
+  isAllowed,
+  setAllowed,
+  getNetworkDetails,
+} from '@stellar/freighter-api';
 import * as StellarSdk from '@stellar/stellar-sdk';
 
 // A well-known, valid Stellar Ed25519 public key (56 chars, starts with G,
@@ -102,6 +112,39 @@ describe('formatStellarAmount', () => {
 
   it('formats an integer XLM amount', () => {
     expect(formatStellarAmount('1000')).toBe('1000');
+  });
+});
+
+describe('Freighter network checks', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('recognizes the exact Testnet passphrase', async () => {
+    (getNetworkDetails as any).mockResolvedValue({
+      networkPassphrase: StellarSdk.Networks.TESTNET,
+    });
+    await expect(getWalletNetwork()).resolves.toBe('TESTNET');
+  });
+
+  it('recognizes the exact Public passphrase', async () => {
+    (getNetworkDetails as any).mockResolvedValue({
+      networkPassphrase: StellarSdk.Networks.PUBLIC,
+    });
+    await expect(getWalletNetwork()).resolves.toBe('PUBLIC');
+  });
+
+  it('does not infer a match from an unknown passphrase', async () => {
+    (getNetworkDetails as any).mockResolvedValue({
+      networkPassphrase: 'FUTURENET',
+    });
+    await expect(getWalletNetwork()).resolves.toBe('UNKNOWN');
+  });
+
+  it('detects mismatch and clears it for the expected network', () => {
+    vi.stubEnv('NEXT_PUBLIC_STELLAR_NETWORK', 'TESTNET');
+    expect(getNetworkMismatch('PUBLIC', getConfiguredNetwork())).toBe(true);
+    expect(getNetworkMismatch('TESTNET', getConfiguredNetwork())).toBe(false);
   });
 });
 

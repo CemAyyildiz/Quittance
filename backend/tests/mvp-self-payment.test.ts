@@ -154,6 +154,22 @@ describe('MVP self-payment rejection', () => {
     expect(body.code).toBe('SELF_PAYMENT');
   });
 
+  it('rejects a verify request that reports a mismatched network', async () => {
+    const invoice = seedInvoice();
+
+    const { status, body } = await call('POST', `/api/invoices/${invoice.id}/verify`, {
+      txHash: TX_HASH,
+      network: 'PUBLIC',
+    });
+
+    expect(status).toBe(400);
+    expect(body.code).toBe('NETWORK_MISMATCH');
+    expect(getTransaction).not.toHaveBeenCalled();
+
+    const after = await call('GET', `/api/invoices/${invoice.id}`);
+    expect(after.body.data.status).toBe('PENDING');
+  });
+
   it('accepts a different payer whose memo and fields match', async () => {
     const invoice = seedInvoice();
     getTransaction.mockResolvedValue(horizonTx(invoice.memo, { txSource: PAYER }));

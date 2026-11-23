@@ -10,6 +10,13 @@ vi.mock('@/lib/api', () => ({
 vi.mock('sonner', () => ({
   toast: { success: vi.fn(), error: vi.fn() },
 }));
+vi.mock('@/lib/stellar', () => ({
+  checkAssetReadiness: vi.fn().mockResolvedValue('ok'),
+  getWalletNetwork: vi.fn().mockResolvedValue('TESTNET'),
+  getConfiguredNetwork: () => 'TESTNET',
+  getNetworkMismatch: (wallet: string, configured: string) =>
+    wallet !== 'UNKNOWN' && wallet !== configured,
+}));
 
 afterEach(() => {
   cleanup();

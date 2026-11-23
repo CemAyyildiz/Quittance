@@ -21,6 +21,7 @@ import {
   paymentAssetMatchesInvoice,
 } from './utils/verify-invoice-payment';
 import { parsePaginationQuery } from './utils/parse-pagination';
+import { STELLAR_NETWORK } from './config/stellar';
 
 // Load environment variables
 dotenv.config();
@@ -350,6 +351,32 @@ app.post('/api/invoices/:id/verify', async (req: Request, res: Response) => {
       });
     }
 
+    const reportedNetwork =
+      typeof req.body.network === 'string'
+        ? req.body.network.trim().toUpperCase()
+        : typeof req.body.networkPassphrase === 'string'
+          ? req.body.networkPassphrase.trim()
+          : undefined;
+    const reportedKind =
+      reportedNetwork === 'TESTNET' ||
+      reportedNetwork === 'Test SDF Network ; September 2015' ||
+      (reportedNetwork?.includes?.('TESTNET') ?? false)
+        ? 'TESTNET'
+        : reportedNetwork === 'PUBLIC' ||
+            reportedNetwork === 'Public Global Stellar Network; September 2015' ||
+            (reportedNetwork?.includes?.('PUBLIC') ?? false)
+          ? 'PUBLIC'
+          : undefined;
+    const configuredKind =
+      STELLAR_NETWORK?.trim().toUpperCase() === 'PUBLIC' ? 'PUBLIC' : 'TESTNET';
+    if (reportedKind && reportedKind !== configuredKind) {
+      return res.status(400).json({
+        success: false,
+        code: VerifyErrorCode.NETWORK_MISMATCH,
+        error: VerifyErrorMessages[VerifyErrorCode.NETWORK_MISMATCH],
+      });
+    }
+
     const invoice = await invoiceService.getInvoiceById(id);
 
     if (!invoice) {
@@ -394,7 +421,20 @@ app.post('/api/invoices/:id/verify', async (req: Request, res: Response) => {
       });
     }
 
-    const txDetails = await stellarService.getTransaction(txHash);
+    let txDetails: { transaction: any; operations: any[] };
+    try {
+      txDetails = await stellarService.getTransaction(txHash);
+    } catch (error: any) {
+      const status = error?.response?.status ?? error?.status;
+      if (status === 404) {
+        return res.status(400).json({
+          success: false,
+          code: VerifyErrorCode.NETWORK_MISMATCH,
+          error: VerifyErrorMessages[VerifyErrorCode.NETWORK_MISMATCH],
+        });
+      }
+      throw error;
+    }
     const transaction = txDetails.transaction;
     const paymentOp = txDetails.operations.find((op: any) => op.type === 'payment');
 
