@@ -20,6 +20,7 @@ import {
   isSelfPayment,
   paymentAssetMatchesInvoice,
 } from './utils/verify-invoice-payment';
+import { parsePaginationQuery } from './utils/parse-pagination';
 
 // Load environment variables
 dotenv.config();
@@ -191,6 +192,7 @@ app.get('/api/invoices', async (req: Request, res: Response) => {
       offset = 0,
       sellerPublicKey,
     } = req.query;
+    const { status, cursor, sellerPublicKey } = req.query;
 
     if (!sellerPublicKey) {
       return res.status(400).json({
@@ -272,15 +274,29 @@ app.get('/api/invoices', async (req: Request, res: Response) => {
         createdFrom: startDate,
         createdTo: endDate,
       }
+    if (cursor !== undefined && typeof cursor !== 'string') {
+      return res.status(400).json({
+        success: false,
+        error: 'cursor must be a single string value',
+      });
+    }
+
+    // Reuse the shared parser so a limit above 100 is clamped, not honoured.
+    const { limit } = parsePaginationQuery(req.query);
+
+    const result = await invoiceService.getInvoicesBySeller(
+      sellerPublicKey as string,
+      typeof status === 'string' ? status : undefined,
+      limit,
+      cursor
     );
 
     res.json({
       success: true,
-      data: invoices.map(toInvoiceDTO),
+      data: result.invoices.map(toInvoiceDTO),
       pagination: {
-        limit: parseInt(limit as string),
-        offset: parseInt(offset as string),
-        total: invoices.length,
+        limit: result.limit,
+        nextCursor: result.nextCursor,
       },
     });
   } catch (error: any) {
@@ -291,7 +307,8 @@ app.get('/api/invoices', async (req: Request, res: Response) => {
       });
     }
     console.error('Get invoices error:', error);
-    res.status(500).json({
+    const statusCode = error?.status === 400 ? 400 : 500;
+    res.status(statusCode).json({
       success: false,
       error: error.message || 'Failed to get invoices',
     });
@@ -477,6 +494,17 @@ app.post('/api/invoices/:id/verify', async (req: Request, res: Response) => {
       });
     }
 
+    // A payment must carry a ledger sequence; otherwise we would store
+    // Number(undefined) and mark the invoice paid without a real anchor.
+    const ledgerSequence = Number(transaction?.ledger_sequence);
+    if (!Number.isFinite(ledgerSequence) || ledgerSequence <= 0) {
+      return res.status(400).json({
+        success: false,
+        code: VerifyErrorCode.MISSING_LEDGER_SEQUENCE,
+        error: VerifyErrorMessages[VerifyErrorCode.MISSING_LEDGER_SEQUENCE],
+      });
+    }
+
     // A seller can otherwise pay their own invoice and produce a proof that a
     // client paid. The memo and amount match, so this is the only check that
     // catches it. Horizon reports the inner transaction source for a fee-bump,
@@ -540,10 +568,16 @@ app.post('/api/invoices/:id/verify', async (req: Request, res: Response) => {
       });
     }
 
+    // The inner source of a fee-bump is the real payer; `paymentOp.from`
+    // alone would store the outer fee-bump account.
+    const payerPublicKey = paymentOp.source_account ?? paymentOp.from;
+
     const updatedInvoice = await invoiceService.markAsPaid(
       id,
       txHash,
-      paymentOp.from
+      payerPublicKey,
+      ledgerSequence,
+      transaction.created_at ? new Date(transaction.created_at) : undefined
     );
 
     res.json({
@@ -598,7 +632,7 @@ app.post('/api/invoices/:id/simulate-payment', async (req: Request, res: Respons
     const mockTxHash = `MOCK_TX_${Date.now().toString(36).toUpperCase()}_${Math.random().toString(36).substr(2, 8).toUpperCase()}`;
     const mockPayerKey = 'GXXXSIMULATEDPAYERXXXXXXXXXXXXXXXXXXXXXXXXXXXXX';
 
-    const updatedInvoice = await invoiceService.markAsPaid(id, mockTxHash, mockPayerKey);
+    const updatedInvoice = await invoiceService.markAsPaid(id, mockTxHash, mockPayerKey, 1);
 
     res.json({
       success: true,

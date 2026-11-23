@@ -375,6 +375,26 @@ export default function PaymentPage() {
                     </button>
                   </div>
                 </div>
+
+                {invoice.status === 'PAID' && (
+                  <div className="border-t pt-4 mt-4">
+                    <p className="text-xs text-gray-600 mb-1">Payment Details</p>
+                    <div className="grid grid-cols-3 gap-2 text-sm">
+                      <div>
+                        <p className="text-gray-500">Payer</p>
+                        <p className="font-medium">{invoice.payerPublicKey || 'N/A'}</p>
+                      </div>
+                      <div>
+                        <p className="text-gray-500">Ledger</p>
+                        <p className="font-medium">{invoice.ledger || 'N/A'}</p>
+                      </div>
+                      <div>
+                        <p className="text-gray-500">Paid At</p>
+                        <p className="font-medium">{invoice.paidAt ? formatDate(invoice.paidAt) : 'N/A'}</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>
