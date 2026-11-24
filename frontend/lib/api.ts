@@ -47,6 +47,9 @@ export const invoiceApi = USE_MOCK_API ? mockInvoiceApi : {
 
   getAll: async (params?: {
     status?: string;
+    assetCode?: string;
+    createdFrom?: string;
+    createdTo?: string;
     limit?: number;
     offset?: number;
     cursor?: string;

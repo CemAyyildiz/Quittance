@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { invoiceApi } from '@/lib/api';
 import InvoiceCard from '@/components/InvoiceCard';
 import WalletConnect from '@/components/WalletConnect';
@@ -32,21 +32,29 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [filter, setFilter] = useState<string>('all');
+  const [assetCode, setAssetCode] = useState('');
+  const [createdFrom, setCreatedFrom] = useState('');
+  const [createdTo, setCreatedTo] = useState('');
   const [searchInput, setSearchInput] = useState<string>('');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [viewMode, setViewMode] = useState<'invoices' | 'transactions'>('invoices');
+  const loadRequestId = useRef(0);
   const [cursorStack, setCursorStack] = useState<Array<string | undefined>>([undefined]);
   const [pageIndex, setPageIndex] = useState(0);
   const [nextCursor, setNextCursor] = useState<string | undefined>(undefined);
 
   const loadPage = useCallback(async (cursor?: string) => {
     if (!publicKey) return;
+    const requestId = ++loadRequestId.current;
     try {
       setLoading(true);
       setLoadError(false);
       const [invoicesResult, statsResult] = await Promise.all([
         invoiceApi.getAll({
           status: filter === 'all' ? undefined : filter.toUpperCase(),
+          assetCode: assetCode || undefined,
+          createdFrom: createdFrom || undefined,
+          createdTo: createdTo || undefined,
           limit: PAGE_SIZE,
           sellerPublicKey: publicKey,
           cursor,
@@ -54,20 +62,30 @@ export default function DashboardPage() {
         }),
         invoiceApi.getStats(publicKey),
       ]);
+      if (requestId === loadRequestId.current) {
+        setInvoices(invoicesResult.data);
+        setStats(statsResult.data[0] || {});
+      }
 
       setInvoices(invoicesResult.data);
       setStats(statsResult.data[0] || {});
       setNextCursor(invoicesResult.pagination?.nextCursor);
     } catch (error) {
-      setLoadError(true);
-      toast.error('Failed to load data');
+      if (requestId === loadRequestId.current) {
+        setLoadError(true);
+        toast.error('Failed to load data');
+      }
     } finally {
-      setLoading(false);
+      if (requestId === loadRequestId.current) {
+        setLoading(false);
+      }
     }
+  }, [assetCode, createdFrom, createdTo, filter, publicKey]);
   }, [filter, publicKey, searchQuery]);
 
   useEffect(() => {
     if (!connected || !publicKey) {
+      loadRequestId.current += 1;
       setInvoices([]);
       setStats(null);
       setLoading(false);
@@ -119,6 +137,21 @@ export default function DashboardPage() {
     }
     downloadInvoiceCSV(invoices as any);
     toast.success(`Exported ${invoices.length} invoices to CSV`);
+  };
+
+  const hasActiveFilters =
+    filter !== 'all' ||
+    assetCode !== '' ||
+    createdFrom !== '' ||
+    createdTo !== '' ||
+    searchQuery.trim() !== '';
+
+  const clearFilters = () => {
+    setFilter('all');
+    setAssetCode('');
+    setCreatedFrom('');
+    setCreatedTo('');
+    setSearchQuery('');
   };
 
   return (
@@ -294,7 +327,7 @@ export default function DashboardPage() {
             </div>
 
             <div className="bg-white rounded-lg border border-gray-200 mb-6 p-2 flex gap-2 flex-wrap">
-              {['all', 'pending', 'paid', 'expired'].map((status) => (
+              {['all', 'pending', 'paid', 'expired', 'cancelled'].map((status) => (
                 <button
                   key={status}
                   onClick={() => setFilter(status)}
@@ -308,6 +341,49 @@ export default function DashboardPage() {
                   {status === 'all' ? 'All' : invoiceStatusLabel(status)}
                 </button>
               ))}
+            </div>
+
+            <div className="card mb-6 grid grid-cols-1 gap-4 sm:grid-cols-4">
+              <label className="text-sm font-medium text-gray-700">
+                Asset code
+                <input
+                  type="text"
+                  value={assetCode}
+                  onChange={(event) => setAssetCode(event.target.value.trim().toUpperCase())}
+                  placeholder="Any asset"
+                  aria-label="Filter by asset code"
+                  className="input mt-1 w-full"
+                />
+              </label>
+              <label className="text-sm font-medium text-gray-700">
+                Created from
+                <input
+                  type="date"
+                  value={createdFrom}
+                  onChange={(event) => setCreatedFrom(event.target.value)}
+                  aria-label="Created from"
+                  className="input mt-1 w-full"
+                />
+              </label>
+              <label className="text-sm font-medium text-gray-700">
+                Created to
+                <input
+                  type="date"
+                  value={createdTo}
+                  onChange={(event) => setCreatedTo(event.target.value)}
+                  aria-label="Created to"
+                  className="input mt-1 w-full"
+                />
+              </label>
+              {hasActiveFilters && (
+                <button
+                  type="button"
+                  onClick={clearFilters}
+                  className="btn btn-outline self-end"
+                >
+                  Clear filters
+                </button>
+              )}
             </div>
 
             {loading ? (
@@ -362,14 +438,14 @@ export default function DashboardPage() {
               <div className="card text-center py-12">
                 <FileText className="w-16 h-16 text-gray-400 mx-auto mb-4" />
                 <h3 className="text-xl font-semibold text-gray-700 mb-2">
-                  {searchQuery ? 'No matching invoices' : 'No invoices yet'}
+                  {hasActiveFilters ? 'No matching invoices' : 'No invoices yet'}
                 </h3>
                 <p className="text-gray-600 mb-6">
-                  {searchQuery
-                    ? 'Try a different search term.'
+                  {hasActiveFilters
+                    ? 'Try adjusting or clearing your filters.'
                     : 'Create your first invoice to start tracking payments.'}
                 </p>
-                {!searchQuery && (
+                {!hasActiveFilters && (
                   <Link href="/" className="btn btn-primary inline-flex items-center gap-2">
                     <Plus className="w-5 h-5" aria-hidden="true" />
                     Create invoice

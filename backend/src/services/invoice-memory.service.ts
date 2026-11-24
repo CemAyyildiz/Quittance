@@ -109,6 +109,11 @@ class InvoiceMemoryService {
     status?: string,
     limit: number = DEFAULT_PAGE_LIMIT,
     cursor?: string,
+    filters: {
+      assetCode?: string;
+      createdFrom?: Date;
+      createdTo?: Date;
+    } = {}
     search?: string
   ): Promise<{ invoices: any[]; nextCursor?: string; limit: number }> {
     const pageLimit = Number.isFinite(limit)
@@ -118,8 +123,26 @@ class InvoiceMemoryService {
     const storage = await getStorage();
     let invoices = await storage.getAllInvoices(status ? { status } : undefined);
 
-    if (sellerPublicKey) {
-      invoices = invoices.filter((inv) => inv.sellerPublicKey === sellerPublicKey);
+    invoices = invoices.filter(
+      (invoice) => invoice.sellerPublicKey === sellerPublicKey
+    );
+    if (status) {
+      invoices = invoices.filter((invoice) => invoice.status === status);
+    }
+    if (filters.assetCode) {
+      invoices = invoices.filter(
+        (invoice) => invoice.assetCode === filters.assetCode
+      );
+    }
+    if (filters.createdFrom) {
+      invoices = invoices.filter(
+        (invoice) => invoice.createdAt >= filters.createdFrom!
+      );
+    }
+    if (filters.createdTo) {
+      invoices = invoices.filter(
+        (invoice) => invoice.createdAt <= filters.createdTo!
+      );
     }
 
     if (search) {
