@@ -1,6 +1,63 @@
 import * as StellarSdk from '@stellar/stellar-sdk';
 import { server, NETWORK_PASSPHRASE, getSellerKeypair, STELLAR_HORIZON_URL } from '../config/stellar';
 
+/** Result of checking a seller account before creating an invoice. */
+export type SellerAssetReadiness =
+  | { ok: true }
+  | { ok: false; reason: 'no-trustline'; warning: string };
+
+/** The seller account has never been funded (Horizon 404). */
+export class UnfundedAccountError extends Error {
+  constructor(public readonly publicKey: string) {
+    super(`Seller account ${publicKey} is not funded on the Stellar network`);
+    this.name = 'UnfundedAccountError';
+  }
+}
+
+/** Horizon could not be reached; nothing should be created. */
+export class HorizonUnavailableError extends Error {
+  constructor(cause?: unknown) {
+    super('Horizon is unavailable; cannot check the seller account');
+    this.name = 'HorizonUnavailableError';
+    this.cause = cause;
+  }
+}
+
+/**
+ * Decide whether a set of Horizon balances includes an exact (code, issuer)
+ * trustline. Kept pure so the wrong-issuer and missing-line cases are directly
+ * testable without a network round trip.
+ */
+export function sellerAssetReadinessFromBalances(
+  balances: Array<Record<string, any>>,
+  assetCode: string,
+  assetIssuer?: string,
+): SellerAssetReadiness {
+  if (assetCode === 'XLM') {
+    return { ok: true }; // native XLM only needs an existing account
+  }
+
+  const hasTrustline = balances.some(
+    (balance) =>
+      balance.asset_type !== 'native' &&
+      balance.asset_code === assetCode &&
+      balance.asset_issuer === assetIssuer,
+  );
+
+  if (hasTrustline) {
+    return { ok: true };
+  }
+
+  return {
+    ok: false,
+    reason: 'no-trustline',
+    warning:
+      `The seller account has no trustline for ${assetCode}` +
+      (assetIssuer ? ` issued by ${assetIssuer}` : '') +
+      `. Add this asset in Freighter before sharing an ${assetCode} invoice.`,
+  };
+}
+
 export interface PaymentRecord {
   id: string;
   txHash: string;
@@ -79,6 +136,43 @@ class StellarService {
       throw new Error(`Account not found or network error: ${error.message}`);
     }
   }
+
+  /**
+   * Check the seller account on Horizon before an invoice is created.
+   *
+   * - Native XLM only requires the account to exist (and be funded).
+   * - A credit asset requires a trustline for the exact (code, issuer) pair;
+   *   a same-code/different-issuer line does not count.
+   * - An unfunded account is a hard error, not a warning.
+   * - A Horizon outage is surfaced as `HorizonUnavailableError` (HTTP 503).
+   */
+  async checkSellerAccountForAsset(
+    publicKey: string,
+    assetCode: string,
+    assetIssuer?: string,
+  ): Promise<SellerAssetReadiness> {
+    let account: StellarSdk.Horizon.AccountResponse;
+    try {
+      account = await server.loadAccount(publicKey);
+    } catch (error: any) {
+      const status = error?.response?.status ?? error?.status;
+      const notFound =
+        status === 404 || /not\s*found|not_found/i.test(String(error?.message ?? ''));
+      if (notFound) {
+        throw new UnfundedAccountError(publicKey);
+      }
+      throw new HorizonUnavailableError(error);
+    }
+
+    return sellerAssetReadinessFromBalances(
+      account.balances as Array<Record<string, any>>,
+      assetCode,
+      assetIssuer,
+    );
+  }
+
+  // Alias used by callers that prefer the shorter name.
+  checkSellerAssetReadiness = this.checkSellerAccountForAsset;
 
   /**
    * Get account balance

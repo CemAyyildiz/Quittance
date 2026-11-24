@@ -34,6 +34,7 @@ export const invoiceApi = USE_MOCK_API ? mockInvoiceApi : {
     sellerPublicKey?: string;
     sellerName?: string;
     sellerEmail?: string;
+    acknowledgeNoTrustline?: boolean;
   }) => {
     const response = await api.post('/invoices', data);
     return response.data;
@@ -52,6 +53,7 @@ export const invoiceApi = USE_MOCK_API ? mockInvoiceApi : {
     limit?: number;
     offset?: number;
     cursor?: string;
+    search?: string;
     sellerPublicKey?: string;
   }) => {
     const response = await api.get('/invoices', { params });
@@ -60,6 +62,35 @@ export const invoiceApi = USE_MOCK_API ? mockInvoiceApi : {
 
   getPaymentInfo: async (id: string) => {
     const response = await api.get(`/invoices/${id}/payment-info`);
+    return response.data;
+  },
+
+  // Seller-only append-only status trail (the payer page never calls this).
+  getHistory: async (id: string, sellerPublicKey?: string) => {
+    const response = await api.get(`/invoices/${id}/history`, {
+      params: sellerPublicKey ? { sellerPublicKey } : undefined,
+    });
+    return response.data;
+  },
+
+  // Canonical digest for the receipt the seller writes on chain.
+  getProofDigest: async (id: string, sellerPublicKey: string) => {
+    const response = await api.get(`/invoices/${id}/proof-digest`, {
+      params: { sellerPublicKey },
+    });
+    return response.data;
+  },
+
+  prepareAnchorProof: async (id: string, digest: string, sellerPublicKey: string) => {
+    const response = await api.post(`/invoices/${id}/anchor/prepare`, { digest, sellerPublicKey });
+    return response.data;
+  },
+
+  anchorProof: async (
+    id: string,
+    payload: { digest: string; txHash: string; sellerPublicKey: string },
+  ) => {
+    const response = await api.post(`/invoices/${id}/anchor`, payload);
     return response.data;
   },
 

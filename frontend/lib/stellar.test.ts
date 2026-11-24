@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 // Mock freighter-api — it targets a browser extension and is not
 // available in the Vitest Node environment.  The mock only needs to

@@ -6,10 +6,13 @@ This crate computes a stable, collision-resistant 32-byte hash over the on-chain
 fields of a confirmed Stellar payment. The same input bytes always produce the
 same hash; using two different domain separators for the same payment produces
 two different hashes. The encoding is documented in detail so that a Soroban
-contract deployed later can recompute the same hash on-chain.
+contract can recompute the same hash on-chain.
 
-This crate is **not** wired into the Next.js / Express MVP demos in this PR. It
-is purely the hashing primitive that future attestation work will call into.
+The crate also ships the `QuittanceAnchor` Soroban contract, which stores that
+digest together with the invoice id in instance storage (see
+[On-chain anchoring](#on-chain-anchoring)).
+
+This crate is **not** wired into the Next.js / Express MVP demos in this PR.
 
 ## What it does
 
@@ -171,11 +174,33 @@ The integration tests in `tests/` cover:
 - **Edge cases** - native vs non-native asset, `None` vs `Some("")` memo,
   empty vs present invoice id, all-optional-fields-missing.
 
+## On-chain anchoring
+
+The same crate also defines the Soroban contract that writes the record for a
+paid invoice (`src/anchor.rs`): the invoice id plus the canonical 32-byte
+digest. [`QuittanceAnchor`] exposes:
+
+```text
+anchor(env, seller: Address, invoice_id: String, digest: Bytes) -> Result<(), AnchorError>
+get_anchor(env, invoice_id: String) -> Option<ReceiptAnchor>
+```
+
+The seller's address authorizes the `anchor` host-function call — the backend
+never holds a signing key. The digest must be exactly 32 bytes, and a second
+anchor for the same invoice is rejected with `AnchorError::AlreadyAnchored`.
+The record is written to Soroban **instance storage** keyed by invoice id, with
+its TTL extended to roughly 90 days on every write and read, so it persists
+beyond the invocation that created it. The backend recomputes the digest and
+checks the paid invoice before the wallet is asked to sign (rejecting unpaid
+invoices and mismatched digests off chain, where it can see invoice state), and
+stores the anchoring transaction hash on the invoice; the payer's proof page is
+unaffected.
+
 ## Out of scope (this PR)
 
 - Wiring into the Next.js or Express MVP demos.
-- A deployed Soroban contract (the byte-identical encoding is documented so a
-  future contract can reproduce it).
+- Deploying the contract to a network (the crate builds the `cdylib`; a
+deployment is an operational step).
 - Any change to PDF UI or other crates.
 
 ## License

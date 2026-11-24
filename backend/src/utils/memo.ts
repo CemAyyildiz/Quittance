@@ -1,10 +1,13 @@
-import { customAlphabet, nanoid } from 'nanoid';
+import { customAlphabet } from 'nanoid';
 
 export const MAX_MEMO_BYTES = 28;
 
 // nanoid's default alphabet includes '-' and '_', which would break the
 // INV-<timestamp>-<random> format, so keep the random segment alphanumeric.
 const randomMemoSegment = customAlphabet('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ', 8);
+// Short payment references are separate from INV- memos and are not validated
+// by `isValidMemo`; keep the same A-Z0-9 alphabet so they stay copy-safe.
+const shortReference = customAlphabet('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ', 10);
 
 /**
  * Generate a unique memo for invoice
@@ -47,7 +50,7 @@ export const isValidMemo = (memo: string): boolean => {
  * Generate short payment reference
  */
 export const generateShortReference = (): string => {
-  return nanoid(10).toUpperCase();
+  return shortReference();
 };
 
 export default {
