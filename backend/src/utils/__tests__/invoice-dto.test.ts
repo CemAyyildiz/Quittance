@@ -199,6 +199,9 @@ describe('toInvoiceDTO', () => {
       'paidAt',
       'payerPublicKey',
       'paymentTxHash',
+      'refundLedger',
+      'refundTxHash',
+      'refundedAt',
       'sellerPublicKey',
       'status',
     ]);

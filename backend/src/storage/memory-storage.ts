@@ -14,13 +14,16 @@ export interface Invoice {
   lineItems?: unknown[];
   customerName?: string;
   customerEmail?: string;
-  status: InvoiceStatus;
+  status: 'PENDING' | 'PAID' | 'REFUNDED' | 'EXPIRED' | 'CANCELLED';
   paymentTxHash?: string;
   paymentLedger?: number;
   payerPublicKey?: string;
   ledger?: number;
   createdAt: Date;
   paidAt?: Date;
+  refundTxHash?: string;
+  refundedAt?: Date;
+  refundLedger?: number;
   expiresAt: Date;
   /** Expiry at creation (or before the one allowed extension). */
   originalExpiresAt: Date;
@@ -195,29 +198,18 @@ class MemoryStorage {
     return invoice;
   }
 
-  recordPayment(
+  markAsRefunded(
     id: string,
-    payment: { txHash: string; amount: string; payerPublicKey: string; ledger: number; paidAt: Date },
-    receivedAmount: string,
-    paid: boolean,
+    refundTxHash: string,
+    meta?: { ledger?: number; refundedAt?: Date }
   ): Invoice | undefined {
-    const existing = this.invoices.get(id);
-    if (!existing) return undefined;
-
     const invoice = this.updateInvoice(id, {
-      payments: [...existing.payments, payment],
-      receivedAmount,
-      ...(paid
-        ? {
-            status: 'PAID',
-            paymentTxHash: payment.txHash,
-            payerPublicKey: payment.payerPublicKey,
-            paidAt: payment.paidAt,
-            ledger: payment.ledger,
-          }
-        : {}),
+      status: 'REFUNDED',
+      refundTxHash,
+      refundedAt: meta?.refundedAt ?? new Date(),
+      refundLedger: meta?.ledger,
     });
-    if (invoice) this.invoicesByTxHash.set(payment.txHash, id);
+    if (invoice) this.invoicesByTxHash.set(refundTxHash, id);
     return invoice;
   }
 

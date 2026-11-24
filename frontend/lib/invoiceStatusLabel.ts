@@ -20,7 +20,7 @@
 // ---------------------------------------------------------------------------
 
 /** The canonical invoice statuses used across the backend and frontend. */
-export type InvoiceStatus = 'PENDING' | 'PAID' | 'EXPIRED' | 'CANCELLED' | 'UNCOLLECTIBLE';
+export type InvoiceStatus = 'PENDING' | 'PAID' | 'REFUNDED' | 'EXPIRED' | 'CANCELLED';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -30,6 +30,7 @@ export type InvoiceStatus = 'PENDING' | 'PAID' | 'EXPIRED' | 'CANCELLED' | 'UNCO
 const STATUS_LABELS: Readonly<Record<string, string>> = {
   pending: 'Pending',
   paid: 'Paid',
+  refunded: 'Refunded',
   expired: 'Expired',
   cancelled: 'Cancelled',
   uncollectible: 'Uncollectible',

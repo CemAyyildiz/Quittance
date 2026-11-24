@@ -10,6 +10,7 @@ import { buildStellarPaymentUri } from '@/lib/stellar-payment-uri';
 import WalletConnect from '@/components/WalletConnect';
 import UserProfile from '@/components/UserProfile';
 import PaymentReceipt from '@/components/PaymentReceipt';
+import PaymentStatus from '@/components/PaymentStatus';
 import AssetLogo from '@/components/AssetLogo';
 import { formatAmount, formatDate, copyToClipboard } from '@/lib/utils';
 import { useCountdown } from '@/lib/useCountdown';
@@ -410,6 +411,12 @@ export default function PaymentPage() {
                       <span className="text-green-700 font-semibold">Paid</span>
                     </>
                   )}
+                  {invoice.status === 'REFUNDED' && (
+                    <>
+                      <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                      <span className="text-blue-700 font-semibold">Refunded</span>
+                    </>
+                  )}
                   {invoice.status === 'EXPIRED' && (
                     <>
                       <div className="w-2 h-2 bg-red-500 rounded-full"></div>
@@ -459,6 +466,12 @@ export default function PaymentPage() {
                   <p className="text-green-700 font-semibold">
                     {formatDate(invoice.paidAt)}
                   </p>
+                </div>
+              )}
+              {invoice.status === 'REFUNDED' && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <p className="text-sm text-blue-800 font-semibold mb-1">Payment Refunded</p>
+                  <p className="text-blue-700">The seller returned the full payment on Stellar{invoice.refundedAt ? ` on ${formatDate(invoice.refundedAt)}` : ''}.</p>
                 </div>
               )}
 
@@ -517,6 +530,10 @@ export default function PaymentPage() {
                   </button>
                 )}
               </div>
+            )}
+
+            {invoice.status === 'REFUNDED' && (
+              <PaymentStatus status="REFUNDED" txHash={invoice.refundTxHash} />
             )}
 
             {invoice.status === 'PENDING' && (

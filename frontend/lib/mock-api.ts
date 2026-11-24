@@ -21,6 +21,8 @@ type MockInvoice = {
   expiresAt: string;
   paymentTxHash?: string;
   payerPublicKey?: string;
+  refundTxHash?: string;
+  refundedAt?: string;
 };
 
 // Mock invoice data
@@ -242,49 +244,15 @@ export const mockInvoiceApi = {
     };
   },
 
-  duplicate: async (id: string, data: { sellerPublicKey: string; copyCustomerEmail?: boolean }) => {
+  refund: async (id: string, data: { sellerPublicKey: string; refundTxHash: string }) => {
     await delay(500);
-    const source = mockInvoices.find(inv => inv.id === id);
-    if (!source || source.sellerPublicKey !== data.sellerPublicKey) {
-      throw new Error('Invoice not found');
+    const invoice = mockInvoices.find(inv => inv.id === id);
+    if (!invoice || invoice.status !== 'PAID' || invoice.sellerPublicKey !== data.sellerPublicKey) {
+      throw new Error('Invoice cannot be refunded');
     }
-
-    const copy = {
-      ...source,
-      id: Math.random().toString(36).substr(2, 9),
-      memo: `INV-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).substr(2, 4).toUpperCase()}`,
-      status: 'PENDING',
-      paymentTxHash: undefined,
-      payerPublicKey: undefined,
-      paidAt: undefined,
-      customerEmail: data.copyCustomerEmail ? source.customerEmail : undefined,
-      createdAt: new Date().toISOString(),
-      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
-    };
-    mockInvoices.unshift(copy);
-
-    return {
-      success: true,
-      data: {
-        invoice: copy,
-        paymentUrl: `${window.location.origin}/pay/${copy.id}`,
-        stellarPaymentUri: buildStellarPaymentUri(
-          copy.sellerPublicKey,
-          copy.amount.toString(),
-          copy.assetCode,
-          copy.memo,
-          copy.assetIssuer,
-        ),
-      },
-    };
-  },
-
-  markUncollectible: async (id: string, sellerPublicKey: string) => {
-    await delay(500);
-    const invoice = mockInvoices.find(inv => inv.id === id && inv.sellerPublicKey === sellerPublicKey);
-    if (invoice && (invoice.status === 'PENDING' || invoice.status === 'UNCOLLECTIBLE')) {
-      invoice.status = 'UNCOLLECTIBLE';
-    }
+    invoice.status = 'REFUNDED';
+    invoice.refundTxHash = data.refundTxHash;
+    invoice.refundedAt = new Date().toISOString();
     return { success: true, data: invoice };
   },
 

@@ -29,11 +29,8 @@ export default function InvoiceDetailPage() {
   const [loading, setLoading] = useState(true);
   const [voiding, setVoiding] = useState(false);
   const [userWallet, setUserWallet] = useState<string | null>(null);
-  const [duplicateOpen, setDuplicateOpen] = useState(false);
-  const [copyCustomerEmail, setCopyCustomerEmail] = useState(false);
-  const [duplicating, setDuplicating] = useState(false);
-  const [statusHistory, setStatusHistory] = useState<StatusHistoryRow[]>([]);
-  const [anchoring, setAnchoring] = useState(false);
+  const [refundTxHash, setRefundTxHash] = useState('');
+  const [refunding, setRefunding] = useState(false);
   const timeRemaining = useCountdown(invoice?.status === 'PENDING' ? invoice.expiresAt : null);
   const isSeller =
     Boolean(userWallet) &&
@@ -97,69 +94,21 @@ export default function InvoiceDetailPage() {
     toast.success('Opening payment proof');
   };
 
-  const handleDuplicate = async () => {
-    if (!userWallet) return;
-    setDuplicating(true);
+  const handleRefund = async () => {
+    if (!userWallet || userWallet !== invoice.sellerPublicKey || !refundTxHash.trim()) return;
+    setRefunding(true);
     try {
-      const result = await invoiceApi.duplicate(id, {
+      const result = await invoiceApi.refund(id, {
         sellerPublicKey: userWallet,
-        copyCustomerEmail,
+        refundTxHash: refundTxHash.trim(),
       });
-      toast.success('Invoice duplicated');
-      router.push(`/invoice/${result.data.invoice.id}`);
-    } catch (error: any) {
-      toast.error(error.response?.data?.error || 'Failed to duplicate invoice');
-    } finally {
-      setDuplicating(false);
-      setDuplicateOpen(false);
-    }
-  };
-
-  const handleAnchorProof = async () => {
-    if (!isSeller || !userWallet || anchoring) return;
-    setAnchoring(true);
-    try {
-      // The digest is canonical and comes from the API; a mismatched value is
-      // rejected server-side before any wallet signature is requested.
-      const proof = await invoiceApi.getProofDigest(id, userWallet);
-      // Re-check the digest server-side before touching the wallet: a
-      // mismatched digest is rejected here, before any signature exists.
-      const prepared = await invoiceApi.prepareAnchorProof(id, proof.data.digest, userWallet);
-      const { digest, contractId } = prepared.data ?? {};
-      if (!contractId) {
-        toast.error('Receipt anchoring contract is not configured yet');
-        return;
-      }
-
-      const txHash = await submitAnchorTransaction(contractId, invoice.id, digest);
-      const result = await invoiceApi.anchorProof(id, {
-        digest,
-        txHash,
-        sellerPublicKey: userWallet,
-      });
-      if (result.data) setInvoice(result.data);
-      toast.success('Payment proof anchored on chain');
-    } catch (error: any) {
-      console.error(error);
-      toast.error(error?.response?.data?.error || 'Could not anchor the payment proof');
-    } finally {
-      setAnchoring(false);
-    }
-  };
-
-  const handleVoidInvoice = async () => {
-    if (!userWallet || userWallet !== invoice.sellerPublicKey) return;
-
-    setVoiding(true);
-    try {
-      const result = await invoiceApi.cancel(id, userWallet);
       setInvoice(result.data);
-      toast.success('Invoice voided');
-    } catch (error) {
-      console.error('Failed to void invoice:', error);
-      toast.error('Failed to void invoice');
+      setRefundTxHash('');
+      toast.success('Refund verified on Stellar');
+    } catch (error: any) {
+      toast.error(error.response?.data?.error ?? 'Refund could not be verified');
     } finally {
-      setVoiding(false);
+      setRefunding(false);
     }
   };
 
@@ -440,6 +389,14 @@ export default function InvoiceDetailPage() {
                   </div>
                 )}
 
+                {invoice.refundTxHash && (
+                  <div className="border-b pb-4">
+                    <p className="text-sm text-gray-600 mb-1">Refund Transaction</p>
+                    <p className="font-mono text-sm text-gray-900 break-all">{invoice.refundTxHash}</p>
+                    {invoice.refundedAt && <p className="mt-1 text-sm text-gray-600">Refunded {formatDate(invoice.refundedAt)}</p>}
+                  </div>
+                )}
+
                 {invoice.status === 'PENDING' && (
                   <div className="border-b pb-4">
                     <p className="text-sm text-gray-600 mb-1">Expires In</p>
@@ -478,14 +435,32 @@ export default function InvoiceDetailPage() {
 
             <div className="space-y-6">
               {invoice.status !== 'PAID' && (
-                <PaymentStatus status={invoice.status} txHash={invoice.paymentTxHash} />
+                <PaymentStatus status={invoice.status} txHash={invoice.status === 'REFUNDED' ? invoice.refundTxHash : invoice.paymentTxHash} />
               )}
 
               {invoice.status === 'PAID' && (
                 <PaymentReceipt invoice={invoice} />
               )}
 
-              {isSeller && <StatusHistory entries={statusHistory} />}
+              {invoice.status === 'PAID' && userWallet === invoice.sellerPublicKey && (
+                <div className="card">
+                  <h3 className="text-lg font-semibold mb-2">Record a refund</h3>
+                  <p className="text-sm text-gray-600 mb-4">
+                    Submit the Stellar transaction hash after returning the full amount to {invoice.payerPublicKey} with memo {invoice.memo}.
+                  </p>
+                  <label htmlFor="refund-hash" className="block text-sm font-medium text-gray-700 mb-1">Refund transaction hash</label>
+                  <input
+                    id="refund-hash"
+                    value={refundTxHash}
+                    onChange={(event) => setRefundTxHash(event.target.value)}
+                    className="input w-full font-mono"
+                    placeholder="64-character transaction hash"
+                  />
+                  <button type="button" onClick={() => void handleRefund()} disabled={refunding || !refundTxHash.trim()} className="btn btn-primary w-full mt-3">
+                    {refunding ? 'Verifying refund…' : 'Verify refund'}
+                  </button>
+                </div>
+              )}
 
               {invoice.status === 'PENDING' && paymentInfo && (
                 <div className="card">

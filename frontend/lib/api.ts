@@ -127,6 +127,11 @@ export const invoiceApi = USE_MOCK_API ? mockInvoiceApi : {
     return response.data;
   },
 
+  refund: async (id: string, data: { sellerPublicKey: string; refundTxHash: string }) => {
+    const response = await api.post(`/invoices/${id}/refund`, data);
+    return response.data;
+  },
+
   verify: async (id: string, txHash: string, payerInfo?: { payerName?: string; payerEmail?: string }) => {
     const response = await api.post(`/invoices/${id}/verify`, { 
       txHash,

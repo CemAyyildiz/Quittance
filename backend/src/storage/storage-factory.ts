@@ -18,11 +18,10 @@ export interface InvoiceStore {
     payerPublicKey: string,
     meta?: { ledger?: number; paidAt?: Date }
   ): Promise<any> | any;
-  recordPayment(
+  markAsRefunded(
     id: string,
-    payment: { txHash: string; amount: string; payerPublicKey: string; ledger: number; paidAt: Date },
-    receivedAmount: string,
-    paid: boolean,
+    refundTxHash: string,
+    meta?: { ledger?: number; refundedAt?: Date }
   ): Promise<any> | any;
   getAllInvoices(filter?: { status?: string }): Promise<any[]> | any[];
   getStats(sellerPublicKey: string): Promise<any> | any;
