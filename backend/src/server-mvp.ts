@@ -31,7 +31,7 @@ import {
   isSelfPayment,
   paymentAssetMatchesInvoice,
 } from './utils/verify-invoice-payment';
-import { parsePaginationQuery } from './utils/parse-pagination';
+import { MAX_PAGE_LIMIT, parsePaginationQuery } from './utils/parse-pagination';
 import {
   AnchorError,
   AnchorErrorCode,
@@ -238,6 +238,12 @@ app.get('/api/invoices/stats', async (req: Request, res: Response) => {
     });
   }
 });
+
+// Register static export routes before `/api/invoices/:id` so their paths are
+// not treated as invoice IDs.
+app.get('/api/invoices/export', handleInvoiceCsvExport);
+app.get('/api/invoices/export.csv', handleInvoiceCsvExport);
+app.get('/api/invoices/csv', handleInvoiceCsvExport);
 
 // Get invoice by ID
 app.get('/api/invoices/:id', async (req: Request, res: Response) => {
@@ -1255,6 +1261,94 @@ app.get('/api/stellar/account', (req: Request, res: Response) => {
     },
   });
 });
+
+// Export invoices as CSV (scoped to sellerPublicKey)
+function csvEscapeBackend(value: unknown): string {
+  if (value === null || value === undefined) return '';
+  const str = String(value);
+  if (str.includes(',') || str.includes('"') || str.includes('\n') || str.includes('\r')) {
+    return `"${str.replace(/"/g, '""')}"`;
+  }
+  return str;
+}
+
+async function handleInvoiceCsvExport(req: Request, res: Response) {
+  try {
+    await runExpirySweep(invoiceService);
+    const { sellerPublicKey, status } = req.query;
+    if (!sellerPublicKey || typeof sellerPublicKey !== 'string') {
+      return res.status(400).json({ success: false, error: 'sellerPublicKey query parameter is required' });
+    }
+
+    const exportStatus = typeof status === 'string' && status ? status.toLowerCase() : 'paid';
+    if (exportStatus !== 'paid' && exportStatus !== 'all') {
+      return res.status(400).json({
+        success: false,
+        error: 'status must be "paid" or "all"',
+      });
+    }
+
+    const paidOnly = exportStatus === 'paid';
+    const invoices: any[] = [];
+    const seenCursors = new Set<string>();
+    let cursor: string | undefined;
+
+    do {
+      const page = await invoiceService.getInvoicesBySeller(
+        sellerPublicKey,
+        paidOnly ? 'PAID' : undefined,
+        MAX_PAGE_LIMIT,
+        cursor,
+      );
+      invoices.push(
+        ...page.invoices.filter((invoice: any) => invoice.sellerPublicKey === sellerPublicKey),
+      );
+      cursor = page.nextCursor;
+
+      if (cursor && seenCursors.has(cursor)) {
+        throw new Error('Invoice CSV pagination did not advance');
+      }
+      if (cursor) seenCursors.add(cursor);
+    } while (cursor);
+
+    const headers = [
+      'Invoice ID',
+      'Invoice Number',
+      'Created At',
+      'Paid At',
+      'Amount',
+      'Asset',
+      'Issuer',
+      'Memo',
+      'Payer',
+      'Transaction Hash',
+    ];
+
+    const rows = invoices.map((inv: any) => [
+      inv.id,
+      inv.invoiceNumber || inv.number || inv.invoiceNo || '',
+      inv.createdAt ? new Date(inv.createdAt).toISOString() : '',
+      inv.paidAt ? new Date(inv.paidAt).toISOString() : '',
+      inv.amount,
+      inv.assetCode,
+      inv.assetIssuer || '',
+      inv.memo || '',
+      inv.payerPublicKey || '',
+      inv.status === 'PAID' ? inv.paymentTxHash || '' : '',
+    ]);
+
+    const csv = [headers.map(csvEscapeBackend).join(','), ...rows.map((row) => row.map(csvEscapeBackend).join(','))].join('\n');
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="${paidOnly ? 'quittance-paid-invoices' : 'quittance-invoices'}.csv"`,
+    );
+    res.send('\uFEFF' + csv);
+  } catch (error: any) {
+    console.error('Export CSV error:', error);
+    res.status(500).json({ success: false, error: error.message || 'Failed to export CSV' });
+  }
+}
 
 // Error handling middleware
 app.use((err: Error, req: Request, res: Response, next: NextFunction) => {

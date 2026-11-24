@@ -19,7 +19,7 @@ import {
   RefreshCw,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { downloadInvoiceCSV } from '@/lib/export';
+import { downloadAllInvoicesCSV, downloadPaidInvoiceCSV } from '@/lib/export';
 import { invoiceStatusLabel } from '@/lib/invoiceStatusLabel';
 import InvoiceBackupExport from '@/components/InvoiceBackupExport';
 
@@ -42,6 +42,7 @@ export default function DashboardPage() {
   const [cursorStack, setCursorStack] = useState<Array<string | undefined>>([undefined]);
   const [pageIndex, setPageIndex] = useState(0);
   const [nextCursor, setNextCursor] = useState<string | undefined>(undefined);
+  const [exporting, setExporting] = useState<'paid' | 'all' | null>(null);
 
   const loadPage = useCallback(async (cursor?: string) => {
     if (!publicKey) return;
@@ -65,11 +66,8 @@ export default function DashboardPage() {
       if (requestId === loadRequestId.current) {
         setInvoices(invoicesResult.data);
         setStats(statsResult.data[0] || {});
+        setNextCursor(invoicesResult.pagination?.nextCursor);
       }
-
-      setInvoices(invoicesResult.data);
-      setStats(statsResult.data[0] || {});
-      setNextCursor(invoicesResult.pagination?.nextCursor);
     } catch (error) {
       if (requestId === loadRequestId.current) {
         setLoadError(true);
@@ -80,8 +78,7 @@ export default function DashboardPage() {
         setLoading(false);
       }
     }
-  }, [assetCode, createdFrom, createdTo, filter, publicKey]);
-  }, [filter, publicKey, searchQuery]);
+  }, [assetCode, createdFrom, createdTo, filter, publicKey, searchQuery]);
 
   useEffect(() => {
     if (!connected || !publicKey) {
@@ -130,13 +127,61 @@ export default function DashboardPage() {
     loadPage(cursorStack[previousIndex]);
   };
 
-  const handleExportCSV = () => {
-    if (invoices.length === 0) {
-      toast.error('No invoices to export');
-      return;
+  const loadInvoicesForExport = async (status?: string) => {
+    if (!publicKey) return [];
+
+    const exported: any[] = [];
+    const seenCursors = new Set<string>();
+    let cursor: string | undefined;
+
+    do {
+      const result = await invoiceApi.getAll({
+        status,
+        limit: PAGE_SIZE,
+        sellerPublicKey: publicKey,
+        cursor,
+      });
+
+      if (!Array.isArray(result.data)) {
+        throw new Error('Invoice export returned an invalid page');
+      }
+
+      exported.push(
+        ...result.data.filter((invoice: any) => invoice?.sellerPublicKey === publicKey),
+      );
+
+      cursor = result.pagination?.nextCursor;
+      if (cursor && seenCursors.has(cursor)) {
+        throw new Error('Invoice export pagination did not advance');
+      }
+      if (cursor) seenCursors.add(cursor);
+    } while (cursor);
+
+    return exported;
+  };
+
+  const handleExportCSV = async (type: 'paid' | 'all') => {
+    if (!publicKey || exporting) return;
+
+    setExporting(type);
+    try {
+      const status = type === 'paid' ? 'PAID' : undefined;
+      const exported = await loadInvoicesForExport(status);
+
+      if (type === 'paid') {
+        const paid = exported.filter((invoice) => invoice.status === 'PAID');
+        downloadPaidInvoiceCSV(paid, publicKey);
+        toast.success(`Exported ${paid.length} paid invoices to CSV`);
+      } else {
+        downloadAllInvoicesCSV(exported, publicKey);
+        toast.success(`Exported ${exported.length} invoices to CSV`);
+      }
+    } catch (error) {
+      console.error('Invoice CSV export failed:', error);
+      toast.error('Failed to export invoices');
+    } finally {
+      setExporting(null);
     }
-    downloadInvoiceCSV(invoices as any);
-    toast.success(`Exported ${invoices.length} invoices to CSV`);
   };
 
   const hasActiveFilters =
@@ -151,6 +196,7 @@ export default function DashboardPage() {
     setAssetCode('');
     setCreatedFrom('');
     setCreatedTo('');
+    setSearchInput('');
     setSearchQuery('');
   };
 
@@ -316,13 +362,26 @@ export default function DashboardPage() {
                 )}
               </div>
               <button
-                onClick={handleExportCSV}
+                type="button"
+                onClick={() => void handleExportCSV('paid')}
+                disabled={exporting !== null}
                 className="btn btn-primary flex items-center gap-2 whitespace-nowrap"
-                title="Export displayed invoices"
-                aria-label="Export CSV"
+                title="Export paid invoices"
+                aria-label="Export paid CSV"
               >
                 <Download className="w-5 h-5" aria-hidden="true" />
-                <span className="hidden sm:inline">Export CSV</span>
+                <span className="hidden sm:inline">{exporting === 'paid' ? 'Exporting…' : 'Export Paid CSV'}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleExportCSV('all')}
+                disabled={exporting !== null}
+                className="btn btn-outline flex items-center gap-2 whitespace-nowrap"
+                title="Export all invoices"
+                aria-label="Export all CSV"
+              >
+                <Download className="w-5 h-5" aria-hidden="true" />
+                <span className="hidden sm:inline">{exporting === 'all' ? 'Exporting…' : 'Export All CSV'}</span>
               </button>
             </div>
 
