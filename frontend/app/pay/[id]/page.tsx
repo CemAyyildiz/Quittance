@@ -18,6 +18,7 @@ import { toast } from 'sonner';
 import { openInvoicePDF, shareInvoiceByEmail } from '@/lib/export';
 import { extractHorizonCode, mapHorizonError } from '@/lib/horizonErrorMap';
 import { loadAssetIssuerDomain } from '@/lib/stellarToml';
+import { streamInvoicePayments } from '@/lib/payment-monitor';
 
 const TX_HASH_PATTERN = /^[0-9a-fA-F]{64}$/;
 
@@ -58,6 +59,9 @@ export default function PaymentPage() {
   const [paymentInfoError, setPaymentInfoError] = useState<string | null>(null);
   const [polling, setPolling] = useState(true);
   const [issuerDomain, setIssuerDomain] = useState<string | null>(null);
+  const [streamActive, setStreamActive] = useState(false);
+  const [streamError, setStreamError] = useState(false);
+  const [tabVisible, setTabVisible] = useState(true);
   const verifiedRef = useRef(false);
   const [userWallet, setUserWallet] = useState<string | null>(null);
   const [txHash, setTxHash] = useState('');
@@ -69,6 +73,15 @@ export default function PaymentPage() {
     void loadInvoice();
     void loadPaymentInfo();
   }, [id]);
+
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      setTabVisible(document.visibilityState === 'visible');
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () =>
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, []);
 
   useEffect(() => {
     if (!invoice || invoice.assetCode === 'XLM' || !invoice.assetIssuer) {
@@ -91,9 +104,58 @@ export default function PaymentPage() {
     };
   }, [invoice?.assetCode, invoice?.assetIssuer]);
 
+  useEffect(() => {
+    if (!invoice || invoice.status !== 'PENDING' || !tabVisible) {
+      setStreamActive(false);
+      return;
+    }
+
+    let active = true;
+    setStreamError(false);
+    const closeStream = streamInvoicePayments(
+      invoice.sellerPublicKey,
+      invoice.memo,
+      (txHash) => {
+        void invoiceApi
+          .verify(id, txHash)
+          .then((result) => {
+            if (!active) return;
+            setInvoice(result.data);
+            setPolling(false);
+            toast.success('Payment confirmed!');
+          })
+          .catch((error) => {
+            console.error('Streamed payment verification failed:', error);
+          });
+      },
+      (error) => {
+        if (!active) return;
+        console.error('Payment stream error:', error);
+        setStreamActive(false);
+        setPolling(true);
+        setStreamError(true);
+        toast.error('Live payment connection dropped', {
+          description: 'Checking for payment periodically.',
+        });
+      }
+    );
+    setStreamActive(true);
+
+    return () => {
+      active = false;
+      closeStream();
+    };
+  }, [invoice?.status, invoice?.sellerPublicKey, invoice?.memo, id, tabVisible]);
+
   // Auto-refresh for pending invoices
   useEffect(() => {
-    if (!invoice || invoice.status !== 'PENDING' || !polling) {
+    if (
+      !invoice ||
+      invoice.status !== 'PENDING' ||
+      !polling ||
+      streamActive ||
+      !tabVisible
+    ) {
       return;
     }
 
@@ -113,7 +175,7 @@ export default function PaymentPage() {
     }, 3000); // Check every 3 seconds
 
     return () => clearInterval(intervalId);
-  }, [invoice, id, polling]);
+  }, [invoice, id, polling, streamActive, tabVisible]);
 
   const loadInvoice = async () => {
     try {
@@ -375,6 +437,12 @@ export default function PaymentPage() {
                     {timeRemaining}
                   </p>
                 </div>
+              )}
+              {streamError && (
+                <p className="text-sm text-amber-700" role="status">
+                  Live payment connection dropped. Checking for payment
+                  periodically.
+                </p>
               )}
 
               {invoice.status === 'PAID' && (
