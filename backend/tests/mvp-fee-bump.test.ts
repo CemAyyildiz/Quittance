@@ -90,6 +90,7 @@ function feeBumpReceipt(options: {
       memo,
       source_account: payer,
       fee_account: feeSource,
+      ledger_sequence: 1,
       inner_transaction: innerTransaction,
     },
     operations,
