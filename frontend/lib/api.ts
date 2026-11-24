@@ -14,6 +14,11 @@ const api = axios.create({
   },
 });
 
+export async function importInvoiceBackup(sellerPublicKey: string, invoices: unknown) {
+  const response = await api.post('/invoices/import', invoices, { params: { sellerPublicKey } });
+  return response.data as { success: true; data: { imported: number; skippedIds: string[] } };
+}
+
 api.interceptors.response.use(
   (response) => response,
   (error) => {
