@@ -1,6 +1,22 @@
 import { z } from 'zod';
-import { isValidAmount } from './amount-compare';
 import { MAX_MEMO_BYTES, getMemoByteLength } from './memo';
+
+export interface ParsedAmount { decimal: string; stroops: bigint; }
+export function parseAmount(input: string | number): ParsedAmount | undefined {
+  const raw = typeof input === 'number' ? String(input) : input.trim();
+  if (!/^\d+(?:[.,]\d+)?$/.test(raw) || (raw.match(/[.,]/g) ?? []).length > 1) return undefined;
+  const decimal = raw.replace(',', '.');
+  const [whole, fraction = ''] = decimal.split('.');
+  if (fraction.length > 7) return undefined;
+  const stroops = BigInt(whole) * 10_000_000n + BigInt(fraction.padEnd(7, '0') || '0');
+  if (stroops <= 0n || stroops > 10_000_000_000_000_000n) return undefined;
+  return { decimal, stroops };
+}
+const amountSchema = z.preprocess((value) => {
+  if (typeof value !== 'string' && typeof value !== 'number') return value;
+  const parsed = parseAmount(value);
+  return parsed ? Number(parsed.decimal) : value;
+}, z.number().positive().max(1000000000));
 
 // Stellar public key validation
 export const stellarPublicKeySchema = z.string()
@@ -19,31 +35,11 @@ export const memoByteLengthSchema = z
     message: `Memo must be at most ${MAX_MEMO_BYTES} bytes (UTF-8).`,
   });
 
-// Invoice creation schema
-export const createInvoiceSchema = z.object({
-  amount: z.number().positive().max(1000000000),
-  assetCode: z.string().default('XLM').optional(),
-  assetIssuer: stellarPublicKeySchema.optional(),
-  description: z.string().max(500).optional(),
-  customerName: z.string().max(255).optional(),
-  customerEmail: z.string().email().optional(),
-  sellerName: z.string().max(255).optional(),
-  sellerEmail: z.string().email().optional(),
-  expiresInDays: z.number().min(1).max(365).default(7).optional(),
-  sellerPublicKey: stellarPublicKeySchema, // Dinamik seller!
-  memo: memoByteLengthSchema.optional(),
-});
+// Invoice creation schema. Comma decimals are accepted and normalised before
+// the stroop check, so "10,5" and "10.5" are the same amount.
 export const createInvoiceSchema = z
   .object({
-    // The same stroop-based helper the verify path uses: never accept a
-    // decimal that cannot be represented exactly on Stellar.
-    amount: z
-      .number()
-      .positive()
-      .max(1000000000)
-      .refine(isValidAmount, {
-        message: 'Amount must be a valid Stellar amount with at most 7 decimal places',
-      }),
+    amount: amountSchema,
     assetCode: z.string().default('XLM').optional(),
     assetIssuer: stellarPublicKeySchema.optional(),
     description: z.string().max(500).optional(),

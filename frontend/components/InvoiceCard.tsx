@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { formatAmount, formatDate, getStatusColor } from '@/lib/utils';
+import { formatDecimalAmount, formatDate, getStatusColor } from '@/lib/utils';
 import { useCountdown } from '@/lib/useCountdown';
 import { Clock, ExternalLink, Copy, Mail, Download } from 'lucide-react';
 import { copyToClipboard } from '@/lib/utils';
@@ -64,7 +64,7 @@ export default function InvoiceCard({ invoice }: InvoiceCardProps) {
           <div className="flex items-center gap-2 mb-1">
             <AssetLogo code={invoice.assetCode} size={24} showName={false} />
             <h3 className="text-lg font-bold text-gray-900">
-              {formatAmount(invoice.amount)} <span className="text-cyan-600">{invoice.assetCode}</span>
+              {formatDecimalAmount(invoice.amount)} <span className="text-cyan-600">{invoice.assetCode}</span>
             </h3>
           </div>
           {invoice.customerName && (

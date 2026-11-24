@@ -1,4 +1,4 @@
-import { formatAmount } from '@/lib/utils';
+import { formatDecimalAmount } from '@/lib/utils';
 
 interface AmountDisplayProps {
   amount: number | string;
@@ -21,8 +21,7 @@ export default function AmountDisplay({
   size = 'md',
   className = '',
 }: AmountDisplayProps) {
-  const numericAmount = typeof amount === 'string' ? parseFloat(amount) : amount;
-  const formatted = formatAmount(numericAmount, decimals);
+  const formatted = formatDecimalAmount(amount, decimals);
   const s = sizeStyles[size];
 
   return (

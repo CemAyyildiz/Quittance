@@ -18,6 +18,13 @@ export function formatAmount(amount: number | string, decimals: number = 2): str
   });
 }
 
+export function formatDecimalAmount(amount: number | string, maxDecimals = 7): string {
+  const value = typeof amount === 'string' ? amount.replace(',', '.') : String(amount);
+  const [whole, fraction = ''] = value.split('.');
+  const trimmedFraction = fraction.slice(0, maxDecimals).replace(/0+$/, '');
+  return `${Number(whole).toLocaleString('en-US')}${trimmedFraction ? `.${trimmedFraction}` : ''}`;
+}
+
 /**
  * Format Stellar address (shorten)
  */

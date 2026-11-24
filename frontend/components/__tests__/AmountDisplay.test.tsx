@@ -8,7 +8,7 @@ describe('AmountDisplay', () => {
     const html = renderToStaticMarkup(
       <AmountDisplay amount={1234.5} assetCode="USDC" />
     );
-    expect(html).toContain('1,234.5000000');
+    expect(html).toContain('1,234.5');
     expect(html).toContain('USDC');
   });
 
@@ -16,39 +16,39 @@ describe('AmountDisplay', () => {
     const html = renderToStaticMarkup(
       <AmountDisplay amount={1234.5} assetCode="USDC" />
     );
-    expect(html).toContain('aria-label="1,234.5000000 USDC"');
+    expect(html).toContain('aria-label="1,234.5 USDC"');
   });
 
   it('formats string amounts', () => {
     const html = renderToStaticMarkup(
       <AmountDisplay amount="500" assetCode="XLM" />
     );
-    expect(html).toContain('500.0000000');
-    expect(html).toContain('aria-label="500.0000000 XLM"');
+    expect(html).toContain('500');
+    expect(html).toContain('aria-label="500 XLM"');
   });
 
   it('honors a custom decimals value', () => {
     const html = renderToStaticMarkup(
       <AmountDisplay amount={99.9} assetCode="USDC" decimals={2} />
     );
-    expect(html).toContain('99.90');
-    expect(html).toContain('aria-label="99.90 USDC"');
+    expect(html).toContain('99.9');
+    expect(html).toContain('aria-label="99.9 USDC"');
   });
 
   it('renders zero with the configured decimals', () => {
     const html = renderToStaticMarkup(
       <AmountDisplay amount={0} assetCode="XLM" />
     );
-    expect(html).toContain('0.0000000');
-    expect(html).toContain('aria-label="0.0000000 XLM"');
+    expect(html).toContain('0');
+    expect(html).toContain('aria-label="0 XLM"');
   });
 
   it('renders large amounts with thousands separators', () => {
     const html = renderToStaticMarkup(
       <AmountDisplay amount={1000000} assetCode="USDC" />
     );
-    expect(html).toContain('1,000,000.0000000');
-    expect(html).toContain('aria-label="1,000,000.0000000 USDC"');
+    expect(html).toContain('1,000,000');
+    expect(html).toContain('aria-label="1,000,000 USDC"');
   });
 
   it('applies size-specific styling classes', () => {
@@ -76,7 +76,7 @@ describe('AmountDisplay', () => {
     const html = renderToStaticMarkup(
       <AmountDisplay amount={-1.5} assetCode="XLM" />
     );
-    expect(html).toContain('-1.5000000');
-    expect(html).toContain('aria-label="-1.5000000 XLM"');
+    expect(html).toContain('-1.5');
+    expect(html).toContain('aria-label="-1.5 XLM"');
   });
 });
