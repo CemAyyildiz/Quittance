@@ -17,11 +17,12 @@ import {
   FileText,
   Download,
   RefreshCw,
+  BellRing,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { downloadAllInvoicesCSV, downloadPaidInvoiceCSV } from '@/lib/export';
 import { invoiceStatusLabel } from '@/lib/invoiceStatusLabel';
-import InvoiceBackupExport from '@/components/InvoiceBackupExport';
+import { getInvoiceReminder } from '@/lib/mailtoProof';
 
 const PAGE_SIZE = 50;
 
@@ -42,9 +43,11 @@ export default function DashboardPage() {
   const [cursorStack, setCursorStack] = useState<Array<string | undefined>>([undefined]);
   const [pageIndex, setPageIndex] = useState(0);
   const [nextCursor, setNextCursor] = useState<string | undefined>(undefined);
-  const importInput = useRef<HTMLInputElement>(null);
-  const [importing, setImporting] = useState(false);
-  const [exporting, setExporting] = useState(false);
+  const [paymentOrigin, setPaymentOrigin] = useState('');
+
+  useEffect(() => {
+    setPaymentOrigin(window.location.origin);
+  }, []);
 
   const loadPage = useCallback(async (cursor?: string) => {
     if (!publicKey) return;
@@ -601,13 +604,38 @@ export default function DashboardPage() {
                   </div>
                 )}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {invoices.map((invoice) => (
-                    <InvoiceCard
-                      key={invoice.id}
-                      invoice={invoice}
-                      onUpdated={() => loadPage(cursorStack[pageIndex])}
-                    />
-                  ))}
+                  {filteredInvoices.map((invoice) => {
+                    const reminder = getInvoiceReminder(
+                      invoice,
+                      paymentOrigin ? `${paymentOrigin}/pay/${invoice.id}` : '',
+                    );
+
+                    return (
+                      <div key={invoice.id} className="space-y-2">
+                        {reminder.dueSoon && (
+                          <div
+                            className="flex items-center justify-between gap-3 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-950"
+                            role="status"
+                          >
+                            <span className="inline-flex items-center gap-2 font-medium">
+                              <BellRing className="h-4 w-4" aria-hidden="true" />
+                              Expires within 24 hours
+                            </span>
+                            {reminder.mailto && (
+                              <a
+                                href={reminder.mailto}
+                                className="font-semibold underline underline-offset-2"
+                                aria-label={`Remind ${invoice.customerEmail} about invoice ${invoice.id}`}
+                              >
+                                Remind
+                              </a>
+                            )}
+                          </div>
+                        )}
+                        <InvoiceCard invoice={invoice} />
+                      </div>
+                    );
+                  })}
                 </div>
               </>
             )}
