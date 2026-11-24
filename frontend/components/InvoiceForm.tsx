@@ -15,6 +15,14 @@ interface InvoiceFormProps {
 }
 
 const amountErrorId = 'amount-error';
+const draftStoragePrefix = 'quittance:invoice-draft:';
+
+interface InvoiceDraft {
+  amount: string;
+  assetCode: string;
+  description: string;
+  customerName: string;
+}
 const memoCounterId = 'memo-counter';
 const memoErrorId = 'memo-error';
 
@@ -31,10 +39,59 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
   const [acknowledgedWarning, setAcknowledgedWarning] = useState(false);
   const [amountError, setAmountError] = useState('');
   const [emailError, setEmailError] = useState('');
+  const [draftReadyFor, setDraftReadyFor] = useState<string | null>(null);
 
   const selectedAsset = getAssetByCode(assetCode);
   const memoBytes = getUtf8ByteLength(memo);
   const memoTooLong = memoBytes > MAX_MEMO_BYTES;
+
+  useEffect(() => {
+    setDraftReadyFor(null);
+    if (!userWallet || typeof window === 'undefined') {
+      setAmount('');
+      setAssetCode('XLM');
+      setDescription('');
+      setCustomerName('');
+      return;
+    }
+
+    const storageKey = `${draftStoragePrefix}${userWallet}`;
+    try {
+      const rawDraft = window.localStorage.getItem(storageKey);
+      if (rawDraft) {
+        const draft = JSON.parse(rawDraft) as Partial<InvoiceDraft>;
+        setAmount(typeof draft.amount === 'string' ? draft.amount : '');
+        setAssetCode(
+          typeof draft.assetCode === 'string' && getAssetByCode(draft.assetCode)
+            ? draft.assetCode
+            : 'XLM'
+        );
+        setDescription(typeof draft.description === 'string' ? draft.description : '');
+        setCustomerName(typeof draft.customerName === 'string' ? draft.customerName : '');
+      } else {
+        setAmount('');
+        setAssetCode('XLM');
+        setDescription('');
+        setCustomerName('');
+      }
+    } catch {
+      setAmount('');
+      setAssetCode('XLM');
+      setDescription('');
+      setCustomerName('');
+    }
+    setDraftReadyFor(userWallet);
+  }, [userWallet]);
+
+  useEffect(() => {
+    if (!userWallet || draftReadyFor !== userWallet || typeof window === 'undefined') return;
+    const draft: InvoiceDraft = { amount, assetCode, description, customerName };
+    try {
+      window.localStorage.setItem(`${draftStoragePrefix}${userWallet}`, JSON.stringify(draft));
+    } catch {
+      // Draft persistence is best effort and must never block invoice creation.
+    }
+  }, [amount, assetCode, description, customerName, draftReadyFor, userWallet]);
 
   useEffect(() => {
     setTrustlineWarning(null);
@@ -120,6 +177,13 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
 
       toast.success('Invoice created');
       onSuccess?.(result.data);
+      try {
+        if (typeof window !== 'undefined' && userWallet) {
+          window.localStorage.removeItem(`${draftStoragePrefix}${userWallet}`);
+        }
+      } catch {
+        // Draft cleanup is best effort after a successful create.
+      }
       setAmount('');
       setAssetCode('XLM');
       setDescription('');
