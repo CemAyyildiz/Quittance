@@ -206,7 +206,7 @@ describe('toInvoiceDTO', () => {
     expect(result).not.toHaveProperty('proofCanonical');
   });
 
-  it('does not copy sellerName or sellerEmail while keeping customer fields', () => {
+  it('exposes the invoice display label but never a seller email profile', () => {
     const invoice = {
       ...makeInvoice(),
       sellerName: 'Seller Co',
@@ -216,7 +216,7 @@ describe('toInvoiceDTO', () => {
     const result = toInvoiceDTO(invoice);
 
     const ownKeys = Object.keys(result);
-    expect(ownKeys).not.toContain('sellerName');
+    expect(result.sellerName).toBe('Seller Co');
     expect(ownKeys).not.toContain('sellerEmail');
 
     expect(result.customerName).toBe('Alice');

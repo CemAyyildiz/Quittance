@@ -277,10 +277,10 @@ describe('createInvoiceSchema', () => {
     ).toBe(true);
   });
 
-  it('accepts sellerName at 255 chars and rejects 256', () => {
+  it('accepts sellerName at 80 chars and rejects 81', () => {
     const validResult = createInvoiceSchema.safeParse({
       amount: 10,
-      sellerName: 'a'.repeat(255),
+      sellerName: 'a'.repeat(80),
       sellerPublicKey: validSellerPublicKey,
     });
 
@@ -288,13 +288,13 @@ describe('createInvoiceSchema', () => {
 
     const invalidResult = createInvoiceSchema.safeParse({
       amount: 10,
-      sellerName: 'a'.repeat(256),
+      sellerName: 'a'.repeat(81),
       sellerPublicKey: validSellerPublicKey,
     });
 
     expect(invalidResult.success).toBe(false);
     if (invalidResult.success) {
-      throw new Error('Expected sellerName length 256 to fail validation');
+      throw new Error('Expected sellerName length 81 to fail validation');
     }
     expect(
       invalidResult.error.issues.some((issue) => issue.path.includes('sellerName')),

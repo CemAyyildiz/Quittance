@@ -36,8 +36,8 @@ class InvoiceMemoryService {
       ? input.sellerPublicKey
       : undefined;
     const invoice = await storage.createInvoice({
-      sellerPublicKey: sellerMuxedAddress ? extractBaseAddress(sellerMuxedAddress) : input.sellerPublicKey,
-      sellerMuxedAddress,
+      sellerPublicKey: input.sellerPublicKey, // Dynamic wallet of the caller.
+      sellerName: input.sellerName,
       amount: input.amount,
       lineItems: input.lineItems,
       assetCode: input.assetCode || 'XLM',

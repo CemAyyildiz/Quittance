@@ -42,35 +42,19 @@ function changeEmailTo(input: HTMLElement, value: string) {
 
 const MEMO_PLACEHOLDER = 'Payment reference, e.g. INV-2026';
 
-describe('InvoiceForm muxed seller address', () => {
-  const wallet = 'GC4VWBK5QSJCBSRWIZJYWCF2SJAPCKU3OFHH4XK7ZBTZ5HCK7VYLU6FL';
-  const otherWallet = 'GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN';
-  const muxed = (base: string) => encodeMuxedAccountToAddress(encodeMuxedAccount(base, '42'), true);
-
-  it('submits a valid M address belonging to the connected wallet', async () => {
+describe('InvoiceForm seller display name', () => {
+  it('submits a trimmed invoice label and keeps the connected wallet as identity', async () => {
     const { invoiceApi } = await import('@/lib/api');
-    render(<InvoiceForm userWallet={wallet} />);
+    render(<InvoiceForm userWallet="GABC1234567890" />);
+    const label = screen.getByLabelText('Your display name (optional)');
+    expect(label.getAttribute('maxlength')).toBe('80');
+    fireEvent.change(label, { target: { value: '  Studio & Co  ' } });
     fireEvent.change(screen.getByPlaceholderText('10.00'), { target: { value: '5' } });
-    fireEvent.change(screen.getByPlaceholderText('M... address for this invoice'), { target: { value: muxed(wallet) } });
     fireEvent.click(screen.getByRole('button', { name: /create invoice/i }));
     await waitFor(() => expect(invoiceApi.create).toHaveBeenCalledWith(
-      expect.objectContaining({ sellerPublicKey: muxed(wallet) }),
+      expect.objectContaining({ sellerName: 'Studio & Co', sellerPublicKey: 'GABC1234567890' }),
     ));
-  });
-
-  it('blocks a different account or malformed M address', async () => {
-    const { invoiceApi } = await import('@/lib/api');
-    render(<InvoiceForm userWallet={wallet} />);
-    fireEvent.change(screen.getByPlaceholderText('10.00'), { target: { value: '5' } });
-    const address = screen.getByPlaceholderText('M... address for this invoice');
-    fireEvent.change(address, { target: { value: muxed(otherWallet) } });
-    fireEvent.click(screen.getByRole('button', { name: /create invoice/i }));
-    expect(invoiceApi.create).not.toHaveBeenCalled();
-    expect(screen.getByText('Enter a valid M address for your connected wallet')).toBeTruthy();
-
-    fireEvent.change(address, { target: { value: 'MALFORMED' } });
-    fireEvent.click(screen.getByRole('button', { name: /create invoice/i }));
-    expect(invoiceApi.create).not.toHaveBeenCalled();
+    await waitFor(() => expect((label as HTMLInputElement).value).toBe(''));
   });
 });
 
