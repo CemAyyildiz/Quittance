@@ -143,7 +143,9 @@ export function paymentAssetMatchesInvoice(input: {
   invoiceAssetIssuer?: string | null;
   paymentIsNative?: boolean;
 }): boolean {
-  const invoiceIsNative = input.invoiceAssetCode === NATIVE_ASSET_CODE;
+  const invoiceIsNative =
+    input.invoiceAssetCode === NATIVE_ASSET_CODE &&
+    normalizeIssuer(input.invoiceAssetIssuer) === undefined;
 
   if (invoiceIsNative) {
     // `paymentIsNative` is only consulted when the caller supplied it, so

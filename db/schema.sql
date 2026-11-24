@@ -23,6 +23,7 @@ CREATE TABLE IF NOT EXISTS invoices (
   asset_issuer VARCHAR(56),
   memo TEXT UNIQUE NOT NULL,
   description TEXT,
+  line_items JSONB,
   customer_name VARCHAR(255),
   customer_email VARCHAR(255),
   status VARCHAR(20) DEFAULT 'PENDING' CHECK (status IN ('PENDING', 'PAID', 'EXPIRED', 'CANCELLED')),

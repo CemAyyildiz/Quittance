@@ -10,6 +10,7 @@ interface Invoice {
   assetIssuer?: string;
   memo: string;
   description?: string;
+  lineItems?: unknown[];
   customerName?: string;
   customerEmail?: string;
   status: 'PENDING' | 'PAID' | 'EXPIRED' | 'CANCELLED';
@@ -32,6 +33,7 @@ class PostgresStorage {
         ALTER TABLE invoices ADD COLUMN IF NOT EXISTS ledger BIGINT;
         ALTER TABLE invoices ADD COLUMN IF NOT EXISTS original_expires_at TIMESTAMP;
         ALTER TABLE invoices ADD COLUMN IF NOT EXISTS expiry_extended BOOLEAN NOT NULL DEFAULT false;
+        ALTER TABLE invoices ADD COLUMN IF NOT EXISTS line_items JSONB;
         CREATE INDEX IF NOT EXISTS idx_invoices_payment_tx_hash ON invoices(payment_tx_hash);
       `).then(() => undefined);
     }
@@ -49,9 +51,9 @@ class PostgresStorage {
     const result = await pool.query(
       `INSERT INTO invoices (
         id, seller_public_key, amount, asset_code, asset_issuer, 
-        memo, description, customer_name, customer_email, 
+        memo, description, line_items, customer_name, customer_email,
         status, created_at, expires_at, original_expires_at, expiry_extended
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
       RETURNING *`,
       [
         id,
@@ -61,6 +63,7 @@ class PostgresStorage {
         data.assetIssuer || null,
         data.memo,
         data.description || null,
+        data.lineItems ? JSON.stringify(data.lineItems) : null,
         data.customerName || null,
         data.customerEmail || null,
         'PENDING',
@@ -148,6 +151,10 @@ class PostgresStorage {
     if (updates.expiryExtended !== undefined) {
       fields.push(`expiry_extended = $${paramIndex++}`);
       values.push(updates.expiryExtended);
+    }
+    if (updates.lineItems !== undefined) {
+      fields.push(`line_items = $${paramIndex++}`);
+      values.push(JSON.stringify(updates.lineItems));
     }
 
     if (fields.length === 0) return invoice;
@@ -250,6 +257,7 @@ class PostgresStorage {
       assetIssuer: row.asset_issuer || undefined,
       memo: row.memo,
       description: row.description || undefined,
+      lineItems: row.line_items || undefined,
       customerName: row.customer_name || undefined,
       customerEmail: row.customer_email || undefined,
       status: row.status,

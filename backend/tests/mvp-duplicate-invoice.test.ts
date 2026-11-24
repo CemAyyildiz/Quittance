@@ -70,6 +70,17 @@ describe('MVP duplicate invoice', () => {
     expect(result.body.data.invoice.customerEmail).toBe('ada@example.com');
   });
 
+  it('duplicates a cancelled invoice as a new pending invoice', async () => {
+    const source = memoryStorage.createInvoice({ sellerPublicKey: SELLER, amount: 1, memo: 'cancelled-source' });
+    memoryStorage.updateInvoice(source.id, { status: 'CANCELLED' });
+
+    const result = await call(`/api/invoices/${source.id}/duplicate`, { sellerPublicKey: SELLER });
+
+    expect(result.status).toBe(201);
+    expect(result.body.data.invoice.id).not.toBe(source.id);
+    expect(result.body.data.invoice.status).toBe('PENDING');
+  });
+
   it('returns 404 when another wallet tries to duplicate the invoice', async () => {
     const source = memoryStorage.createInvoice({ sellerPublicKey: SELLER, amount: 1, memo: 'owner-only' });
     const result = await call(`/api/invoices/${source.id}/duplicate`, { sellerPublicKey: OTHER_SELLER });
