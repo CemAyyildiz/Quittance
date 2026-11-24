@@ -86,12 +86,12 @@ class InvoiceMemoryService {
       throw new Error('Invoice not found');
     }
 
-    if (ledgerSeq === undefined || ledgerSeq === null || !Number.isFinite(ledgerSeq)) {
-      throw new Error('Ledger sequence is required to mark invoice as paid');
-    }
-
     if (existingInvoice.status === 'PAID') {
       return existingInvoice;
+    }
+
+    if (ledgerSeq === undefined || ledgerSeq === null || !Number.isFinite(ledgerSeq)) {
+      throw new Error('Ledger sequence is required to mark invoice as paid');
     }
 
     const invoice = await storage.markAsPaid(invoiceId, txHash, payerPublicKey, {

@@ -256,7 +256,6 @@ describe('paid-invoice webhook', () => {
       invoice.id,
       'f'.repeat(64),
       PAYER,
-      2,
     );
     await waitForWebhookDeliveries();
 
