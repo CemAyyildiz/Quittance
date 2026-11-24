@@ -27,6 +27,7 @@ export interface Invoice {
   assetIssuer?: string;
   memo: string;
   description?: string;
+  lineItems?: unknown[];
   customerName?: string;
   customerEmail?: string;
   status: InvoiceStatus;
@@ -76,6 +77,7 @@ class MemoryStorage {
       assetIssuer: data.assetIssuer,
       memo: data.memo!,
       description: data.description,
+      lineItems: data.lineItems ? [...data.lineItems] : undefined,
       customerName: data.customerName,
       customerEmail: data.customerEmail,
       status: 'PENDING',

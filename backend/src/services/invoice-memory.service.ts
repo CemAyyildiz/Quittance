@@ -16,7 +16,7 @@ class InvoiceMemoryService {
   /**
    * Create a new invoice
    */
-  async createInvoice(input: CreateInvoiceInput): Promise<any> {
+  async createInvoice(input: CreateInvoiceInput & { lineItems?: unknown[] }): Promise<any> {
     // The seller public key now comes from the caller (the frontend).
     if (!input.sellerPublicKey) {
       throw new Error('Seller public key is required');
@@ -41,6 +41,7 @@ class InvoiceMemoryService {
       amount: input.amount,
       assetCode: input.assetCode || 'XLM',
       assetIssuer: input.assetIssuer,
+      lineItems: input.lineItems,
       memo,
       description: input.description,
       customerName: input.customerName,
@@ -74,6 +75,31 @@ class InvoiceMemoryService {
   async getInvoiceByTxHash(txHash: string): Promise<any | null> {
     const storage = await getStorage();
     return (await storage.getInvoiceByTxHash(txHash)) ?? null;
+  }
+
+  /** Create a fresh, unpaid copy owned by the requesting seller. */
+  async duplicateInvoice(
+    invoiceId: string,
+    sellerPublicKey: string,
+    copyCustomerEmail = false,
+  ): Promise<any> {
+    const storage = await getStorage();
+    const source = await storage.getInvoiceById(invoiceId);
+    if (!source || source.sellerPublicKey !== sellerPublicKey) {
+      throw Object.assign(new Error('Invoice not found'), { code: 'NOT_FOUND', status: 404 });
+    }
+
+    return this.createInvoice({
+      sellerPublicKey,
+      amount: source.amount,
+      assetCode: source.assetCode,
+      assetIssuer: source.assetIssuer,
+      description: source.description,
+      lineItems: source.lineItems,
+      customerName: source.customerName,
+      customerEmail: copyCustomerEmail ? source.customerEmail : undefined,
+      expiresInDays: 7,
+    });
   }
 
   /**

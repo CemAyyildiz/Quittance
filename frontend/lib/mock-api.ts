@@ -232,6 +232,43 @@ export const mockInvoiceApi = {
     };
   },
 
+  duplicate: async (id: string, data: { sellerPublicKey: string; copyCustomerEmail?: boolean }) => {
+    await delay(500);
+    const source = mockInvoices.find(inv => inv.id === id);
+    if (!source || source.sellerPublicKey !== data.sellerPublicKey) {
+      throw new Error('Invoice not found');
+    }
+
+    const copy = {
+      ...source,
+      id: Math.random().toString(36).substr(2, 9),
+      memo: `INV-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).substr(2, 4).toUpperCase()}`,
+      status: 'PENDING',
+      paymentTxHash: undefined,
+      payerPublicKey: undefined,
+      paidAt: undefined,
+      customerEmail: data.copyCustomerEmail ? source.customerEmail : undefined,
+      createdAt: new Date().toISOString(),
+      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+    };
+    mockInvoices.unshift(copy);
+
+    return {
+      success: true,
+      data: {
+        invoice: copy,
+        paymentUrl: `${window.location.origin}/pay/${copy.id}`,
+        stellarPaymentUri: buildStellarPaymentUri(
+          copy.sellerPublicKey,
+          copy.amount.toString(),
+          copy.assetCode,
+          copy.memo,
+          copy.assetIssuer,
+        ),
+      },
+    };
+  },
+
   verify: async (id: string, txHash: string) => {
     await delay(1000);
     const invoice = mockInvoices.find(inv => inv.id === id);

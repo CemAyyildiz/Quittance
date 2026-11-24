@@ -20,6 +20,19 @@ export const memoByteLengthSchema = z
   });
 
 // Invoice creation schema
+export const createInvoiceSchema = z.object({
+  amount: z.number().positive().max(1000000000),
+  assetCode: z.string().default('XLM').optional(),
+  assetIssuer: stellarPublicKeySchema.optional(),
+  description: z.string().max(500).optional(),
+  customerName: z.string().max(255).optional(),
+  customerEmail: z.string().email().optional(),
+  sellerName: z.string().max(255).optional(),
+  sellerEmail: z.string().email().optional(),
+  expiresInDays: z.number().min(1).max(365).default(7).optional(),
+  sellerPublicKey: stellarPublicKeySchema, // Dinamik seller!
+  memo: memoByteLengthSchema.optional(),
+});
 export const createInvoiceSchema = z
   .object({
     // The same stroop-based helper the verify path uses: never accept a

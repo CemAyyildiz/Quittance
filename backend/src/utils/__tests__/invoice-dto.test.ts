@@ -183,6 +183,7 @@ describe('toInvoiceDTO', () => {
       'expiryExtended',
       'id',
       'ledger',
+      'lineItems',
       'memo',
       'originalExpiresAt',
       'paidAt',

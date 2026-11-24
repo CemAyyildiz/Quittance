@@ -25,6 +25,7 @@ export interface InvoiceDTO {
   assetIssuer?: string;
   memo: string;
   description?: string;
+  lineItems?: unknown[];
   customerName?: string;
   customerEmail?: string;
   status: 'PENDING' | 'PAID' | 'EXPIRED' | 'CANCELLED';
@@ -112,6 +113,7 @@ export function toInvoiceDTO(
     assetIssuer?: string;
     memo: string;
     description?: string;
+    lineItems?: unknown[];
     customerName?: string;
     customerEmail?: string;
     status: 'PENDING' | 'PAID' | 'EXPIRED' | 'CANCELLED';
@@ -135,6 +137,7 @@ export function toInvoiceDTO(
     assetIssuer: invoice.assetIssuer,
     memo: invoice.memo,
     description: invoice.description,
+    lineItems: invoice.lineItems,
     customerName: invoice.customerName,
     customerEmail: invoice.customerEmail,
     status: invoice.status,
