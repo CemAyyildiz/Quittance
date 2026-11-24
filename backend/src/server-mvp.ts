@@ -6,9 +6,13 @@ import { createInvoiceSchema } from './utils/validation';
 import invoiceService from './services/invoice-memory.service';
 import { generatePaymentQR, generateStellarPaymentQR, buildStellarPaymentUri } from './utils/qrcode';
 import stellarService from './services/stellar.service';
-import { rateLimitIfEnabled } from './middleware/rate-limit-stub';
+import {
+  rateLimitIfEnabled,
+  sellerCreateRateLimit,
+  invoiceVerifyRateLimit,
+} from './middleware/rate-limit-stub';
 import healthDetailRouter from './routes/health-detail';
-import { toInvoiceDTO } from './utils/invoice-dto';
+import { toInvoiceDTO as mapInvoiceDTO } from './utils/invoice-dto';
 import { isDecimalEqual } from './utils/amount-compare';
 import { VerifyErrorCode, VerifyErrorMessages } from './utils/verify-errors';
 import {
@@ -22,6 +26,7 @@ import {
 } from './utils/verify-invoice-payment';
 import { parsePaginationQuery } from './utils/parse-pagination';
 import { isSmtpConfigured, sendEmail, generateInvoiceEmail } from './utils/smtp';
+import { STELLAR_NETWORK } from './config/stellar';
 
 // Load environment variables
 dotenv.config();
@@ -30,6 +35,13 @@ const app: Application = express();
 const PORT = process.env.PORT || 3001;
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3000';
 const ALLOW_SIMULATE = process.env.ALLOW_SIMULATE === 'true';
+
+/** Map invoices through the DTO helper with the configured Stellar network. */
+function toInvoiceDTO(
+  invoice: Parameters<typeof mapInvoiceDTO>[0],
+) {
+  return mapInvoiceDTO(invoice, { network: STELLAR_NETWORK });
+}
 
 // Middleware
 app.use(cors({
@@ -77,8 +89,8 @@ app.get('/api/health', (req: Request, res: Response) => {
   });
 });
 
-// Create invoice
-app.post('/api/invoices', async (req: Request, res: Response) => {
+// Create invoice (per-seller rate limit on by default)
+app.post('/api/invoices', sellerCreateRateLimit(), async (req: Request, res: Response) => {
   try {
     const validatedData = createInvoiceSchema.parse(req.body);
     const invoice = await invoiceService.createInvoice(validatedData);
@@ -408,8 +420,9 @@ app.post('/api/invoices/:id/extend-expiry', async (req: Request, res: Response) 
   }
 });
 
-// Verify payment against Horizon (memo + amount + destination)
-app.post('/api/invoices/:id/verify', async (req: Request, res: Response) => {
+// Verify payment against Horizon (memo + amount + destination).
+// Per-invoice rate limit is on by default and short-circuits before Horizon.
+app.post('/api/invoices/:id/verify', invoiceVerifyRateLimit(), async (req: Request, res: Response) => {
   try {
     await runExpirySweep(invoiceService);
 

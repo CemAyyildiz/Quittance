@@ -69,14 +69,14 @@ describe('Invoice Verification (Issue #990)', () => {
     expect(response.body.code).toBe(VerifyErrorCode.DESTINATION_MISMATCH);
   });
 
-  it('should reject native payment when invoice expects XLM credit asset', async () => {
-    const invoiceWithXLMCredit = {
+  it('should reject native payment when invoice expects a credit asset', async () => {
+    const invoiceWithCreditAsset = {
       ...mockInvoice,
-      assetCode: 'XLM',
+      assetCode: 'USDC',
       assetIssuer: 'GISSUER1XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX',
     };
 
-    vi.mocked(invoiceService.getInvoiceById).mockResolvedValue(invoiceWithXLMCredit as any);
+    vi.mocked(invoiceService.getInvoiceById).mockResolvedValue(invoiceWithCreditAsset as any);
     vi.mocked(stellarService.getTransaction).mockResolvedValue(mockValidTransaction as any);
 
     const response = await request(app)

@@ -88,7 +88,7 @@ class InvoiceController {
 
       res.json({
         success: true,
-        data: invoices.map(toInvoiceDTO),
+        data: invoices.map((invoice) => toInvoiceDTO(invoice)),
         pagination: {
           limit: parseInt(limit as string),
           offset: parseInt(offset as string),
