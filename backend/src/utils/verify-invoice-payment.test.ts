@@ -93,6 +93,22 @@ describe('verifyInvoicePayment', () => {
       });
     });
 
+    it('accepts a positive partial payment', () => {
+      expect(
+        verifyInvoicePayment({
+          ...validInput(),
+          paymentAmount: '0.5000000',
+          invoiceAmount: 1.5,
+        }),
+      ).toEqual({ ok: true });
+    });
+
+    it('rejects a zero payment', () => {
+      expect(
+        verifyInvoicePayment({ ...validInput(), paymentAmount: '0', invoiceAmount: 1.5 }),
+      ).toEqual({ ok: false, code: VerifyErrorCode.AMOUNT_MISMATCH });
+    });
+
     it('matches trailing-zero differences (1.5 vs 1.5000000)', () => {
       expect(
         verifyInvoicePayment({

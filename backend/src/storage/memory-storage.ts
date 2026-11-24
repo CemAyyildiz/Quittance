@@ -26,22 +26,8 @@ export interface Invoice {
   originalExpiresAt: Date;
   /** True after the seller has used the one allowed extension. */
   expiryExtended: boolean;
-  /** Hash of the transaction that anchored the proof digest on chain. */
-  anchoringTxHash?: string;
-}
-
-/** Current invoice status -> the history event a transition produces. */
-function statusEventFor(status: InvoiceStatus): StatusEventStatus {
-  switch (status) {
-    case 'CANCELLED':
-      return 'VOIDED';
-    case 'PAID':
-      return 'PAID';
-    case 'EXPIRED':
-      return 'EXPIRED';
-    default:
-      return 'CREATED';
-  }
+  payments: Array<{ txHash: string; amount: string; payerPublicKey: string; ledger: number; paidAt: Date }>;
+  receivedAmount: string;
 }
 
 class MemoryStorage {
@@ -71,6 +57,8 @@ class MemoryStorage {
       expiresAt,
       originalExpiresAt: data.originalExpiresAt || expiresAt,
       expiryExtended: data.expiryExtended ?? false,
+      payments: data.payments ?? [],
+      receivedAmount: data.receivedAmount ?? '0',
     };
 
     this.invoices.set(invoice.id, invoice);
@@ -207,8 +195,30 @@ class MemoryStorage {
     return invoice;
   }
 
-  markUncollectible(id: string): Invoice | undefined {
-    return this.updateInvoice(id, { status: 'UNCOLLECTIBLE' });
+  recordPayment(
+    id: string,
+    payment: { txHash: string; amount: string; payerPublicKey: string; ledger: number; paidAt: Date },
+    receivedAmount: string,
+    paid: boolean,
+  ): Invoice | undefined {
+    const existing = this.invoices.get(id);
+    if (!existing) return undefined;
+
+    const invoice = this.updateInvoice(id, {
+      payments: [...existing.payments, payment],
+      receivedAmount,
+      ...(paid
+        ? {
+            status: 'PAID',
+            paymentTxHash: payment.txHash,
+            payerPublicKey: payment.payerPublicKey,
+            paidAt: payment.paidAt,
+            ledger: payment.ledger,
+          }
+        : {}),
+    });
+    if (invoice) this.invoicesByTxHash.set(payment.txHash, id);
+    return invoice;
   }
 
   // Get all invoices

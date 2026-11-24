@@ -13,7 +13,7 @@
  * without spinning up Express, Stellar Horizon, or the in-memory store.
  */
 
-import { amountsMatch } from './amount-compare';
+import { compareDecimals } from './amount-compare';
 import { memosMatch } from './memo-normalize';
 import { NATIVE_ASSET_CODE } from './asset-helpers';
 import { VerifyErrorCode } from './verify-errors';
@@ -278,10 +278,10 @@ export function verifyInvoicePayment(
     return { ok: false, code: VerifyErrorCode.DESTINATION_MISMATCH };
   }
 
-  // Convert both sides to integer stroops before comparing. Comparing
-  // `toFixed(7)` decimal strings through floating point can make amounts one
-  // stroop apart look equal (or equal amounts look different).
-  if (!amountsMatch(input.paymentAmount, input.invoiceAmount)) {
+  if (
+    compareDecimals(input.paymentAmount, '0') <= 0 ||
+    compareDecimals(input.paymentAmount, String(input.invoiceAmount)) > 0
+  ) {
     return { ok: false, code: VerifyErrorCode.AMOUNT_MISMATCH };
   }
 

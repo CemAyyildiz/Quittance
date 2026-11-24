@@ -68,6 +68,8 @@ export default function PaymentPage() {
   const [verifying, setVerifying] = useState(false);
   const [verifyError, setVerifyError] = useState<string | null>(null);
   const timeRemaining = useCountdown(invoice?.status === 'PENDING' ? invoice.expiresAt : null);
+  const receivedAmount = invoice?.receivedAmount ?? '0';
+  const remainingAmount = invoice?.remainingAmount ?? invoice?.amount?.toString();
 
   useEffect(() => {
     void loadInvoice();
@@ -699,6 +701,21 @@ export default function PaymentPage() {
 
             {invoice.status === 'PENDING' && !invoice.paymentTxHash && (
               <>
+                {Number(receivedAmount) > 0 && (
+                  <div className="card" aria-live="polite">
+                    <h3 className="text-lg font-semibold mb-3">Partial payment progress</h3>
+                    <dl className="grid grid-cols-2 gap-3 text-sm">
+                      <div>
+                        <dt className="text-gray-500">Received</dt>
+                        <dd className="font-semibold">{formatAmount(receivedAmount)} {invoice.assetCode}</dd>
+                      </div>
+                      <div>
+                        <dt className="text-gray-500">Remaining</dt>
+                        <dd className="font-semibold">{formatAmount(remainingAmount)} {invoice.assetCode}</dd>
+                      </div>
+                    </dl>
+                  </div>
+                )}
                 <div className="card">
                   <h3 className="text-lg font-semibold text-center mb-4">Scan QR Code</h3>
                   {paymentInfoLoading ? (
@@ -780,8 +797,8 @@ export default function PaymentPage() {
                   </div>
 
                   <PaymentButton
-                    destination={invoice.sellerMuxedAddress ?? invoice.sellerPublicKey}
-                    amount={invoice.amount.toString()}
+                    destination={invoice.sellerPublicKey}
+                    amount={remainingAmount}
                     memo={invoice.memo}
                     assetCode={invoice.assetCode}
                     assetIssuer={invoice.assetIssuer}

@@ -143,6 +143,18 @@ class InvoiceMemoryService {
     return invoice;
   }
 
+  async recordPayment(
+    invoiceId: string,
+    payment: { txHash: string; amount: string; payerPublicKey: string; ledger: number; paidAt: Date },
+    receivedAmount: string,
+    paid: boolean,
+  ): Promise<any> {
+    const storage = await getStorage();
+    const invoice = await storage.recordPayment(invoiceId, payment, receivedAmount, paid);
+    if (!invoice) throw new Error('Invoice not found');
+    return invoice;
+  }
+
   /**
    * Get all invoices for a seller with cursor-based pagination.
    * Search runs inside the seller-scoped list and before the page is cut, so a

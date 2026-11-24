@@ -22,8 +22,8 @@ interface Invoice {
   expiresAt: Date;
   originalExpiresAt: Date;
   expiryExtended: boolean;
-  /** Hash of the transaction that anchored the proof digest on chain. */
-  anchoringTxHash?: string;
+  payments: Array<{ txHash: string; amount: string; payerPublicKey: string; ledger: number; paidAt: Date }>;
+  receivedAmount: string;
 }
 
 class PostgresStorage {
@@ -36,7 +36,8 @@ class PostgresStorage {
         ALTER TABLE invoices ADD COLUMN IF NOT EXISTS seller_muxed_address VARCHAR(69);
         ALTER TABLE invoices ADD COLUMN IF NOT EXISTS original_expires_at TIMESTAMP;
         ALTER TABLE invoices ADD COLUMN IF NOT EXISTS expiry_extended BOOLEAN NOT NULL DEFAULT false;
-        ALTER TABLE invoices ADD COLUMN IF NOT EXISTS anchoring_tx_hash VARCHAR(64);
+        ALTER TABLE invoices ADD COLUMN IF NOT EXISTS payments JSONB NOT NULL DEFAULT '[]'::jsonb;
+        ALTER TABLE invoices ADD COLUMN IF NOT EXISTS received_amount NUMERIC NOT NULL DEFAULT 0;
         CREATE INDEX IF NOT EXISTS idx_invoices_payment_tx_hash ON invoices(payment_tx_hash);
       `).then(() => undefined);
     }
@@ -106,7 +107,9 @@ class PostgresStorage {
   async getInvoiceByTxHash(txHash: string): Promise<Invoice | undefined> {
     await this.ensureSchema();
     const result = await pool.query(
-      'SELECT * FROM invoices WHERE payment_tx_hash = $1',
+      `SELECT * FROM invoices
+       WHERE payment_tx_hash = $1
+          OR EXISTS (SELECT 1 FROM jsonb_array_elements(payments) payment WHERE payment->>'txHash' = $1)`,
       [txHash]
     );
 
@@ -186,6 +189,29 @@ class PostgresStorage {
       paidAt: meta?.paidAt ?? new Date(),
       ledger: meta?.ledger,
     });
+  }
+
+  async recordPayment(
+    id: string,
+    payment: { txHash: string; amount: string; payerPublicKey: string; ledger: number; paidAt: Date },
+    receivedAmount: string,
+    paid: boolean,
+  ): Promise<Invoice | undefined> {
+    await this.ensureSchema();
+    const result = await pool.query(
+      `UPDATE invoices SET
+        payments = payments || $2::jsonb,
+        received_amount = $3,
+        status = CASE WHEN $4 THEN 'PAID' ELSE status END,
+        payment_tx_hash = CASE WHEN $4 THEN $5 ELSE payment_tx_hash END,
+        payer_public_key = CASE WHEN $4 THEN $6 ELSE payer_public_key END,
+        ledger = CASE WHEN $4 THEN $7 ELSE ledger END,
+        paid_at = CASE WHEN $4 THEN $8 ELSE paid_at END
+       WHERE id = $1 RETURNING *`,
+      [id, JSON.stringify([payment]), receivedAmount, paid, payment.txHash,
+        payment.payerPublicKey, payment.ledger, payment.paidAt],
+    );
+    return result.rows[0] ? this.mapRow(result.rows[0]) : undefined;
   }
 
   // Get all invoices
@@ -272,7 +298,10 @@ class PostgresStorage {
       expiresAt: new Date(row.expires_at),
       originalExpiresAt: row.original_expires_at ? new Date(row.original_expires_at) : new Date(row.expires_at),
       expiryExtended: Boolean(row.expiry_extended),
-      anchoringTxHash: row.anchoring_tx_hash || undefined,
+      payments: Array.isArray(row.payments)
+        ? row.payments.map((payment: any) => ({ ...payment, paidAt: new Date(payment.paidAt) }))
+        : [],
+      receivedAmount: String(row.received_amount ?? '0'),
     };
   }
 }

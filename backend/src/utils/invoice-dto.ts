@@ -1,4 +1,5 @@
 import { createHash } from 'crypto';
+import { subtractDecimalAmounts } from './amount-compare';
 
 import type { StatusEvent, StatusEventStatus } from '../storage/memory-storage';
 
@@ -39,6 +40,9 @@ export interface InvoiceDTO {
   expiresAt: string;
   originalExpiresAt: string;
   expiryExtended: boolean;
+  payments: Array<{ txHash: string; amount: string; payerPublicKey: string; ledger: number; paidAt: string }>;
+  receivedAmount: string;
+  remainingAmount: string;
   /** Hex SHA-256 of the canonical proof string; only set when the invoice is paid. */
   proofDigest?: string;
   /** Documented canonical field string used to compute proofDigest; only set when paid. */
@@ -129,6 +133,8 @@ export function toInvoiceDTO(
     expiresAt: Date;
     originalExpiresAt?: Date;
     expiryExtended?: boolean;
+    payments?: Array<{ txHash: string; amount: string; payerPublicKey: string; ledger: number; paidAt: Date }>;
+    receivedAmount?: string;
   },
   options?: ToInvoiceDTOOptions,
 ): InvoiceDTO {
@@ -161,6 +167,12 @@ export function toInvoiceDTO(
     expiresAt: invoice.expiresAt.toISOString(),
     originalExpiresAt: originalExpiresAt.toISOString(),
     expiryExtended: invoice.expiryExtended ?? false,
+    payments: (invoice.payments ?? []).map((payment) => ({
+      ...payment,
+      paidAt: payment.paidAt.toISOString(),
+    })),
+    receivedAmount: invoice.receivedAmount ?? '0',
+    remainingAmount: subtractDecimalAmounts(String(invoice.amount), invoice.receivedAmount ?? '0'),
   };
 
   // The label belongs to this invoice; it must never become payment identity.

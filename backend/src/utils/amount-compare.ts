@@ -143,123 +143,32 @@ export const decimalsEqual = isDecimalEqual;
 export const decimalsLessThan = isDecimalLessThan;
 export const decimalsGreaterThan = isDecimalGreaterThan;
 
-// ---------------------------------------------------------------------------
-// Integer-stroop comparison (the money path)
-// ---------------------------------------------------------------------------
-//
-// The generic decimal helpers above are deliberately kept: they compare
-// arbitrary-precision *textual* decimals and are used by tests that feed very
-// long fractions. Money decisions (invoice creation and payment verification),
-// however, must go through the stroop conversion below. Converting both sides
-// to an integer number of stroops first means one stroop is never rounded away
-// by an intermediate `Number` / `toFixed(7)` round trip.
+const STELLAR_SCALE = 7;
 
-/** One whole unit of any Stellar asset equals 10,000,000 stroops. */
-export const STROOPS_PER_UNIT = 10_000_000n;
-
-/** Largest amount representable by Stellar's signed 64-bit stroop integer. */
-export const MAX_STROOPS = 9_223_372_036_854_775_807n;
-
-/** Raised when an amount cannot be represented as a valid Stellar stroop value. */
-export class InvalidAmountError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = 'InvalidAmountError';
+function toScaledUnits(value: string): bigint {
+  const trimmed = value.trim();
+  if (!/^\d+(?:\.\d{0,7})?$/.test(trimmed)) {
+    throw new Error('Amount must be a non-negative decimal with at most 7 places');
   }
+  const [whole, fraction = ''] = trimmed.split('.');
+  return BigInt(whole) * 10n ** BigInt(STELLAR_SCALE) + BigInt(fraction.padEnd(STELLAR_SCALE, '0'));
 }
 
-/**
- * Convert a decimal string (or a finite JS number) to an integer stroop count.
- *
- * Rules, in order:
- *   - negatives, `NaN`, infinities and malformed text are rejected;
- *   - more than seven fractional digits are rejected (Stellar's precision);
- *   - values above the signed int64 stroop ceiling are rejected.
- *
- * The conversion is exact: the fractional part is zero-padded to seven digits
- * and concatenated with the integer part, then parsed as a `BigInt`. No
- * floating point arithmetic is involved for decimal-string inputs.
- */
-export function amountToStroops(value: string | number): bigint {
-  let text: string;
-
-  if (typeof value === 'number') {
-    if (!Number.isFinite(value)) {
-      throw new InvalidAmountError('Amount must be a finite number');
-    }
-    if (value < 0) {
-      throw new InvalidAmountError('Amount must not be negative');
-    }
-    // `toFixed(7)` rounds; if it changes the value, the input carried more
-    // than seven decimal places and must be rejected rather than quietly
-    // rounded into a different amount.
-    text = value.toFixed(7);
-    if (/[eE]/.test(text) || Number(text) !== value) {
-      throw new InvalidAmountError('Amount must have at most 7 decimal places');
-    }
-  } else {
-    text = value.trim();
-  }
-
-  if (text === '') {
-    throw new InvalidAmountError('Amount is required');
-  }
-  if (text.startsWith('-')) {
-    throw new InvalidAmountError('Amount must not be negative');
-  }
-  if (text.startsWith('+')) {
-    text = text.slice(1);
-  }
-  if (/[eE]/.test(text)) {
-    throw new InvalidAmountError('Amount must be a plain decimal string');
-  }
-
-  const match = /^(\d+)(?:\.(\d+))?$/.exec(text);
-  if (!match) {
-    throw new InvalidAmountError('Amount must be a decimal number');
-  }
-
-  const integerPart = match[1];
-  const fractionPart = match[2] ?? '';
-  if (fractionPart.length > 7) {
-    throw new InvalidAmountError('Amount must have at most 7 decimal places');
-  }
-
-  const fractionStroops = fractionPart.padEnd(7, '0');
-  const stroops =
-    BigInt(integerPart) * STROOPS_PER_UNIT + BigInt(fractionStroops || '0');
-
-  if (stroops > MAX_STROOPS) {
-    throw new InvalidAmountError('Amount exceeds the maximum Stellar stroop value');
-  }
-
-  return stroops;
+function fromScaledUnits(value: bigint): string {
+  const scale = 10n ** BigInt(STELLAR_SCALE);
+  const whole = value / scale;
+  const fraction = (value % scale).toString().padStart(STELLAR_SCALE, '0').replace(/0+$/, '');
+  return fraction ? `${whole}.${fraction}` : whole.toString();
 }
 
-/** True when both inputs represent exactly the same integer stroop amount. */
-export function amountsMatch(a: string | number, b: string | number): boolean {
-  try {
-    return amountToStroops(a) === amountToStroops(b);
-  } catch {
-    return false;
-  }
+/** Add Stellar decimal amounts without IEEE-754 rounding. */
+export function addDecimalAmounts(a: string, b: string): string {
+  return fromScaledUnits(toScaledUnits(a) + toScaledUnits(b));
 }
 
-/** True when the input is a representable, non-negative Stellar amount. */
-export function isValidAmount(value: string | number): boolean {
-  try {
-    amountToStroops(value);
-    return true;
-  } catch {
-    return false;
-  }
+/** Subtract non-negative Stellar decimal amounts without rounding. */
+export function subtractDecimalAmounts(a: string, b: string): string {
+  const result = toScaledUnits(a) - toScaledUnits(b);
+  if (result < 0n) throw new Error('Amount subtraction cannot be negative');
+  return fromScaledUnits(result);
 }
-
-/** Throw `InvalidAmountError` when the input is not a valid Stellar amount. */
-export function assertValidAmount(value: string | number): void {
-  amountToStroops(value);
-}
-
-// Explicit aliases so call sites can use the vocabulary that reads best there.
-export const toStroops = amountToStroops;
-export const stroopsEqual = amountsMatch;
