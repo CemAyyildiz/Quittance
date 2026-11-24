@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { mailtoProof } from './mailtoProof';
+import { getInvoiceReminder, mailtoProof } from './mailtoProof';
 
 describe('mailtoProof', () => {
   it('returns mailto URL for valid inputs', () => {
@@ -46,5 +46,64 @@ describe('mailtoProof', () => {
     const url = mailtoProof('grace@example.com', 'Line1\nLine2', 'Body');
     expect(url).toBe('mailto:grace@example.com?subject=Line1%0ALine2&body=Body');
     expect(url).not.toContain('\n');
+  });
+});
+
+describe('getInvoiceReminder', () => {
+  const now = Date.parse('2026-11-24T12:00:00.000Z');
+  const baseInvoice = {
+    id: 'inv-24h',
+    status: 'PENDING',
+    amount: 42,
+    assetCode: 'XLM',
+    customerEmail: 'client@example.com',
+    description: 'Design & development',
+    expiresAt: new Date(now + 24 * 60 * 60 * 1000).toISOString(),
+  };
+
+  it('offers an encoded mailto at the inclusive 24-hour boundary', () => {
+    const result = getInvoiceReminder(baseInvoice, 'https://quittance.test/pay/inv-24h', now);
+
+    expect(result.dueSoon).toBe(true);
+    expect(result.mailto).toContain('mailto:client@example.com?');
+    expect(result.mailto).toContain('Design%20%26%20development');
+    expect(result.mailto).toContain('42%20XLM');
+    expect(result.mailto).toContain('https%3A%2F%2Fquittance.test%2Fpay%2Finv-24h');
+  });
+
+  it('does not mark a pending invoice outside the 24-hour window', () => {
+    const result = getInvoiceReminder(
+      { ...baseInvoice, expiresAt: new Date(now + 24 * 60 * 60 * 1000 + 1).toISOString() },
+      'https://quittance.test/pay/inv-24h',
+      now,
+    );
+
+    expect(result).toEqual({ dueSoon: false, mailto: '' });
+  });
+
+  it('keeps the warning but omits mailto when customer email is missing', () => {
+    const result = getInvoiceReminder(
+      { ...baseInvoice, customerEmail: undefined },
+      'https://quittance.test/pay/inv-24h',
+      now,
+    );
+
+    expect(result).toEqual({ dueSoon: true, mailto: '' });
+  });
+
+  it.each(['PAID', 'CANCELLED', 'EXPIRED'])('does not remind a %s invoice', (status) => {
+    expect(
+      getInvoiceReminder({ ...baseInvoice, status }, 'https://quittance.test/pay/inv-24h', now),
+    ).toEqual({ dueSoon: false, mailto: '' });
+  });
+
+  it('does not remind an already expired pending invoice', () => {
+    expect(
+      getInvoiceReminder(
+        { ...baseInvoice, expiresAt: new Date(now - 1).toISOString() },
+        'https://quittance.test/pay/inv-24h',
+        now,
+      ),
+    ).toEqual({ dueSoon: false, mailto: '' });
   });
 });
