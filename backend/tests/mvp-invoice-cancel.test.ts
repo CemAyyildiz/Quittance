@@ -31,7 +31,7 @@ function seedInvoice(status: 'PENDING' | 'PAID' = 'PENDING') {
     expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
   });
   if (status === 'PAID') {
-    memoryStorage.markAsPaid(invoice.id, `paid-${memoCounter}`, PAYER);
+    memoryStorage.markAsPaid(invoice.id, `paid-${memoCounter}`, PAYER, { ledger: memoCounter });
   }
   return invoice;
 }

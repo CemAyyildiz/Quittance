@@ -337,10 +337,10 @@ describe('InvoiceMemoryService cancel, markAsPaid, and stats', () => {
     );
 
     memoryStorage.markExpiredInvoices(); // past-dated PENDING -> EXPIRED
-    await invoiceMemoryService.markAsPaid(toPay.id, 'tx-hash-stats', PAYER);
+    await invoiceMemoryService.markAsPaid(toPay.id, 'tx-hash-stats', PAYER, 1);
     await invoiceMemoryService.cancelInvoice(toCancel.id, SELLER_A);
     await invoiceMemoryService.markAsPaid(toPay.id, 'tx-hash-stats', PAYER, 1);
-    await invoiceMemoryService.cancelInvoice(toCancel.id);
+    await invoiceMemoryService.cancelInvoice(toCancel.id, SELLER_A);
 
     expect(memoryStorage.getInvoiceById(toExpire.id)?.status).toBe('EXPIRED');
     expect(memoryStorage.getInvoiceById(toCancel.id)?.status).toBe('CANCELLED');

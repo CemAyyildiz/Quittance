@@ -146,8 +146,6 @@ class InvoiceMemoryService {
    * Cancel an invoice
    */
   async cancelInvoice(invoiceId: string, sellerPublicKey: string): Promise<any> {
-    const invoice = memoryStorage.getInvoiceById(invoiceId);
-  async cancelInvoice(invoiceId: string): Promise<any> {
     const storage = await getStorage();
     const invoice = await storage.getInvoiceById(invoiceId);
 
