@@ -402,7 +402,9 @@ export default function DashboardPage() {
 
             <div className="flex gap-3 mb-4">
               <div className="card flex-1 mb-0">
+                <label htmlFor="invoice-search" className="label">Search invoices</label>
                 <input
+                  id="invoice-search"
                   type="text"
                   placeholder="Search invoices..."
                   aria-label="Search invoices"

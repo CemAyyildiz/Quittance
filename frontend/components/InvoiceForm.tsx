@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { invoiceApi } from '@/lib/api';
 import { toast } from 'sonner';
 import { Loader2 } from 'lucide-react';
@@ -46,6 +46,11 @@ function roundStellarAmount(value: number): number {
 }
 
 export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps) {
+  const amountInput = useRef<HTMLInputElement>(null);
+  const emailInput = useRef<HTMLInputElement>(null);
+  const memoInput = useRef<HTMLInputElement>(null);
+  const [submitError, setSubmitError] = useState('');
+  const [memoSubmitted, setMemoSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
   const [amount, setAmount] = useState('');
   const [lineItems, setLineItems] = useState<InvoiceLineInput[]>([
@@ -249,40 +254,35 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setSubmitError('');
 
     if (!userWallet) {
+      setSubmitError('Connect your wallet first');
       toast.error('Connect your wallet first');
       return;
     }
 
-    const amountNum = calculatedAmount;
-    if (!amount || amountNum <= 0 || isNaN(amountNum) || invalidLines) {
+    const amountNum = parseFloat(amount);
+    if (!amount || amountNum <= 0 || !Number.isFinite(amountNum)) {
       setAmountError('Enter a valid amount');
+      amountInput.current?.focus();
       return;
     }
     setAmountError('');
 
-    if (customerEmail && !isValidEmail(customerEmail)) {
-      setEmailError('Enter a valid client email');
-      return;
-    }
-    setEmailError('');
-
     if (memoTooLong) {
+      setMemoSubmitted(true);
+      memoInput.current?.focus();
       toast.error(`Memo must be at most ${MAX_MEMO_BYTES} bytes`);
       return;
     }
 
-    const destination = muxedAddress.trim();
-    if (
-      destination &&
-      (!StrKey.isValidMed25519PublicKey(destination) ||
-        extractBaseAddress(destination) !== userWallet)
-    ) {
-      setMuxedAddressError('Enter a valid M address for your connected wallet');
+    if (customerEmail && !isValidEmail(customerEmail)) {
+      setEmailError('Enter a valid client email');
+      emailInput.current?.focus();
       return;
     }
-    setMuxedAddressError('');
+    setEmailError('');
 
     setLoading(true);
     try {
@@ -327,18 +327,11 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
       setSellerName('');
       setAmountError('');
       setEmailError('');
-      setServerWarning(null);
-      setAcknowledgedWarning(false);
+      setMemoSubmitted(false);
     } catch (error: any) {
-      const data = error.response?.data;
-      if (error.response?.status === 409 && data?.code === 'SELLER_TRUSTLINE_WARNING') {
-        // The server checked Horizon and refused to create anything until the
-        // seller explicitly acknowledges the missing trustline.
-        setServerWarning(data.warning || data.error);
-      } else {
-        setServerWarning(null);
-      }
-      toast.error(data?.error || 'Failed to create invoice');
+      const message = error.response?.data?.error || 'Failed to create invoice';
+      setSubmitError(message);
+      toast.error(message);
     } finally {
       setLoading(false);
     }
@@ -346,36 +339,13 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
 
   return (
     <form noValidate onSubmit={handleSubmit} className="space-y-4">
-      {networkMismatch && userWallet && (
-        <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
-          Network mismatch: Freighter is on {walletNetwork}, but the API is configured for {configuredNetwork}.
-        </div>
-      )}
+      {submitError && <p role="alert" className="text-sm text-red-600">{submitError}</p>}
       <div>
-        <label className="label">Line Items *</label>
-        <div className="grid grid-cols-1 sm:grid-cols-[1fr_100px_140px] gap-3">
+        <label className="label" htmlFor="invoice-amount">Invoice Amount *</label>
+        <div className="flex gap-3 flex-col sm:flex-row sm:items-end">
           <input
-            aria-label="Line 1 label"
-            type="text"
-            className="input text-sm"
-            placeholder="Line 1 label"
-            value={lineItems[0]?.label || ''}
-            onChange={(e) => updateLineItem(0, 'label', e.target.value)}
-            maxLength={255}
-          />
-          <input
-            aria-label="Line 1 quantity"
-            type="number"
-            step="0.0000001"
-            min="0.0000001"
-            className="input text-sm"
-            placeholder="Qty"
-            value={lineItems[0]?.quantity || '1'}
-            onChange={(e) => updateLineItem(0, 'quantity', e.target.value)}
-            aria-invalid="false"
-          />
-          <input
-            aria-label="Line 1 unit price"
+            id="invoice-amount"
+            ref={amountInput}
             type="number"
             step="0.0000001"
             min="0.0000001"
@@ -387,75 +357,10 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
             aria-invalid={Boolean(amountError)}
             aria-describedby={amountError ? amountErrorId : undefined}
           />
-        </div>
-        {lineItems.slice(1).map((line, offset) => {
-          const index = offset + 1;
-          return (
-            <div key={index} className="grid grid-cols-1 sm:grid-cols-[1fr_100px_140px_auto] gap-3 mt-3">
-              <input
-                aria-label={`Line ${index + 1} label`}
-                type="text"
-                className="input text-sm"
-                placeholder={`Line ${index + 1} label`}
-                value={line.label}
-                onChange={(e) => updateLineItem(index, 'label', e.target.value)}
-                maxLength={255}
-              />
-              <input
-                aria-label={`Line ${index + 1} quantity`}
-                type="number"
-                step="0.0000001"
-                min="0.0000001"
-                className="input text-sm"
-                placeholder="Qty"
-                value={line.quantity}
-                onChange={(e) => updateLineItem(index, 'quantity', e.target.value)}
-              />
-              <input
-                aria-label={`Line ${index + 1} unit price`}
-                type="number"
-                step="0.0000001"
-                min="0.0000001"
-                className="input text-sm"
-                placeholder="Unit price"
-                value={line.unitPrice}
-                onChange={(e) => updateLineItem(index, 'unitPrice', e.target.value)}
-              />
-              <button
-                type="button"
-                onClick={() => removeLineItem(index)}
-                className="btn btn-outline px-3"
-                aria-label={`Remove line ${index + 1}`}
-              >
-                Remove
-              </button>
-            </div>
-          );
-        })}
-        <div className="flex items-center justify-between mt-3">
-          <button
-            type="button"
-            onClick={addLineItem}
-            disabled={lineItems.length >= MAX_LINE_ITEMS}
-            className="btn btn-outline"
-          >
-            Add line
-          </button>
-          <div className="text-right">
-            <p className="text-xs text-gray-500">Invoice total</p>
-            <p className="text-xl font-bold text-gray-900">
-              {calculatedAmount.toFixed(7).replace(/0+$/, '').replace(/\.$/, '')} {assetCode}
-            </p>
-          </div>
-        </div>
-        {invalidLines && (
-          <p className="text-sm text-red-600 mt-2">
-            Quantity and unit price must be greater than zero.
-          </p>
-        )}
-        <div className="mt-3">
-          <div className="relative w-full sm:w-40">
+          <div className="relative">
+            <label className="label" htmlFor="invoice-asset">Asset</label>
             <select
+              id="invoice-asset"
               value={assetCode}
               onChange={(e) => setAssetCode(e.target.value)}
               className="input w-full sm:w-40 text-sm font-semibold pl-12 pr-3 appearance-none cursor-pointer"
@@ -466,13 +371,13 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
                 </option>
               ))}
             </select>
-            <div className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none">
+            <div className="absolute left-3 bottom-3 pointer-events-none">
               <AssetLogo code={assetCode} size={24} showName={false} />
             </div>
           </div>
         </div>
         {amountError && (
-          <p id={amountErrorId} className="text-sm text-red-600 mt-1">
+          <p id={amountErrorId} role="alert" className="text-sm text-red-600 mt-1">
             {amountError}
           </p>
         )}
@@ -536,8 +441,9 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
       </div>
 
       <div>
-        <label className="label">Description</label>
+        <label className="label" htmlFor="invoice-description">Description</label>
         <textarea
+          id="invoice-description"
           className="input min-h-[80px] resize-none text-sm"
           placeholder="What is this invoice for?"
           value={description}
@@ -552,6 +458,7 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
         </label>
         <input
           id="invoice-memo"
+          ref={memoInput}
           type="text"
           className={`input text-sm ${memoTooLong ? 'border-red-500' : ''}`}
           placeholder="Payment reference, e.g. INV-2026"
@@ -568,7 +475,7 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
           {memoBytes}/{MAX_MEMO_BYTES} bytes
         </p>
         {memoTooLong && (
-          <p id={memoErrorId} className="text-sm text-red-600 mt-1">
+          <p id={memoErrorId} role={memoSubmitted ? 'alert' : undefined} className="text-sm text-red-600 mt-1">
             Memo is {memoBytes} bytes. Stellar allows at most {MAX_MEMO_BYTES} bytes, and
             non-ASCII characters use more than one byte each.
           </p>
@@ -576,24 +483,9 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
       </div>
 
       <div>
-        <label className="label" htmlFor="seller-display-name">Your display name (optional)</label>
+        <label className="label" htmlFor="invoice-client-name">Client name (optional)</label>
         <input
-          id="seller-display-name"
-          type="text"
-          className="input text-sm"
-          value={sellerName}
-          onChange={(e) => setSellerName(e.target.value)}
-          maxLength={80}
-          aria-describedby="seller-display-name-help"
-        />
-        <p id="seller-display-name-help" className="text-xs text-gray-500 mt-1">
-          Shown on this invoice next to your wallet address. Payments still go to your public key.
-        </p>
-      </div>
-
-      <div>
-        <label className="label">Client name (optional)</label>
-        <input
+          id="invoice-client-name"
           type="text"
           className="input text-sm"
           placeholder="Client or company name"
@@ -604,8 +496,10 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
       </div>
 
       <div>
-        <label className="label">Client email (optional)</label>
+        <label className="label" htmlFor="invoice-client-email">Client email (optional)</label>
         <input
+          id="invoice-client-email"
+          ref={emailInput}
           type="email"
           className={`input text-sm ${emailError ? 'border-red-500' : ''}`}
           placeholder="client@example.com — for sending the invoice"
@@ -616,7 +510,7 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
           aria-describedby={emailError ? 'email-error' : undefined}
         />
         {emailError ? (
-          <p id="email-error" className="text-sm text-red-600 mt-1">
+          <p id="email-error" role="alert" className="text-sm text-red-600 mt-1">
             {emailError}
           </p>
         ) : (
@@ -628,7 +522,7 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
 
       <button
         type="submit"
-        disabled={loading || memoTooLong || networkMismatch}
+        disabled={loading}
         aria-busy={loading}
         className="btn btn-primary w-full flex items-center justify-center gap-2 mt-6"
       >

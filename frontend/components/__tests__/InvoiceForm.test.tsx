@@ -83,7 +83,7 @@ describe('InvoiceForm memo byte limit', () => {
     expect(screen.getByText(/Stellar allows at most 28 bytes/i)).toBeTruthy();
 
     const submit = screen.getByRole('button', { name: /create invoice/i }) as HTMLButtonElement;
-    expect(submit.disabled).toBe(true);
+    expect(submit.disabled).toBe(false);
     fireEvent.click(submit);
     expect(invoiceApi.create).not.toHaveBeenCalled();
   });

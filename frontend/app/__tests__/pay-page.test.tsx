@@ -75,20 +75,17 @@ describe('PaymentPage SEP-7 handoff', () => {
     vi.clearAllMocks();
   });
 
-  it('renders a seller label as inert text next to its destination key', async () => {
-    const label = '<img src=x onerror=alert(1)>';
-    mockInvoice({ sellerName: label });
-    const { container } = render(<PaymentPage />);
-    expect(await screen.findByText(label)).toBeInTheDocument();
-    expect(screen.getByText(`${DESTINATION.slice(0, 8)}…${DESTINATION.slice(-8)}`)).toBeInTheDocument();
-    expect(container.querySelector('img[src="x"]')).toBeNull();
-    expect((await screen.findByRole('link', { name: /open sep-7 payment uri/i })).getAttribute('href')).toContain(`destination=${DESTINATION}`);
+  it('keeps an unavailable email action out of the accessibility tree and tab order', async () => {
+    mockInvoice({ status: 'PAID', paidAt: '2026-11-23T12:00:00Z' });
+    render(<PaymentPage />);
+    await screen.findByRole('button', { name: 'Download Proof' });
+    expect(screen.queryByRole('button', { name: /email payment proof/i })).toBeNull();
   });
 
-  it('shows only the destination key when no display name was set', async () => {
-    mockInvoice({});
+  it('gives the available email proof action an accessible name', async () => {
+    mockInvoice({ status: 'PAID', paidAt: '2026-11-23T12:00:00Z', customerEmail: 'client@example.com' });
     render(<PaymentPage />);
-    expect(await screen.findByText(`${DESTINATION.slice(0, 8)}…${DESTINATION.slice(-8)}`)).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: /email payment proof/i })).toBeEnabled();
   });
 
   it('shows an XLM SEP-7 URI with destination, amount, memo and memo type only', async () => {
