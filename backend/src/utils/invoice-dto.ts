@@ -28,7 +28,7 @@ export interface InvoiceDTO {
   lineItems?: unknown[];
   customerName?: string;
   customerEmail?: string;
-  status: 'PENDING' | 'PAID' | 'EXPIRED' | 'CANCELLED';
+  status: 'PENDING' | 'PAID' | 'EXPIRED' | 'CANCELLED' | 'UNCOLLECTIBLE';
   paymentTxHash?: string;
   payerPublicKey?: string;
   ledger?: number;
@@ -116,7 +116,7 @@ export function toInvoiceDTO(
     lineItems?: unknown[];
     customerName?: string;
     customerEmail?: string;
-    status: 'PENDING' | 'PAID' | 'EXPIRED' | 'CANCELLED';
+    status: 'PENDING' | 'PAID' | 'EXPIRED' | 'CANCELLED' | 'UNCOLLECTIBLE';
     paymentTxHash?: string;
     payerPublicKey?: string;
     ledger?: number;

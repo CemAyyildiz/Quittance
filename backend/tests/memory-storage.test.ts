@@ -356,6 +356,7 @@ describe('InvoiceMemoryService cancel, markAsPaid, and stats', () => {
       paid_invoices: 1,
       pending_invoices: 2,
       expired_invoices: 1,
+      uncollectible_invoices: 0,
       total_revenue: 500,
       asset_code: 'XLM',
     });
@@ -368,6 +369,7 @@ describe('InvoiceMemoryService cancel, markAsPaid, and stats', () => {
       'pending_invoices',
       'total_invoices',
       'total_revenue',
+      'uncollectible_invoices',
     ]);
     expect(stats[0]).not.toHaveProperty('cancelled_invoices');
     expect(stats[0]).toEqual(memoryStorage.getStats(SELLER_A));

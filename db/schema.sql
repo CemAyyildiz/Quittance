@@ -25,7 +25,7 @@ CREATE TABLE IF NOT EXISTS invoices (
   description TEXT,
   customer_name VARCHAR(255),
   customer_email VARCHAR(255),
-  status VARCHAR(20) DEFAULT 'PENDING' CHECK (status IN ('PENDING', 'PAID', 'EXPIRED', 'CANCELLED')),
+  status VARCHAR(20) DEFAULT 'PENDING' CHECK (status IN ('PENDING', 'PAID', 'EXPIRED', 'CANCELLED', 'UNCOLLECTIBLE')),
   payment_tx_hash VARCHAR(64),
   payer_public_key VARCHAR(56),
   payer_name VARCHAR(255),

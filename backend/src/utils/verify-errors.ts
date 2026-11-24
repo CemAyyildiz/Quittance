@@ -90,7 +90,7 @@ export enum VerifyErrorCode {
    */
   INVOICE_ALREADY_PAID = 'INVOICE_ALREADY_PAID',
   /**
-   * The invoice status is not PENDING (e.g. CANCELLED, DRAFT, or
+   * The invoice status is not PENDING (e.g. CANCELLED, UNCOLLECTIBLE, DRAFT, or
    * expired). Raised as a separate code from INVOICE_ALREADY_PAID
    * so the consumer can distinguish duplicate payments from
    * invoices that cannot be settled at all.

@@ -269,6 +269,26 @@ class InvoiceMemoryService {
     return storage.updateInvoice(invoiceId, { status: 'CANCELLED' });
   }
 
+  /** Mark a pending invoice as uncollectible for its owning seller. */
+  async markUncollectible(invoiceId: string, sellerPublicKey: string): Promise<any> {
+    const storage = await getStorage();
+    const invoice = await storage.getInvoiceById(invoiceId);
+
+    if (!invoice || invoice.sellerPublicKey !== sellerPublicKey) {
+      throw Object.assign(new Error('Invoice not found'), { code: 'NOT_FOUND', status: 404 });
+    }
+
+    if (invoice.status === 'UNCOLLECTIBLE') return invoice;
+    if (invoice.status !== 'PENDING') {
+      throw Object.assign(new Error('Only pending invoices can be marked uncollectible'), {
+        code: 'NOT_PENDING',
+        status: 400,
+      });
+    }
+
+    return storage.updateInvoice(invoiceId, { status: 'UNCOLLECTIBLE' });
+  }
+
   /**
    * Push expiresAt later exactly once for the owning seller.
    * Memo, amount, and asset are left untouched.

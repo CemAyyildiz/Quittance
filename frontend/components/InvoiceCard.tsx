@@ -10,6 +10,8 @@ import AssetLogo from './AssetLogo';
 import MemoChip from './MemoChip';
 import { openInvoicePDF, shareInvoiceByEmail } from '@/lib/export';
 import { invoiceStatusLabel } from '@/lib/invoiceStatusLabel';
+import { invoiceApi } from '@/lib/api';
+import { useWalletStore } from '@/lib/store';
 
 interface Invoice {
   id: string;
@@ -34,9 +36,11 @@ interface Invoice {
 
 interface InvoiceCardProps {
   invoice: Invoice;
+  onUpdated?: () => void;
 }
 
-export default function InvoiceCard({ invoice }: InvoiceCardProps) {
+export default function InvoiceCard({ invoice, onUpdated }: InvoiceCardProps) {
+  const { publicKey } = useWalletStore();
   const statusColor = getStatusColor(invoice.status);
   const paymentUrl = `${window.location.origin}/pay/${invoice.id}`;
   const timeRemaining = useCountdown(invoice.status === 'PENDING' ? invoice.expiresAt : null);
@@ -55,6 +59,17 @@ export default function InvoiceCard({ invoice }: InvoiceCardProps) {
 
   const handleEmailShare = () => {
     shareInvoiceByEmail({ ...invoice, sellerPublicKey: invoice.sellerPublicKey ?? '' });
+  };
+
+  const handleMarkUncollectible = async () => {
+    if (!publicKey) return;
+    try {
+      await invoiceApi.markUncollectible(invoice.id, publicKey);
+      toast.success('Invoice marked uncollectible');
+      onUpdated?.();
+    } catch {
+      toast.error('Could not mark invoice uncollectible');
+    }
   };
 
   return (
@@ -96,6 +111,15 @@ export default function InvoiceCard({ invoice }: InvoiceCardProps) {
             <Clock className="w-4 h-4" aria-hidden="true" />
             <span>Expires: {timeRemaining}</span>
           </div>
+        )}
+        {invoice.status === 'PENDING' && publicKey && publicKey === invoice.sellerPublicKey && (
+          <button
+            onClick={handleMarkUncollectible}
+            className="btn btn-outline flex-1 text-sm"
+            aria-label="Mark invoice uncollectible"
+          >
+            Uncollectible
+          </button>
         )}
       </div>
 

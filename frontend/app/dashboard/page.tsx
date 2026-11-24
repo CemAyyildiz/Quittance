@@ -386,7 +386,7 @@ export default function DashboardPage() {
             </div>
 
             <div className="bg-white rounded-lg border border-gray-200 mb-6 p-2 flex gap-2 flex-wrap">
-              {['all', 'pending', 'paid', 'expired', 'cancelled'].map((status) => (
+              {['all', 'pending', 'paid', 'expired', 'cancelled', 'uncollectible'].map((status) => (
                 <button
                   key={status}
                   onClick={() => setFilter(status)}
@@ -520,7 +520,11 @@ export default function DashboardPage() {
                 )}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                   {invoices.map((invoice) => (
-                    <InvoiceCard key={invoice.id} invoice={invoice} />
+                    <InvoiceCard
+                      key={invoice.id}
+                      invoice={invoice}
+                      onUpdated={() => loadPage(cursorStack[pageIndex])}
+                    />
                   ))}
                 </div>
               </>

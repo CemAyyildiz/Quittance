@@ -1,7 +1,7 @@
 // In-memory storage - Database yerine MVP için
 import { v4 as uuidv4 } from 'uuid';
 
-export type InvoiceStatus = 'PENDING' | 'PAID' | 'EXPIRED' | 'CANCELLED';
+export type InvoiceStatus = 'PENDING' | 'PAID' | 'EXPIRED' | 'CANCELLED' | 'UNCOLLECTIBLE';
 
 /** Lifecycle events recorded in the append-only status history. */
 export type StatusEventStatus =
@@ -203,6 +203,10 @@ class MemoryStorage {
     return invoice;
   }
 
+  markUncollectible(id: string): Invoice | undefined {
+    return this.updateInvoice(id, { status: 'UNCOLLECTIBLE' });
+  }
+
   // Get all invoices
   getAllInvoices(filter?: { status?: string }): Invoice[] {
     let invoices = Array.from(this.invoices.values());
@@ -225,6 +229,7 @@ class MemoryStorage {
       paid_invoices: invoices.filter(inv => inv.status === 'PAID').length,
       pending_invoices: invoices.filter(inv => inv.status === 'PENDING').length,
       expired_invoices: invoices.filter(inv => inv.status === 'EXPIRED').length,
+      uncollectible_invoices: invoices.filter(inv => inv.status === 'UNCOLLECTIBLE').length,
       total_revenue: invoices
         .filter(inv => inv.status === 'PAID')
         .reduce((sum, inv) => sum + inv.amount, 0),
