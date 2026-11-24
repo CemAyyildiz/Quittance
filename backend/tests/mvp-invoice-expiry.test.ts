@@ -50,7 +50,7 @@ function seedInvoice(expiresAt: Date) {
 
 function matchingHorizonTx(memo: string) {
   return {
-    transaction: { memo, ledger_sequence: 12345 },
+    transaction: { successful: true, memo, ledger_sequence: 12345 },
     operations: [
       {
         type: 'payment',

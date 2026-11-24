@@ -1,5 +1,6 @@
 import * as StellarSdk from '@stellar/stellar-sdk';
 import { server, NETWORK_PASSPHRASE, getSellerKeypair, STELLAR_HORIZON_URL } from '../config/stellar';
+import { VerifyErrorCode } from '../utils/verify-errors';
 
 export interface PaymentRecord {
   id: string;
@@ -133,7 +134,15 @@ class StellarService {
       };
     } catch (error: any) {
       console.error('Error fetching transaction:', error);
-      throw new Error(`Transaction not found: ${error.message}`);
+      const failure: Error & { code?: string } = new Error(
+        `Transaction not found: ${error.message}`
+      );
+      // A Horizon 404 means the hash is unknown (possibly still pending).
+      // Callers branch on `code` to tell it apart from other Horizon failures.
+      if (error?.response?.status === 404 || error?.name === 'NotFoundError') {
+        failure.code = VerifyErrorCode.TX_NOT_FOUND;
+      }
+      throw failure;
     }
   }
 

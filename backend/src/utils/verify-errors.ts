@@ -40,6 +40,13 @@ export enum VerifyErrorCode {
   TX_HASH_REQUIRED = 'TX_HASH_REQUIRED',
   /** Invoice id in the URL did not match any invoice on record. */
   INVOICE_NOT_FOUND = 'INVOICE_NOT_FOUND',
+  /**
+   * Horizon has no record of the transaction hash (404). It may still be
+   * pending, so the invoice is left untouched and the caller can retry.
+   */
+  TX_NOT_FOUND = 'TX_NOT_FOUND',
+  /** Horizon knows the transaction but it failed (`successful` is not true). */
+  TX_FAILED = 'TX_FAILED',
   /** The matched transaction contained no payment operation. */
   NO_PAYMENT_OPERATION = 'NO_PAYMENT_OPERATION',
   /** The matched transaction did not expose a usable ledger sequence. */
@@ -107,6 +114,8 @@ export enum VerifyErrorCode {
 export const VerifyErrorMessages: Readonly<Record<VerifyErrorCode, string>> = Object.freeze({
   [VerifyErrorCode.TX_HASH_REQUIRED]: 'Transaction hash is required',
   [VerifyErrorCode.INVOICE_NOT_FOUND]: 'Invoice not found',
+  [VerifyErrorCode.TX_NOT_FOUND]: 'Transaction not found on Stellar',
+  [VerifyErrorCode.TX_FAILED]: 'Transaction failed on Stellar',
   [VerifyErrorCode.NO_PAYMENT_OPERATION]: 'No payment operation found',
   [VerifyErrorCode.MISSING_LEDGER_SEQUENCE]: 'Transaction is missing a ledger sequence',
   [VerifyErrorCode.TX_HASH_ALREADY_USED]:
