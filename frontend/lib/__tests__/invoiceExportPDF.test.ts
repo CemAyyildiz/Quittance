@@ -69,12 +69,22 @@ describe('Invoice PDF Export (Issue #989)', () => {
     );
   });
 
-  it('should generate PDF with correct filename including invoice ID', async () => {
+  it('should generate PDF with filename including invoice number and UTC paid date', async () => {
+    await openInvoicePDF({ ...paidInvoice, invoiceNumber: 'INV-99' } as any);
+
+    expect(mockSet).toHaveBeenCalledWith(
+      expect.objectContaining({
+        filename: 'invoice-proof-INV-99-2024-01-02.pdf',
+      })
+    );
+  });
+
+  it('should fall back to invoice id in filename when number is missing', async () => {
     await openInvoicePDF(paidInvoice as any);
 
     expect(mockSet).toHaveBeenCalledWith(
       expect.objectContaining({
-        filename: expect.stringContaining(paidInvoice.id.substring(0, 8)),
+        filename: `invoice-proof-${paidInvoice.id}-2024-01-02.pdf`,
       })
     );
   });

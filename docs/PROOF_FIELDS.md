@@ -45,6 +45,10 @@ The browser invoice CSV export (`generateInvoiceCSV`) includes columns for `Sell
 
 This matches the product thesis: settlement stays on-chain, the proof goes to the owner, and other people's wallet history stays private.
 
+## Download filename
+
+When the owner downloads a paid proof PDF, the browser filename is built as `invoice-proof-{invoice-number}-{UTC-paid-date}.pdf`. If the invoice has no number, the invoice id is used instead. The filename never includes the customer email or a full Stellar public key. Unpaid invoices do not offer this download. PDF body fields are unchanged by the naming rule.
+
 ## Verifying the field set
 
 Field semantics and the exact comparison rules for memo, amount, destination, and asset are defined in [`docs/VERIFY.md`](./VERIFY.md). A quittance is only produced after the backend's verify call confirms each on-chain field matches the invoice against Horizon. Asset-specific guidance (XLM-first MVP, testnet USDC) is in [`docs/ASSETS.md`](./ASSETS.md).
