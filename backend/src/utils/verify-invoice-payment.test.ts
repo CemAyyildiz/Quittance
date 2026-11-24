@@ -7,9 +7,8 @@
 
 import { describe, it, expect } from 'vitest';
 import {
-  feeBumpWrapsOnlyPayment,
-  isFeeBumpTransaction,
-  isNestedFeeBump,
+  checkTransactionTimeBounds,
+  getTransactionMaxTime,
   isSelfPayment,
   paymentAssetMatchesInvoice,
   verifyInvoicePayment,
@@ -397,5 +396,58 @@ describe('paymentAssetMatchesInvoice', () => {
         paymentIsNative: true,
       }),
     ).toBe(true);
+  });
+});
+
+describe('checkTransactionTimeBounds', () => {
+  const EXPIRY_ISO = '2030-01-01T00:00:10.000Z';
+  const EXPIRY_SEC = Date.parse(EXPIRY_ISO) / 1000;
+  const isoAt = (sec: number) => new Date(sec * 1000).toISOString();
+  const tx = (ledgerSec: number, maxTime: string | null = String(EXPIRY_SEC)) => ({
+    created_at: isoAt(ledgerSec),
+    ...(maxTime === null ? {} : { preconditions: { timebounds: { max_time: maxTime } } }),
+  });
+
+  it('accepts a ledger time before the expiry', () => {
+    expect(
+      checkTransactionTimeBounds({ invoiceExpiresAt: EXPIRY_ISO, tx: tx(EXPIRY_SEC - 5) }),
+    ).toEqual({ ok: true });
+  });
+
+  it('accepts a ledger time exactly equal to the expiry', () => {
+    expect(
+      checkTransactionTimeBounds({ invoiceExpiresAt: EXPIRY_ISO, tx: tx(EXPIRY_SEC) }),
+    ).toEqual({ ok: true });
+  });
+
+  it('rejects a ledger time one second past the expiry', () => {
+    expect(
+      checkTransactionTimeBounds({ invoiceExpiresAt: EXPIRY_ISO, tx: tx(EXPIRY_SEC + 1) }),
+    ).toEqual({ ok: false, code: VerifyErrorCode.INVOICE_EXPIRED });
+  });
+
+  it('rejects a transaction with no max time', () => {
+    for (const maxTime of [null, '0']) {
+      expect(
+        checkTransactionTimeBounds({
+          invoiceExpiresAt: EXPIRY_ISO,
+          tx: tx(EXPIRY_SEC - 5, maxTime),
+        }),
+      ).toEqual({ ok: false, code: VerifyErrorCode.TX_TIME_BOUNDS_INVALID });
+    }
+  });
+
+  it('rejects a transaction without a readable ledger time', () => {
+    expect(
+      checkTransactionTimeBounds({
+        invoiceExpiresAt: EXPIRY_ISO,
+        tx: { preconditions: { timebounds: { max_time: String(EXPIRY_SEC) } } },
+      }),
+    ).toEqual({ ok: false, code: VerifyErrorCode.TX_TIME_BOUNDS_INVALID });
+  });
+
+  it('reads the legacy valid_before field as the max time', () => {
+    expect(getTransactionMaxTime({ valid_before: EXPIRY_ISO })).toBe(EXPIRY_SEC);
+    expect(getTransactionMaxTime({})).toBeUndefined();
   });
 });

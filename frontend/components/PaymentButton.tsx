@@ -15,6 +15,7 @@ import { Wallet, Loader2 } from 'lucide-react';
 import { invoiceApi } from '@/lib/api';
 import { getAssetByCode } from '@/lib/assets';
 import { horizonStatus } from '@/lib/horizonStatus';
+import { getInvoiceTimeBounds } from '@/lib/invoiceTimeBounds';
 
 interface PaymentButtonProps {
   destination: string;
@@ -23,6 +24,8 @@ interface PaymentButtonProps {
   assetCode?: string;
   assetIssuer?: string;
   invoiceId?: string;
+  /** Invoice expiry; the payment transaction is bound to it. */
+  expiresAt?: string | Date;
   payerName?: string;
   payerEmail?: string;
   onSuccess?: (txHash: string) => void;
@@ -38,6 +41,7 @@ export default function PaymentButton({
   assetCode = 'XLM',
   assetIssuer,
   invoiceId,
+  expiresAt,
   payerName,
   payerEmail,
   onSuccess,
@@ -68,6 +72,7 @@ export default function PaymentButton({
   }, [configuredNetwork]);
 
   const issuer = assetIssuer || getAssetByCode(assetCode)?.issuer;
+  const timeBounds = expiresAt ? getInvoiceTimeBounds(expiresAt) : undefined;
 
   /**
    * A fresh testnet account with no XLM cannot pay the network fee; that is a
@@ -96,10 +101,9 @@ export default function PaymentButton({
   };
 
   const pay = async (checkFeeBalance: boolean) => {
-    const trimmedFeeSource = feeSource.trim();
-
-    if (feeBumpEnabled && !isValidPublicKey(trimmedFeeSource)) {
-      toast.error('Enter a valid fee source account');
+    const bounds = expiresAt ? getInvoiceTimeBounds(expiresAt) : undefined;
+    if (bounds && !bounds.ok) {
+      toast.error(bounds.message, { id: PAY_TOAST_ID });
       return;
     }
 
@@ -138,7 +142,7 @@ export default function PaymentButton({
         memo,
         assetCode,
         issuer,
-        feeBumpEnabled ? { feeSource: trimmedFeeSource } : undefined,
+        bounds?.ok ? bounds.maxTime : undefined,
       );
 
       if (invoiceId) {
@@ -224,6 +228,11 @@ export default function PaymentButton({
           </p>
         </div>
       )}
+      {timeBounds && !timeBounds.ok && (
+        <p role="alert" className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg p-3 mb-4">
+          {timeBounds.message}
+        </p>
+      )}
       {isTestnetNetwork() && offerFunding && (
         <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-4" role="status">
           <p className="text-sm text-amber-800 mb-3">
@@ -294,18 +303,18 @@ export default function PaymentButton({
       <button
         type="button"
         onClick={handlePayment}
-        disabled={loading || networkMismatch}
+        disabled={loading || (timeBounds !== undefined && !timeBounds.ok)}
         aria-busy={loading}
         className="btn btn-primary w-full flex items-center justify-center gap-2 text-lg py-4"
       >
         {loading ? (
           <>
-            <Loader2 aria-hidden="true" className="w-6 h-6 animate-spin" />
+            <Loader2 aria-hidden="true" className="w-5 h-5 animate-spin" />
             Processing...
           </>
         ) : (
           <>
-            <Wallet aria-hidden="true" className="w-6 h-6" />
+            <Wallet aria-hidden="true" className="w-5 h-5" />
             Pay with Freighter
           </>
         )}

@@ -324,3 +324,21 @@ describe('buildPaymentTransaction', () => {
     expect(feeBump.innerTransaction.source).toBe(payer);
   });
 });
+
+describe('buildPaymentTransaction time bounds', () => {
+  const makeAccount = () =>
+    new StellarSdk.Account(VALID_KEY, '1') as unknown as StellarSdk.Horizon.AccountResponse;
+
+  it('sets maxTime to the given invoice expiry in unix seconds', () => {
+    const maxTime = Math.floor(Date.now() / 1000) + 3600;
+    const tx = buildPaymentTransaction(makeAccount(), VALID_KEY, '1', 'memo', 'XLM', undefined, maxTime);
+    expect(tx.timeBounds).toEqual({ minTime: '0', maxTime: String(maxTime) });
+  });
+
+  it('keeps the short default window when no expiry is given', () => {
+    const tx = buildPaymentTransaction(makeAccount(), VALID_KEY, '1', 'memo');
+    const max = Number(tx.timeBounds?.maxTime);
+    expect(max).toBeGreaterThan(Math.floor(Date.now() / 1000));
+    expect(max).toBeLessThanOrEqual(Math.floor(Date.now() / 1000) + 181);
+  });
+});

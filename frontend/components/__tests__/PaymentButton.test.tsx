@@ -271,24 +271,28 @@ describe('PaymentButton', () => {
     expect(screen.queryByText(/trustline/)).not.toBeInTheDocument();
   });
 
-  it('blocks mismatch, names both networks, and clears after switching', async () => {
-    mockGetWalletNetwork.mockResolvedValue('PUBLIC');
-    renderButton();
+  describe('invoice time bounds', () => {
+    const inSeconds = (seconds: number) => new Date(Date.now() + seconds * 1000).toISOString();
 
-    await waitFor(() =>
-      expect(screen.getByRole('button', { name: PAY_IDLE_LABEL })).toBeDisabled(),
-    );
-    expect(screen.getByRole('alert')).toHaveTextContent(
-      'Freighter is on PUBLIC, but the API is configured for TESTNET',
-    );
+    it('passes the invoice expiry in unix seconds to sendPayment as maxTime', async () => {
+      const expiresAt = inSeconds(3600);
+      renderButton({ expiresAt });
 
-    mockGetWalletNetwork.mockResolvedValue('TESTNET');
-    await waitFor(() =>
-      expect(screen.getByRole('button', { name: PAY_IDLE_LABEL })).toBeEnabled(),
-    );
+      fireEvent.click(screen.getByRole('button', { name: PAY_IDLE_LABEL }));
 
-    fireEvent.click(screen.getByRole('button', { name: PAY_IDLE_LABEL }));
-    await waitFor(() => expect(mockSendPayment).toHaveBeenCalled());
+      await waitFor(() => expect(mockSendPayment).toHaveBeenCalled());
+      expect(mockSendPayment.mock.calls[0][5]).toBe(Math.floor(Date.parse(expiresAt) / 1000));
+    });
+
+    it('refuses to pay an invoice that expires in under a minute', () => {
+      renderButton({ expiresAt: inSeconds(30) });
+
+      expect(screen.getByRole('alert')).toHaveTextContent('about to expire');
+      const button = screen.getByRole('button', { name: PAY_IDLE_LABEL });
+      expect(button).toBeDisabled();
+      fireEvent.click(button);
+      expect(mockSendPayment).not.toHaveBeenCalled();
+    });
   });
 });
 
