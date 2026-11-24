@@ -43,6 +43,9 @@ import { verifyAnchorTransaction } from './utils/anchor-transaction';
 import { memosMatch } from './utils/memo-normalize';
 import { isSmtpConfigured, sendEmail, generateInvoiceEmail } from './utils/smtp';
 import { STELLAR_NETWORK } from './config/stellar';
+import { getStorage } from './storage/storage-factory';
+import { parseSellerPublicKeyQuery } from './utils/query-public-key';
+import { createInvoiceBackup } from './utils/invoice-backup';
 
 // Load environment variables
 dotenv.config();
@@ -181,6 +184,26 @@ app.post('/api/invoices', sellerCreateRateLimit(), async (req: Request, res: Res
       success: false,
       error: error.message || 'Failed to create invoice',
     });
+  }
+});
+
+// Read every record for this seller, independently of dashboard pagination and filters.
+app.get('/api/invoices/export', async (req: Request, res: Response) => {
+  const seller = parseSellerPublicKeyQuery(req.query.sellerPublicKey);
+  if (!seller.ok) return res.status(400).json({ success: false, error: seller.error });
+  const includeEmail = req.query.includeCustomerEmail;
+  if (includeEmail !== undefined && includeEmail !== 'true' && includeEmail !== 'false') {
+    return res.status(400).json({ success: false, error: 'includeCustomerEmail must be true or false' });
+  }
+  try {
+    const storage = await getStorage();
+    const backup = createInvoiceBackup(await storage.getAllInvoices(), seller.value, includeEmail === 'true');
+    res.setHeader('Cache-Control', 'private, no-store');
+    res.attachment(`quittance-invoices-${seller.value.slice(0, 8)}.json`);
+    return res.type('application/json').send(JSON.stringify(backup, null, 2));
+  } catch (error) {
+    console.error('Invoice backup export failed:', error);
+    return res.status(500).json({ success: false, error: 'Failed to export invoice backup' });
   }
 });
 
