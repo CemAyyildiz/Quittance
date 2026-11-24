@@ -1046,8 +1046,35 @@ app.post('/api/invoices/:id/verify', invoiceVerifyRateLimit(), async (req: Reque
       });
     }
 
-    const txDetails = await stellarService.getTransaction(txHash);
+    let txDetails;
+    try {
+      txDetails = await stellarService.getTransaction(txHash);
+    } catch (horizonError: any) {
+      // A 404 means Horizon has not applied the hash (yet). Report it as such
+      // and leave the invoice as it was; it must not flip to failed.
+      if (horizonError?.code === VerifyErrorCode.TX_NOT_FOUND) {
+        return res.status(404).json({
+          success: false,
+          code: VerifyErrorCode.TX_NOT_FOUND,
+          error: VerifyErrorMessages[VerifyErrorCode.TX_NOT_FOUND],
+        });
+      }
+      throw horizonError;
+    }
     const transaction = txDetails.transaction;
+
+    // Horizon also returns transactions that were included in a ledger but
+    // failed. Only `successful === true` counts, and it is checked before any
+    // operation, memo or amount comparison. For a fee-bump Horizon reports the
+    // inner transaction's result here.
+    if (transaction?.successful !== true) {
+      return res.status(400).json({
+        success: false,
+        code: VerifyErrorCode.TX_FAILED,
+        error: VerifyErrorMessages[VerifyErrorCode.TX_FAILED],
+      });
+    }
+
     const paymentOp = txDetails.operations.find((op: any) => op.type === 'payment');
 
     if (!paymentOp) {

@@ -58,6 +58,7 @@ function horizonTx(
 
   return {
     transaction: {
+      successful: true,
       memo,
       ledger_sequence: 12345,
       created_at: new Date().toISOString(),
