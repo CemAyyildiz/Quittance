@@ -17,6 +17,7 @@ import { Copy, ExternalLink, Loader2, Check, FileText, Mail, RefreshCw } from 'l
 import { toast } from 'sonner';
 import { openInvoicePDF, shareInvoiceByEmail } from '@/lib/export';
 import { extractHorizonCode, mapHorizonError } from '@/lib/horizonErrorMap';
+import { loadAssetIssuerDomain } from '@/lib/stellarToml';
 
 const TX_HASH_PATTERN = /^[0-9a-fA-F]{64}$/;
 
@@ -56,6 +57,7 @@ export default function PaymentPage() {
   const [paymentInfoLoading, setPaymentInfoLoading] = useState(true);
   const [paymentInfoError, setPaymentInfoError] = useState<string | null>(null);
   const [polling, setPolling] = useState(true);
+  const [issuerDomain, setIssuerDomain] = useState<string | null>(null);
   const verifiedRef = useRef(false);
   const [userWallet, setUserWallet] = useState<string | null>(null);
   const [txHash, setTxHash] = useState('');
@@ -67,6 +69,27 @@ export default function PaymentPage() {
     void loadInvoice();
     void loadPaymentInfo();
   }, [id]);
+
+  useEffect(() => {
+    if (!invoice || invoice.assetCode === 'XLM' || !invoice.assetIssuer) {
+      setIssuerDomain(null);
+      return;
+    }
+
+    let active = true;
+    void loadAssetIssuerDomain(invoice.assetCode, invoice.assetIssuer)
+      .then((domain) => {
+        if (active) setIssuerDomain(domain);
+      })
+      .catch((error) => {
+        console.warn('Could not load asset issuer domain:', error);
+        if (active) setIssuerDomain(null);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [invoice?.assetCode, invoice?.assetIssuer]);
 
   // Auto-refresh for pending invoices
   useEffect(() => {
@@ -283,6 +306,11 @@ export default function PaymentPage() {
                     </p>
                     <p className="text-xl font-bold text-cyan-600 mt-2">
                       {invoice.assetCode}
+                      {issuerDomain && (
+                        <span className="ml-2 text-sm font-medium text-gray-600">
+                          {issuerDomain}
+                        </span>
+                      )}
                     </p>
                   </div>
                 </div>
