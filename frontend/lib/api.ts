@@ -50,6 +50,7 @@ export const invoiceApi = USE_MOCK_API ? mockInvoiceApi : {
     limit?: number;
     offset?: number;
     cursor?: string;
+    search?: string;
     sellerPublicKey?: string;
   }) => {
     const response = await api.get('/invoices', { params });

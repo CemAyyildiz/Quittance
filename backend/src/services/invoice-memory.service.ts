@@ -100,13 +100,16 @@ class InvoiceMemoryService {
   }
 
   /**
-   * Get all invoices for a seller with cursor-based pagination
+   * Get all invoices for a seller with cursor-based pagination.
+   * Search runs inside the seller-scoped list and before the page is cut, so a
+   * match on any invoice is returned even when it is not on the current page.
    */
   async getInvoicesBySeller(
     sellerPublicKey: string,
     status?: string,
     limit: number = DEFAULT_PAGE_LIMIT,
-    cursor?: string
+    cursor?: string,
+    search?: string
   ): Promise<{ invoices: any[]; nextCursor?: string; limit: number }> {
     const pageLimit = Number.isFinite(limit)
       ? Math.min(Math.max(Math.floor(limit), 1), MAX_PAGE_LIMIT)
@@ -117,6 +120,23 @@ class InvoiceMemoryService {
 
     if (sellerPublicKey) {
       invoices = invoices.filter((inv) => inv.sellerPublicKey === sellerPublicKey);
+    }
+
+    if (search) {
+      const query = search.toLowerCase();
+      invoices = invoices.filter((inv) => {
+        const matchesInvoiceNumber = String(inv.id).toLowerCase().includes(query);
+        // A memo is an exact reference, not free text: a substring must not
+        // surface unrelated invoices that merely share a few characters.
+        const matchesMemo = String(inv.memo).toLowerCase() === query;
+        const matchesCustomerName = Boolean(
+          inv.customerName && String(inv.customerName).toLowerCase().includes(query)
+        );
+        const matchesSellerName = Boolean(
+          (inv as any).sellerName && String((inv as any).sellerName).toLowerCase().includes(query)
+        );
+        return matchesInvoiceNumber || matchesMemo || matchesCustomerName || matchesSellerName;
+      });
     }
 
     // Sort by createdAt descending for consistent pagination
