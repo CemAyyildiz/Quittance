@@ -2,6 +2,21 @@ import { customAlphabet } from 'nanoid';
 
 export const MAX_MEMO_BYTES = 28;
 
+/** How many times a generated memo is re-rolled when it collides with a pending invoice. */
+export const MAX_MEMO_GENERATION_ATTEMPTS = 5;
+
+/** Error carrying an HTTP status so route handlers can respond precisely. */
+export class MemoError extends Error {
+  constructor(
+    message: string,
+    public readonly code: 'MEMO_IN_USE' | 'MEMO_GENERATION_FAILED',
+    public readonly status: number,
+  ) {
+    super(message);
+    this.name = 'MemoError';
+  }
+}
+
 // nanoid's default alphabet includes '-' and '_', which would break the
 // INV-<timestamp>-<random> format, so keep the random segment alphanumeric.
 const randomMemoSegment = customAlphabet('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ', 8);

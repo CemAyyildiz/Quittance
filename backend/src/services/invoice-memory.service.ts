@@ -1,5 +1,10 @@
 // Invoice service with in-memory storage
-import { generateInvoiceMemo, validateMemoByteLength } from '../utils/memo';
+import {
+  MAX_MEMO_GENERATION_ATTEMPTS,
+  MemoError,
+  generateInvoiceMemo,
+  validateMemoByteLength,
+} from '../utils/memo';
 import { CreateInvoiceInput } from '../utils/validation';
 import { assertCanExtendExpiry } from '../utils/invoice-expiry';
 import { getStorage } from '../storage/storage-factory';
@@ -9,23 +14,66 @@ import { DEFAULT_PAGE_LIMIT, MAX_PAGE_LIMIT } from '../utils/parse-pagination';
 import { extractBaseAddress, StrKey } from '@stellar/stellar-sdk';
 
 class InvoiceMemoryService {
+  // Serializes creation so the memo check and the insert cannot interleave
+  // with another request using the same memo.
+  private createQueue: Promise<unknown> = Promise.resolve();
+
   /**
    * Create a new invoice
    */
-  async createInvoice(input: CreateInvoiceInput & { lineItems?: unknown[] }): Promise<any> {
+  createInvoice(input: CreateInvoiceInput): Promise<any> {
+    const result = this.createQueue.then(() => this.createInvoiceUnlocked(input));
+    this.createQueue = result.catch(() => undefined);
+    return result;
+  }
+
+  /**
+   * True when a pending invoice (any seller) already uses this exact memo.
+   * Paid, expired and cancelled invoices do not hold their memo.
+   */
+  private async isMemoInUse(memo: string): Promise<boolean> {
+    const storage = await getStorage();
+    const pending = await storage.getAllInvoices({ status: 'PENDING' });
+    return pending.some((inv: any) => inv.memo === memo);
+  }
+
+  private async generateFreeMemo(): Promise<string> {
+    for (let attempt = 0; attempt < MAX_MEMO_GENERATION_ATTEMPTS; attempt++) {
+      const candidate = generateInvoiceMemo();
+      if (!(await this.isMemoInUse(candidate))) {
+        return candidate;
+      }
+    }
+    throw new MemoError(
+      'Could not generate a unique memo. Please try again.',
+      'MEMO_GENERATION_FAILED',
+      503,
+    );
+  }
+
+  private async createInvoiceUnlocked(input: CreateInvoiceInput): Promise<any> {
     // The seller public key now comes from the caller (the frontend).
     if (!input.sellerPublicKey) {
       throw new Error('Seller public key is required');
     }
 
-    let memo = generateInvoiceMemo();
+    let memo: string;
 
     if (input.memo) {
       const memoValidation = validateMemoByteLength(input.memo);
       if (!memoValidation.valid) {
         throw new Error(memoValidation.error);
       }
+      if (await this.isMemoInUse(input.memo)) {
+        throw new MemoError(
+          'This memo is already used by a pending invoice.',
+          'MEMO_IN_USE',
+          409,
+        );
+      }
       memo = input.memo;
+    } else {
+      memo = await this.generateFreeMemo();
     }
 
     const expiresAt = new Date();

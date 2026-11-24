@@ -2,7 +2,8 @@ import express, { Application, Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import { requestId } from './middleware/request-id';
-import { createInvoiceSchema, verifyTxHashSchema } from './utils/validation';
+import { createInvoiceSchema } from './utils/validation';
+import { MemoError } from './utils/memo';
 import invoiceService from './services/invoice-memory.service';
 import { generatePaymentQR, generateStellarPaymentQR, buildStellarPaymentUri } from './utils/qrcode';
 import stellarService, {
@@ -167,8 +168,9 @@ app.post('/api/invoices', sellerCreateRateLimit(), async (req: Request, res: Res
     });
   } catch (error: any) {
     console.error('Create invoice error:', error);
-    res.status(400).json({
+    res.status(error instanceof MemoError ? error.status : 400).json({
       success: false,
+      ...(error instanceof MemoError ? { code: error.code } : {}),
       error: error.message || 'Failed to create invoice',
     });
   }
