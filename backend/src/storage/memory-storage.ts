@@ -184,6 +184,12 @@ class MemoryStorage {
       return undefined;
     }
 
+    // Once an invoice is paid, later matching payments must not replace the
+    // first transaction hash, payer, ledger, or paid timestamp.
+    if (existing.status === 'PAID') {
+      return existing;
+    }
+
     if (meta?.ledger === undefined || meta?.ledger === null || !Number.isFinite(meta.ledger)) {
       throw new Error('Ledger sequence is required to mark invoice as paid');
     }

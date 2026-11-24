@@ -35,7 +35,7 @@ import {
   paymentAssetMatchesInvoice,
 } from './utils/verify-invoice-payment';
 import { parsePaginationQuery } from './utils/parse-pagination';
-import { STELLAR_NETWORK } from './config/stellar';
+import { startMvpPaymentMonitor } from './services/mvp-payment-monitor';
 
 // Load environment variables
 dotenv.config();
@@ -1438,6 +1438,7 @@ app.use((req: Request, res: Response) => {
 // imported by supertest without binding a port or leaving a timer running.
 if (process.env.NODE_ENV !== 'test') {
   startExpirySweep(invoiceService);
+  startMvpPaymentMonitor(invoiceService, stellarService);
 
   app.listen(PORT, () => {
     console.log('\n🚀 Quittance Backend (MVP Mode)');

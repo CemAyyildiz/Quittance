@@ -87,27 +87,15 @@ export const createInvoiceSchema = z.object({
   expiresInDays: z.number().min(1).max(365).default(7).optional(),
   sellerPublicKey: stellarPublicKeySchema,
   memo: memoByteLengthSchema.optional(),
-  lineItems: z.array(lineItemSchema).min(1).max(MAX_LINE_ITEMS).optional(),
 }).superRefine((invoice, ctx) => {
-  if (invoice.assetIssuer) {
-    const issuerResult = stellarPublicKeySchema.safeParse(invoice.assetIssuer);
-    if (!issuerResult.success) {
+  if (invoice.assetCode && invoice.assetCode !== 'XLM') {
+    if (!invoice.assetIssuer || !/^G[A-Z2-7]{55}$/.test(invoice.assetIssuer)) {
       ctx.addIssue({
         code: 'custom',
         path: ['assetIssuer'],
-        message: 'Invalid Stellar public key format',
+        message: 'Credit assets require a valid Stellar issuer public key',
       });
     }
-  }
-  if (!invoice.lineItems) return;
-  const lineTotal = sumLineItems(invoice.lineItems);
-  const submittedTotal = roundStellarAmount(invoice.amount);
-  if (lineTotal !== submittedTotal) {
-    ctx.addIssue({
-      code: 'custom',
-      path: ['amount'],
-      message: `Amount must equal the sum of line items (${lineTotal})`,
-    });
   }
 });
 

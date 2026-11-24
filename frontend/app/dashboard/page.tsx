@@ -98,8 +98,15 @@ export default function DashboardPage() {
     loadPage(undefined);
   }, [connected, publicKey, filter, loadPage]);
 
-  // Search runs on the server over the whole seller-scoped list, so debounce
-  // the input and only apply queries long enough to be meaningful.
+  useEffect(() => {
+    if (!connected || !publicKey) return;
+    const intervalId = setInterval(() => {
+      void loadPage(cursorStack[pageIndex]);
+    }, 3000);
+    return () => clearInterval(intervalId);
+  }, [connected, publicKey, cursorStack, pageIndex, loadPage]);
+
+  // Filter and search the invoices on the current page
   useEffect(() => {
     const trimmed = searchInput.trim();
     const timer = setTimeout(() => {

@@ -44,25 +44,13 @@ export default function InvoiceDetailPage() {
     loadInvoice();
   }, [id]);
 
-  // History is seller-only. The payer's /pay/[id] page never requests it.
   useEffect(() => {
-    if (!isSeller || !userWallet) {
-      setStatusHistory([]);
-      return;
-    }
-    let cancelled = false;
-    invoiceApi
-      .getHistory(id, userWallet)
-      .then((result) => {
-        if (!cancelled) setStatusHistory(result.data ?? []);
-      })
-      .catch(() => {
-        if (!cancelled) setStatusHistory([]);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [id, isSeller, userWallet]);
+    if (!invoice || invoice.status !== 'PENDING') return;
+    const intervalId = setInterval(() => {
+      void loadInvoice();
+    }, 3000);
+    return () => clearInterval(intervalId);
+  }, [id, invoice?.status]);
 
   const loadInvoice = async () => {
     try {
