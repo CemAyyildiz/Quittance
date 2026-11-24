@@ -116,6 +116,46 @@ export function isSelfPayment(
 }
 
 /**
+ * Minimal shape of a Horizon transaction needed to recognise a fee bump.
+ *
+ * Horizon populates `inner_transaction` only for fee-bump transactions; a
+ * regular transaction's `fee_account` is its own source, so `fee_account`
+ * alone is not enough to tell the forms apart.
+ */
+export interface FeeBumpTransactionShape {
+  inner_transaction?: unknown;
+  memo?: string | null;
+}
+
+/** Whether Horizon returned the fee-bump form of a transaction. */
+export function isFeeBumpTransaction(
+  transaction: FeeBumpTransactionShape | null | undefined,
+): boolean {
+  return Boolean(transaction?.inner_transaction);
+}
+
+/**
+ * A fee bump wraps an inner transaction, never another fee bump. Detect the
+ * nested shape (which the network would reject) before trusting its contents.
+ */
+export function isNestedFeeBump(
+  transaction: FeeBumpTransactionShape | null | undefined,
+): boolean {
+  const inner = transaction?.inner_transaction as FeeBumpTransactionShape | null | undefined;
+  return Boolean(inner && (inner.inner_transaction || (inner as any).fee_account));
+}
+
+/**
+ * A fee-bump for an invoice must wrap exactly the invoice payment: one payment
+ * operation and nothing else (no create-account, change-trust, etc.).
+ */
+export function feeBumpWrapsOnlyPayment(
+  operations: Array<{ type?: string }> | null | undefined,
+): boolean {
+  return Boolean(operations && operations.length === 1 && operations[0]?.type === 'payment');
+}
+
+/**
  * Whether a payment's asset settles an invoice's asset.
  *
  * A Stellar asset is identified by the pair `(code, issuer)`, never by the code

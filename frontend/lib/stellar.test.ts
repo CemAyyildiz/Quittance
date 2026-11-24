@@ -18,6 +18,7 @@ import {
   requestWalletAccess,
   getUserPublicKey,
   buildPaymentTransaction,
+  buildFeeBumpPaymentTransaction,
 } from './stellar';
 
 import { isConnected, getPublicKey, isAllowed, setAllowed } from '@stellar/freighter-api';
@@ -260,5 +261,24 @@ describe('buildPaymentTransaction', () => {
 
     expect(tx.operations).toHaveLength(1);
     expect(tx.operations[0].type).toBe('payment');
+  });
+
+  it('builds a fee bump whose fee source is separate from the inner payer', () => {
+    const inner = buildPaymentTransaction(makeAccount([]), destination, '5', 'fee-memo', 'XLM');
+    const feeBump = buildFeeBumpPaymentTransaction(inner, destination);
+
+    expect(feeBump.feeSource).toBe(destination);
+    expect(feeBump.innerTransaction.source).toBe(payer);
+    expect(String(feeBump.innerTransaction.memo.value)).toBe('fee-memo');
+    expect(feeBump.innerTransaction.operations).toHaveLength(1);
+    expect(feeBump.innerTransaction.operations[0].type).toBe('payment');
+  });
+
+  it('allows the inner source and fee source to be the same account', () => {
+    const inner = buildPaymentTransaction(makeAccount([]), destination, '5', 'same-account', 'XLM');
+    const feeBump = buildFeeBumpPaymentTransaction(inner, payer);
+
+    expect(feeBump.feeSource).toBe(payer);
+    expect(feeBump.innerTransaction.source).toBe(payer);
   });
 });

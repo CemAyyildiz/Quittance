@@ -7,6 +7,9 @@
 
 import { describe, it, expect } from 'vitest';
 import {
+  feeBumpWrapsOnlyPayment,
+  isFeeBumpTransaction,
+  isNestedFeeBump,
   isSelfPayment,
   paymentAssetMatchesInvoice,
   verifyInvoicePayment,
@@ -269,6 +272,41 @@ describe('asset identity: code plus issuer', () => {
       paymentIsNative: undefined,
     };
     expect(verifyInvoicePayment(withoutNativeFlag)).toEqual({ ok: true });
+  });
+});
+
+describe('fee-bump shape helpers', () => {
+  it('recognises a fee bump by its inner transaction', () => {
+    expect(isFeeBumpTransaction({ inner_transaction: { hash: 'abc' } })).toBe(true);
+    expect(isFeeBumpTransaction({})).toBe(false);
+    expect(isFeeBumpTransaction(undefined)).toBe(false);
+  });
+
+  it('does not treat a regular transaction fee_account as a fee bump', () => {
+    // Horizon sets fee_account on regular transactions to the source account.
+    expect(isFeeBumpTransaction({ inner_transaction: undefined } as any)).toBe(false);
+  });
+
+  it('detects a fee bump nested inside a fee bump', () => {
+    expect(
+      isNestedFeeBump({
+        inner_transaction: { inner_transaction: { hash: 'nested' } },
+      }),
+    ).toBe(true);
+    expect(
+      isNestedFeeBump({ inner_transaction: { hash: 'inner' } }),
+    ).toBe(false);
+  });
+
+  it('accepts exactly one payment operation', () => {
+    expect(feeBumpWrapsOnlyPayment([{ type: 'payment' }])).toBe(true);
+  });
+
+  it('rejects an empty, multi-operation, or non-payment inner transaction', () => {
+    expect(feeBumpWrapsOnlyPayment([])).toBe(false);
+    expect(feeBumpWrapsOnlyPayment([{ type: 'payment' }, { type: 'change_trust' }])).toBe(false);
+    expect(feeBumpWrapsOnlyPayment([{ type: 'create_account' }])).toBe(false);
+    expect(feeBumpWrapsOnlyPayment(undefined)).toBe(false);
   });
 });
 

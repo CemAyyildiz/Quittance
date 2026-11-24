@@ -28,6 +28,9 @@ import {
   startExpirySweep,
 } from './utils/invoice-expiry';
 import {
+  feeBumpWrapsOnlyPayment,
+  isFeeBumpTransaction,
+  isNestedFeeBump,
   isSelfPayment,
   paymentAssetMatchesInvoice,
 } from './utils/verify-invoice-payment';
@@ -1081,6 +1084,21 @@ app.post('/api/invoices/:id/verify', invoiceVerifyRateLimit(), async (req: Reque
       });
     }
 
+    // A fee bump is allowed only when it wraps exactly the invoice payment.
+    // Reject a nested fee bump and any inner operation that is not a payment
+    // before trusting the operation list.
+    const isFeeBump = isFeeBumpTransaction(transaction);
+    if (
+      isFeeBump &&
+      (isNestedFeeBump(transaction) || !feeBumpWrapsOnlyPayment(txDetails.operations))
+    ) {
+      return res.status(400).json({
+        success: false,
+        code: VerifyErrorCode.INVALID_FEE_BUMP,
+        error: VerifyErrorMessages[VerifyErrorCode.INVALID_FEE_BUMP],
+      });
+    }
+
     const paymentOp = txDetails.operations.find((op: any) => op.type === 'payment');
 
     if (!paymentOp) {
@@ -1108,7 +1126,7 @@ app.post('/api/invoices/:id/verify', invoiceVerifyRateLimit(), async (req: Reque
     // so a fee-bumped self-payment is still rejected.
     const paymentSource = paymentOp.source_account ?? paymentOp.from;
     if (
-      isSelfPayment(transaction.source_account, invoice.sellerPublicKey) ||
+      (!isFeeBump && isSelfPayment(transaction.source_account, invoice.sellerPublicKey)) ||
       isSelfPayment(paymentSource, invoice.sellerPublicKey)
     ) {
       return res.status(400).json({
@@ -1118,7 +1136,13 @@ app.post('/api/invoices/:id/verify', invoiceVerifyRateLimit(), async (req: Reque
       });
     }
 
-    if (transaction.memo !== invoice.memo) {
+    // Horizon reports the inner memo on the fee-bump transaction itself, but
+    // fall back to the inner object for a receipt that only nests it there.
+    const transactionMemo = isFeeBump
+      ? transaction.memo ?? (transaction.inner_transaction as any)?.memo
+      : transaction.memo;
+
+    if (transactionMemo !== invoice.memo) {
       return res.status(400).json({
         success: false,
         code: VerifyErrorCode.MEMO_MISMATCH,
