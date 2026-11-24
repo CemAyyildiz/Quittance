@@ -16,7 +16,7 @@ import { formatAmount, formatDate, copyToClipboard } from '@/lib/utils';
 import { openInvoicePDF } from '@/lib/export';
 import { submitAnchorTransaction } from '@/lib/anchor';
 import { useCountdown } from '@/lib/useCountdown';
-import { ArrowLeft, Share2, Loader2, Download, Copy } from 'lucide-react';
+import { ArrowLeft, Share2, Loader2, Download, Copy, Ban } from 'lucide-react';
 import { toast } from 'sonner';
 
 export default function InvoiceDetailPage() {
@@ -27,6 +27,7 @@ export default function InvoiceDetailPage() {
   const [invoice, setInvoice] = useState<any>(null);
   const [paymentInfo, setPaymentInfo] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [voiding, setVoiding] = useState(false);
   const [userWallet, setUserWallet] = useState<string | null>(null);
   const [duplicateOpen, setDuplicateOpen] = useState(false);
   const [copyCustomerEmail, setCopyCustomerEmail] = useState(false);
@@ -123,6 +124,9 @@ export default function InvoiceDetailPage() {
     } finally {
       setDuplicating(false);
       setDuplicateOpen(false);
+    }
+  };
+
   const handleAnchorProof = async () => {
     if (!isSeller || !userWallet || anchoring) return;
     setAnchoring(true);
@@ -152,6 +156,22 @@ export default function InvoiceDetailPage() {
       toast.error(error?.response?.data?.error || 'Could not anchor the payment proof');
     } finally {
       setAnchoring(false);
+    }
+  };
+
+  const handleVoidInvoice = async () => {
+    if (!userWallet || userWallet !== invoice.sellerPublicKey) return;
+
+    setVoiding(true);
+    try {
+      const result = await invoiceApi.cancel(id, userWallet);
+      setInvoice(result.data);
+      toast.success('Invoice voided');
+    } catch (error) {
+      console.error('Failed to void invoice:', error);
+      toast.error('Failed to void invoice');
+    } finally {
+      setVoiding(false);
     }
   };
 
@@ -225,6 +245,22 @@ export default function InvoiceDetailPage() {
                   <span className="hidden sm:inline">Share</span>
                 </button>
               )}
+              {invoice.status === 'PENDING' &&
+                userWallet === invoice.sellerPublicKey && (
+                  <button
+                    type="button"
+                    onClick={() => void handleVoidInvoice()}
+                    disabled={voiding}
+                    className="btn btn-outline flex items-center gap-2 text-red-700"
+                  >
+                    {voiding ? (
+                      <Loader2 className="w-5 h-5 animate-spin" aria-hidden="true" />
+                    ) : (
+                      <Ban className="w-5 h-5" aria-hidden="true" />
+                    )}
+                    <span>Void Invoice</span>
+                  </button>
+                )}
               {invoice.status === 'PAID' && (
                 <button
                   onClick={handleDownloadProof}

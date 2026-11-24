@@ -268,15 +268,15 @@ describe('InvoiceMemoryService cancel, markAsPaid, and stats', () => {
     const pending = memoryStorage.createInvoice(buildSeed({ memo: nextMemo('cancel-pending') }));
     expect(pending.status).toBe('PENDING', 'invoice starts as PENDING');
 
-    const cancelled = await invoiceMemoryService.cancelInvoice(pending.id);
+    const cancelled = await invoiceMemoryService.cancelInvoice(pending.id, SELLER_A);
 
     expect(cancelled.status).toBe('CANCELLED');
     expect(memoryStorage.getInvoiceById(pending.id)?.status).toBe('CANCELLED');
   });
 
   it('cancelInvoice throws for a missing id', async () => {
-    await expect(invoiceMemoryService.cancelInvoice('does-not-exist')).rejects.toThrow(
-      /^Invoice not found or already processed$/,
+    await expect(invoiceMemoryService.cancelInvoice('does-not-exist', SELLER_A)).rejects.toThrow(
+      /^Invoice not found$/,
     );
   });
 
@@ -285,21 +285,29 @@ describe('InvoiceMemoryService cancel, markAsPaid, and stats', () => {
     await invoiceMemoryService.markAsPaid(invoice.id, 'tx-hash-cancel-paid', PAYER, 1);
     expect(memoryStorage.getInvoiceById(invoice.id)?.status).toBe('PAID', 'setup: invoice is PAID');
 
-    await expect(invoiceMemoryService.cancelInvoice(invoice.id)).rejects.toThrow(
-      /^Invoice not found or already processed$/,
+    await expect(invoiceMemoryService.cancelInvoice(invoice.id, SELLER_A)).rejects.toThrow(
+      /^Only a pending invoice can be voided$/,
     );
     expect(memoryStorage.getInvoiceById(invoice.id)?.status).toBe('PAID', 'failed cancel leaves it PAID');
   });
 
-  it('cancelInvoice throws for an already CANCELLED invoice', async () => {
+  it('cancelInvoice is idempotent for an already CANCELLED invoice', async () => {
     const invoice = memoryStorage.createInvoice(buildSeed({ memo: nextMemo('cancel-twice') }));
-    await invoiceMemoryService.cancelInvoice(invoice.id);
+    await invoiceMemoryService.cancelInvoice(invoice.id, SELLER_A);
     expect(memoryStorage.getInvoiceById(invoice.id)?.status).toBe('CANCELLED');
 
-    await expect(invoiceMemoryService.cancelInvoice(invoice.id)).rejects.toThrow(
-      /^Invoice not found or already processed$/,
-    );
-    expect(memoryStorage.getInvoiceById(invoice.id)?.status).toBe('CANCELLED');
+    const cancelledAgain = await invoiceMemoryService.cancelInvoice(invoice.id, SELLER_A);
+    expect(cancelledAgain.status).toBe('CANCELLED');
+  });
+
+  it('cancelInvoice rejects a different seller', async () => {
+    const invoice = memoryStorage.createInvoice(buildSeed({ memo: nextMemo('cancel-owner') }));
+
+    await expect(invoiceMemoryService.cancelInvoice(invoice.id, SELLER_B)).rejects.toMatchObject({
+      code: 'NOT_OWNER',
+      status: 403,
+    });
+    expect(memoryStorage.getInvoiceById(invoice.id)?.status).toBe('PENDING');
   });
 
   it('markAsPaid throws for a missing id', async () => {
@@ -330,7 +338,9 @@ describe('InvoiceMemoryService cancel, markAsPaid, and stats', () => {
 
     memoryStorage.markExpiredInvoices(); // past-dated PENDING -> EXPIRED
     await invoiceMemoryService.markAsPaid(toPay.id, 'tx-hash-stats', PAYER, 1);
-    await invoiceMemoryService.cancelInvoice(toCancel.id);
+    await invoiceMemoryService.cancelInvoice(toCancel.id, SELLER_A);
+    await invoiceMemoryService.markAsPaid(toPay.id, 'tx-hash-stats', PAYER, 1);
+    await invoiceMemoryService.cancelInvoice(toCancel.id, SELLER_A);
 
     expect(memoryStorage.getInvoiceById(toExpire.id)?.status).toBe('EXPIRED');
     expect(memoryStorage.getInvoiceById(toCancel.id)?.status).toBe('CANCELLED');
