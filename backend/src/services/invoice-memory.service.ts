@@ -11,6 +11,7 @@ import {
   AnchorErrorCode,
   canonicalDigestMatches,
 } from '../utils/canonical-proof';
+import { queueInvoicePaidWebhook } from './webhook.service';
 
 class InvoiceMemoryService {
   /**
@@ -105,23 +106,40 @@ class InvoiceMemoryService {
   /**
    * Update invoice status to PAID
    */
-  async markAsPaid(invoiceId: string, txHash: string, payerPublicKey: string, ledgerSeq?: number, paidAt?: Date): Promise<any> {
+  async markAsPaid(
+    invoiceId: string,
+    txHash: string,
+    payerPublicKey: string,
+    ledgerSeq?: number,
+    paidAt?: Date
+  ): Promise<any> {
     const storage = await getStorage();
-    if (!(await storage.getInvoiceById(invoiceId))) {
+    const existingInvoice = await storage.getInvoiceById(invoiceId);
+    if (!existingInvoice) {
       throw new Error('Invoice not found');
+    }
+
+    if (existingInvoice.status === 'PAID') {
+      return existingInvoice;
     }
 
     if (ledgerSeq === undefined || ledgerSeq === null || !Number.isFinite(ledgerSeq)) {
       throw new Error('Ledger sequence is required to mark invoice as paid');
     }
 
-    const invoice = await storage.markAsPaid(invoiceId, txHash, payerPublicKey, { ledger: ledgerSeq, paidAt: paidAt });
+    const invoice = await storage.markAsPaid(invoiceId, txHash, payerPublicKey, {
+      ledger: ledgerSeq,
+      paidAt,
+    });
 
     if (!invoice) {
       throw new Error('Invoice not found');
     }
 
     console.log('✅ Invoice marked as paid:', invoiceId);
+
+    queueInvoicePaidWebhook(invoice);
+
     return invoice;
   }
 
