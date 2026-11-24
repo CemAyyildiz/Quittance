@@ -128,7 +128,7 @@ describe('MVP invoice expiry extension', () => {
 
   it('rejects a paid invoice', async () => {
     const invoice = seedInvoice();
-    memoryStorage.markAsPaid(invoice.id, 'a'.repeat(64), PAYER);
+    memoryStorage.markAsPaid(invoice.id, 'a'.repeat(64), PAYER, { ledger: 1 });
     const later = new Date(invoice.expiresAt.getTime() + 3 * 24 * 60 * 60 * 1000).toISOString();
 
     const { status, body } = await call('POST', `/api/invoices/${invoice.id}/extend-expiry`, {

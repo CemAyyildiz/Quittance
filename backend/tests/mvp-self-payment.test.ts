@@ -59,6 +59,8 @@ function horizonTx(
   return {
     transaction: {
       memo,
+      ledger_sequence: 12345,
+      created_at: new Date().toISOString(),
       ...(txSource ? { source_account: txSource } : {}),
       ...(feeAccount ? { fee_account: feeAccount } : {}),
     },

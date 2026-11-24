@@ -61,7 +61,7 @@ describe('MVP uncollectible invoices', () => {
 
   it('rejects paid invoices', async () => {
     const invoice = seed();
-    memoryStorage.markAsPaid(invoice.id, 'tx-paid', OTHER);
+    memoryStorage.markAsPaid(invoice.id, 'tx-paid', OTHER, { ledger: 1 });
     const result = await call(`/api/invoices/${invoice.id}/uncollectible`, { sellerPublicKey: SELLER });
 
     expect(result.status).toBe(400);

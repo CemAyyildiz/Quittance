@@ -1,5 +1,14 @@
-import { describe, it, expect, vi, afterEach } from 'vitest';
-import { rateLimitStub, rateLimitIfEnabled } from '../rate-limit-stub';
+import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
+import {
+  rateLimitStub,
+  rateLimitIfEnabled,
+  sellerCreateRateLimit,
+  invoiceVerifyRateLimit,
+  clearRateLimitStore,
+} from '../rate-limit-stub';
+
+const SELLER_A = 'GC4VWBK5QSJCBSRWIZJYWCF2SJAPCKU3OFHH4XK7ZBTZ5HCK7VYLU6FL';
+const SELLER_B = 'GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN';
 
 // The stub keeps a module-level store keyed by `ip|path`, so each test uses a
 // unique client IP to avoid cross-test pollution.
@@ -39,8 +48,15 @@ function nextSpy() {
   return vi.fn();
 }
 
+beforeEach(() => {
+  clearRateLimitStore();
+});
+
 afterEach(() => {
   vi.useRealTimers();
+  delete process.env.SELLER_RATE_LIMIT_ENABLED;
+  delete process.env.SELLER_RATE_LIMIT_MAX;
+  delete process.env.SELLER_RATE_LIMIT_WINDOW_MS;
 });
 
 describe('rateLimitStub', () => {
@@ -269,5 +285,87 @@ describe('rateLimitIfEnabled', () => {
     expect(res.statusCode).toBe(429);
     expect(next).toHaveBeenCalledTimes(1);
     expect(res.headers['Retry-After']).toMatch(/^\d+$/);
+  });
+});
+
+describe('sellerCreateRateLimit', () => {
+  it('returns 400 for missing or invalid seller keys without counting', () => {
+    const middleware = sellerCreateRateLimit({ windowMs: 60_000, maxRequests: 1 });
+
+    const missingReq: any = { body: {}, params: {} };
+    const missingRes = mockRes();
+    const missingNext = nextSpy();
+    middleware(missingReq, missingRes, missingNext);
+    expect(missingRes.statusCode).toBe(400);
+    expect(missingNext).not.toHaveBeenCalled();
+
+    const invalidReq: any = { body: { sellerPublicKey: 'short' }, params: {} };
+    const invalidRes = mockRes();
+    const invalidNext = nextSpy();
+    middleware(invalidReq, invalidRes, invalidNext);
+    expect(invalidRes.statusCode).toBe(400);
+    expect(invalidNext).not.toHaveBeenCalled();
+
+    // Still allowed once after invalid attempts (quota unused).
+    const okReq: any = { body: { sellerPublicKey: SELLER_A }, params: {} };
+    const okRes = mockRes();
+    const okNext = nextSpy();
+    middleware(okReq, okRes, okNext);
+    expect(okNext).toHaveBeenCalledTimes(1);
+    expect(okRes.statusCode).toBe(200);
+  });
+
+  it('limits one seller while leaving another seller unrestricted', () => {
+    const middleware = sellerCreateRateLimit({ windowMs: 60_000, maxRequests: 1 });
+
+    const reqA: any = { body: { sellerPublicKey: SELLER_A }, params: {} };
+    const resA = mockRes();
+    const nextA = nextSpy();
+    middleware(reqA, resA, nextA);
+    middleware(reqA, resA, nextA);
+    expect(resA.statusCode).toBe(429);
+    expect(nextA).toHaveBeenCalledTimes(1);
+
+    const reqB: any = { body: { sellerPublicKey: SELLER_B }, params: {} };
+    const resB = mockRes();
+    const nextB = nextSpy();
+    middleware(reqB, resB, nextB);
+    expect(resB.statusCode).toBe(200);
+    expect(nextB).toHaveBeenCalledTimes(1);
+  });
+
+  it('is a no-op when SELLER_RATE_LIMIT_ENABLED=false', () => {
+    process.env.SELLER_RATE_LIMIT_ENABLED = 'false';
+    const middleware = sellerCreateRateLimit({ windowMs: 60_000, maxRequests: 1 });
+    const req: any = { body: { sellerPublicKey: SELLER_A }, params: {} };
+    const res = mockRes();
+    const next = nextSpy();
+
+    middleware(req, res, next);
+    middleware(req, res, next);
+
+    expect(next).toHaveBeenCalledTimes(2);
+    expect(res.statusCode).toBe(200);
+  });
+});
+
+describe('invoiceVerifyRateLimit', () => {
+  it('limits per invoice id independently', () => {
+    const middleware = invoiceVerifyRateLimit({ windowMs: 60_000, maxRequests: 1 });
+
+    const reqA: any = { body: {}, params: { id: 'inv-a' } };
+    const resA = mockRes();
+    const nextA = nextSpy();
+    middleware(reqA, resA, nextA);
+    middleware(reqA, resA, nextA);
+    expect(resA.statusCode).toBe(429);
+    expect(resA.headers['Retry-After']).toMatch(/^\d+$/);
+
+    const reqB: any = { body: {}, params: { id: 'inv-b' } };
+    const resB = mockRes();
+    const nextB = nextSpy();
+    middleware(reqB, resB, nextB);
+    expect(resB.statusCode).toBe(200);
+    expect(nextB).toHaveBeenCalledTimes(1);
   });
 });
