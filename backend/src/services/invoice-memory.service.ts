@@ -92,6 +92,17 @@ class InvoiceMemoryService {
     return invoice;
   }
 
+  async markAsRefunded(invoiceId: string, refundTxHash: string, ledger?: number, refundedAt?: Date): Promise<any> {
+    const storage = await getStorage();
+    const invoice = await storage.getInvoiceById(invoiceId);
+    if (!invoice || invoice.status !== 'PAID') {
+      throw Object.assign(new Error('Only a paid invoice can be refunded'), { code: 'INVOICE_NOT_PAID', status: 400 });
+    }
+    const updated = await storage.markAsRefunded(invoiceId, refundTxHash, { ledger, refundedAt });
+    if (!updated) throw Object.assign(new Error('Invoice not found'), { code: 'NOT_FOUND', status: 404 });
+    return updated;
+  }
+
   /**
    * Get all invoices for a seller with cursor-based pagination
    */

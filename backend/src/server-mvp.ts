@@ -576,6 +576,78 @@ app.post('/api/invoices/:id/verify', invoiceVerifyRateLimit(), async (req: Reque
   }
 });
 
+// Record an on-chain reversal. The connected seller identity is supplied in
+// the request and every payment field is independently checked against the
+// original paid invoice before its status changes.
+app.post('/api/invoices/:id/refund', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { sellerPublicKey, refundTxHash } = req.body ?? {};
+    if (!sellerPublicKey || !refundTxHash) {
+      return res.status(400).json({ success: false, code: 'REFUND_FIELDS_REQUIRED', error: 'sellerPublicKey and refundTxHash are required' });
+    }
+
+    const invoice = await invoiceService.getInvoiceById(id);
+    if (!invoice) {
+      return res.status(404).json({ success: false, code: 'INVOICE_NOT_FOUND', error: 'Invoice not found' });
+    }
+    if (invoice.sellerPublicKey !== sellerPublicKey) {
+      return res.status(403).json({ success: false, code: 'SELLER_MISMATCH', error: 'Only the invoice seller can record a refund' });
+    }
+    if (invoice.status === 'REFUNDED') {
+      return res.status(400).json({ success: false, code: 'ALREADY_REFUNDED', error: 'Invoice has already been refunded' });
+    }
+    if (invoice.status !== 'PAID' || !invoice.payerPublicKey) {
+      return res.status(400).json({ success: false, code: 'INVOICE_NOT_PAID', error: 'Only a paid invoice can be refunded' });
+    }
+    if (await invoiceService.getInvoiceByTxHash(refundTxHash)) {
+      return res.status(400).json({ success: false, code: 'TX_HASH_ALREADY_USED', error: 'Transaction hash has already been used' });
+    }
+
+    const { transaction, operations } = await stellarService.getTransaction(refundTxHash);
+    const paymentOp = operations.find((op: any) => op.type === 'payment');
+    if (!paymentOp) {
+      return res.status(400).json({ success: false, code: 'NO_PAYMENT_OPERATION', error: 'Refund transaction has no payment operation' });
+    }
+    const refundSource = paymentOp.source_account ?? paymentOp.from;
+    const opIsNative = paymentOp.asset_type === 'native';
+    const opAsset = opIsNative ? 'XLM' : paymentOp.asset_code;
+    const ledger = Number(transaction?.ledger_sequence);
+    const valid =
+      transaction.memo === invoice.memo &&
+      refundSource === invoice.sellerPublicKey &&
+      paymentOp.to === invoice.payerPublicKey &&
+      isDecimalEqual(paymentOp.amount, String(invoice.amount)) &&
+      Number.isFinite(ledger) && ledger > 0 &&
+      paymentAssetMatchesInvoice({
+        paymentAsset: opAsset,
+        invoiceAssetCode: invoice.assetCode,
+        paymentAssetIssuer: paymentOp.asset_issuer,
+        invoiceAssetIssuer: invoice.assetIssuer,
+        paymentIsNative: opIsNative,
+      });
+
+    if (!valid) {
+      return res.status(400).json({ success: false, code: 'REFUND_MISMATCH', error: 'Refund payment does not reverse this invoice' });
+    }
+
+    const updated = await invoiceService.markAsRefunded(
+      id,
+      refundTxHash,
+      ledger,
+      transaction.created_at ? new Date(transaction.created_at) : undefined,
+    );
+    return res.json({ success: true, data: toInvoiceDTO(updated), message: 'Refund verified on Stellar' });
+  } catch (error: any) {
+    console.error('Refund verification error:', error);
+    return res.status(typeof error.status === 'number' ? error.status : 500).json({
+      success: false,
+      code: error.code ?? 'REFUND_VERIFY_FAILED',
+      error: error.message || 'Failed to verify refund',
+    });
+  }
+});
+
 // Simulate payment — only when ALLOW_SIMULATE=true (local testing)
 app.post('/api/invoices/:id/simulate-payment', async (req: Request, res: Response) => {
   try {

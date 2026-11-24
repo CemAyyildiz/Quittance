@@ -20,6 +20,8 @@ type MockInvoice = {
   expiresAt: string;
   paymentTxHash?: string;
   payerPublicKey?: string;
+  refundTxHash?: string;
+  refundedAt?: string;
 };
 
 // Mock invoice data
@@ -204,6 +206,18 @@ export const mockInvoiceApi = {
       success: true,
       data: invoice,
     };
+  },
+
+  refund: async (id: string, data: { sellerPublicKey: string; refundTxHash: string }) => {
+    await delay(500);
+    const invoice = mockInvoices.find(inv => inv.id === id);
+    if (!invoice || invoice.status !== 'PAID' || invoice.sellerPublicKey !== data.sellerPublicKey) {
+      throw new Error('Invoice cannot be refunded');
+    }
+    invoice.status = 'REFUNDED';
+    invoice.refundTxHash = data.refundTxHash;
+    invoice.refundedAt = new Date().toISOString();
+    return { success: true, data: invoice };
   },
 
   verify: async (id: string, txHash: string) => {

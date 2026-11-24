@@ -26,6 +26,8 @@ export default function InvoiceDetailPage() {
   const [paymentInfo, setPaymentInfo] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [userWallet, setUserWallet] = useState<string | null>(null);
+  const [refundTxHash, setRefundTxHash] = useState('');
+  const [refunding, setRefunding] = useState(false);
   const timeRemaining = useCountdown(invoice?.status === 'PENDING' ? invoice.expiresAt : null);
 
   useEffect(() => {
@@ -75,6 +77,24 @@ export default function InvoiceDetailPage() {
   const handleDownloadProof = () => {
     openInvoicePDF(invoice);
     toast.success('Opening payment proof');
+  };
+
+  const handleRefund = async () => {
+    if (!userWallet || userWallet !== invoice.sellerPublicKey || !refundTxHash.trim()) return;
+    setRefunding(true);
+    try {
+      const result = await invoiceApi.refund(id, {
+        sellerPublicKey: userWallet,
+        refundTxHash: refundTxHash.trim(),
+      });
+      setInvoice(result.data);
+      setRefundTxHash('');
+      toast.success('Refund verified on Stellar');
+    } catch (error: any) {
+      toast.error(error.response?.data?.error ?? 'Refund could not be verified');
+    } finally {
+      setRefunding(false);
+    }
   };
 
   if (loading) {
@@ -247,6 +267,14 @@ export default function InvoiceDetailPage() {
                   </div>
                 )}
 
+                {invoice.refundTxHash && (
+                  <div className="border-b pb-4">
+                    <p className="text-sm text-gray-600 mb-1">Refund Transaction</p>
+                    <p className="font-mono text-sm text-gray-900 break-all">{invoice.refundTxHash}</p>
+                    {invoice.refundedAt && <p className="mt-1 text-sm text-gray-600">Refunded {formatDate(invoice.refundedAt)}</p>}
+                  </div>
+                )}
+
                 {invoice.status === 'PENDING' && (
                   <div className="border-b pb-4">
                     <p className="text-sm text-gray-600 mb-1">Expires In</p>
@@ -285,11 +313,31 @@ export default function InvoiceDetailPage() {
 
             <div className="space-y-6">
               {invoice.status !== 'PAID' && (
-                <PaymentStatus status={invoice.status} txHash={invoice.paymentTxHash} />
+                <PaymentStatus status={invoice.status} txHash={invoice.status === 'REFUNDED' ? invoice.refundTxHash : invoice.paymentTxHash} />
               )}
 
               {invoice.status === 'PAID' && (
                 <PaymentReceipt invoice={invoice} />
+              )}
+
+              {invoice.status === 'PAID' && userWallet === invoice.sellerPublicKey && (
+                <div className="card">
+                  <h3 className="text-lg font-semibold mb-2">Record a refund</h3>
+                  <p className="text-sm text-gray-600 mb-4">
+                    Submit the Stellar transaction hash after returning the full amount to {invoice.payerPublicKey} with memo {invoice.memo}.
+                  </p>
+                  <label htmlFor="refund-hash" className="block text-sm font-medium text-gray-700 mb-1">Refund transaction hash</label>
+                  <input
+                    id="refund-hash"
+                    value={refundTxHash}
+                    onChange={(event) => setRefundTxHash(event.target.value)}
+                    className="input w-full font-mono"
+                    placeholder="64-character transaction hash"
+                  />
+                  <button type="button" onClick={() => void handleRefund()} disabled={refunding || !refundTxHash.trim()} className="btn btn-primary w-full mt-3">
+                    {refunding ? 'Verifying refund…' : 'Verify refund'}
+                  </button>
+                </div>
               )}
 
               {invoice.status === 'PENDING' && paymentInfo && (

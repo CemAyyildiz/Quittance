@@ -11,12 +11,15 @@ interface Invoice {
   description?: string;
   customerName?: string;
   customerEmail?: string;
-  status: 'PENDING' | 'PAID' | 'EXPIRED' | 'CANCELLED';
+  status: 'PENDING' | 'PAID' | 'REFUNDED' | 'EXPIRED' | 'CANCELLED';
   paymentTxHash?: string;
   payerPublicKey?: string;
   ledger?: number;
   createdAt: Date;
   paidAt?: Date;
+  refundTxHash?: string;
+  refundedAt?: Date;
+  refundLedger?: number;
   expiresAt: Date;
   /** Expiry at creation (or before the one allowed extension). */
   originalExpiresAt: Date;
@@ -115,6 +118,21 @@ class MemoryStorage {
       this.invoicesByTxHash.set(txHash, id);
     }
 
+    return invoice;
+  }
+
+  markAsRefunded(
+    id: string,
+    refundTxHash: string,
+    meta?: { ledger?: number; refundedAt?: Date }
+  ): Invoice | undefined {
+    const invoice = this.updateInvoice(id, {
+      status: 'REFUNDED',
+      refundTxHash,
+      refundedAt: meta?.refundedAt ?? new Date(),
+      refundLedger: meta?.ledger,
+    });
+    if (invoice) this.invoicesByTxHash.set(refundTxHash, id);
     return invoice;
   }
 

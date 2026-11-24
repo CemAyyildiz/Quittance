@@ -12,12 +12,15 @@ interface Invoice {
   description?: string;
   customerName?: string;
   customerEmail?: string;
-  status: 'PENDING' | 'PAID' | 'EXPIRED' | 'CANCELLED';
+  status: 'PENDING' | 'PAID' | 'REFUNDED' | 'EXPIRED' | 'CANCELLED';
   paymentTxHash?: string;
   payerPublicKey?: string;
   ledger?: number;
   createdAt: Date;
   paidAt?: Date;
+  refundTxHash?: string;
+  refundedAt?: Date;
+  refundLedger?: number;
   expiresAt: Date;
   originalExpiresAt: Date;
   expiryExtended: boolean;
@@ -32,7 +35,11 @@ class PostgresStorage {
         ALTER TABLE invoices ADD COLUMN IF NOT EXISTS ledger BIGINT;
         ALTER TABLE invoices ADD COLUMN IF NOT EXISTS original_expires_at TIMESTAMP;
         ALTER TABLE invoices ADD COLUMN IF NOT EXISTS expiry_extended BOOLEAN NOT NULL DEFAULT false;
+        ALTER TABLE invoices ADD COLUMN IF NOT EXISTS refund_tx_hash VARCHAR(64);
+        ALTER TABLE invoices ADD COLUMN IF NOT EXISTS refunded_at TIMESTAMP;
+        ALTER TABLE invoices ADD COLUMN IF NOT EXISTS refund_ledger BIGINT;
         CREATE INDEX IF NOT EXISTS idx_invoices_payment_tx_hash ON invoices(payment_tx_hash);
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_invoices_refund_tx_hash ON invoices(refund_tx_hash) WHERE refund_tx_hash IS NOT NULL;
       `).then(() => undefined);
     }
     return this.schemaReady;
@@ -100,7 +107,7 @@ class PostgresStorage {
   async getInvoiceByTxHash(txHash: string): Promise<Invoice | undefined> {
     await this.ensureSchema();
     const result = await pool.query(
-      'SELECT * FROM invoices WHERE payment_tx_hash = $1',
+      'SELECT * FROM invoices WHERE payment_tx_hash = $1 OR refund_tx_hash = $1',
       [txHash]
     );
 
@@ -136,6 +143,18 @@ class PostgresStorage {
     if (updates.ledger !== undefined) {
       fields.push(`ledger = $${paramIndex++}`);
       values.push(updates.ledger);
+    }
+    if (updates.refundTxHash !== undefined) {
+      fields.push(`refund_tx_hash = $${paramIndex++}`);
+      values.push(updates.refundTxHash);
+    }
+    if (updates.refundedAt !== undefined) {
+      fields.push(`refunded_at = $${paramIndex++}`);
+      values.push(updates.refundedAt);
+    }
+    if (updates.refundLedger !== undefined) {
+      fields.push(`refund_ledger = $${paramIndex++}`);
+      values.push(updates.refundLedger);
     }
     if (updates.expiresAt !== undefined) {
       fields.push(`expires_at = $${paramIndex++}`);
@@ -175,6 +194,19 @@ class PostgresStorage {
       payerPublicKey,
       paidAt: meta?.paidAt ?? new Date(),
       ledger: meta?.ledger,
+    });
+  }
+
+  async markAsRefunded(
+    id: string,
+    refundTxHash: string,
+    meta?: { ledger?: number; refundedAt?: Date }
+  ): Promise<Invoice | undefined> {
+    return this.updateInvoice(id, {
+      status: 'REFUNDED',
+      refundTxHash,
+      refundedAt: meta?.refundedAt ?? new Date(),
+      refundLedger: meta?.ledger,
     });
   }
 
@@ -258,6 +290,9 @@ class PostgresStorage {
       ledger: row.ledger === null || row.ledger === undefined ? undefined : Number(row.ledger),
       createdAt: new Date(row.created_at),
       paidAt: row.paid_at ? new Date(row.paid_at) : undefined,
+      refundTxHash: row.refund_tx_hash || undefined,
+      refundedAt: row.refunded_at ? new Date(row.refunded_at) : undefined,
+      refundLedger: row.refund_ledger === null || row.refund_ledger === undefined ? undefined : Number(row.refund_ledger),
       expiresAt: new Date(row.expires_at),
       originalExpiresAt: row.original_expires_at ? new Date(row.original_expires_at) : new Date(row.expires_at),
       expiryExtended: Boolean(row.expiry_extended),

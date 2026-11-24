@@ -4,7 +4,7 @@ import { CheckCircle, XCircle, Clock, Loader2 } from 'lucide-react';
 import { explorerTxUrl } from '@/lib/explorerUrl';
 
 interface PaymentStatusProps {
-  status: 'PENDING' | 'PAID' | 'EXPIRED' | 'CANCELLED';
+  status: 'PENDING' | 'PAID' | 'REFUNDED' | 'EXPIRED' | 'CANCELLED';
   txHash?: string;
 }
 
@@ -17,6 +17,8 @@ export default function PaymentStatus({ status, txHash }: PaymentStatusProps) {
         return <XCircle aria-hidden="true" className="w-16 h-16 text-red-500" />;
       case 'CANCELLED':
         return <XCircle aria-hidden="true" className="w-16 h-16 text-gray-500" />;
+      case 'REFUNDED':
+        return <CheckCircle aria-hidden="true" className="w-16 h-16 text-blue-500" />;
       default:
         return <Clock aria-hidden="true" className="w-16 h-16 text-yellow-500" />;
     }
@@ -41,6 +43,12 @@ export default function PaymentStatus({ status, txHash }: PaymentStatusProps) {
           title: 'Invoice Cancelled',
           description: 'This invoice has been cancelled.',
           color: 'text-gray-600',
+        };
+      case 'REFUNDED':
+        return {
+          title: 'Payment Refunded',
+          description: 'The seller returned this payment on Stellar.',
+          color: 'text-blue-600',
         };
       default:
         return {

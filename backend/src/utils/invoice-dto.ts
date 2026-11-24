@@ -10,12 +10,15 @@ export interface InvoiceDTO {
   description?: string;
   customerName?: string;
   customerEmail?: string;
-  status: 'PENDING' | 'PAID' | 'EXPIRED' | 'CANCELLED';
+  status: 'PENDING' | 'PAID' | 'REFUNDED' | 'EXPIRED' | 'CANCELLED';
   paymentTxHash?: string;
   payerPublicKey?: string;
   ledger?: number;
   createdAt: string;
   paidAt?: string;
+  refundTxHash?: string;
+  refundedAt?: string;
+  refundLedger?: number;
   expiresAt: string;
   originalExpiresAt: string;
   expiryExtended: boolean;
@@ -97,12 +100,15 @@ export function toInvoiceDTO(
     description?: string;
     customerName?: string;
     customerEmail?: string;
-    status: 'PENDING' | 'PAID' | 'EXPIRED' | 'CANCELLED';
+    status: 'PENDING' | 'PAID' | 'REFUNDED' | 'EXPIRED' | 'CANCELLED';
     paymentTxHash?: string;
     payerPublicKey?: string;
     ledger?: number;
     createdAt: Date;
     paidAt?: Date;
+    refundTxHash?: string;
+    refundedAt?: Date;
+    refundLedger?: number;
     expiresAt: Date;
     originalExpiresAt?: Date;
     expiryExtended?: boolean;
@@ -126,13 +132,16 @@ export function toInvoiceDTO(
     ledger: invoice.ledger,
     createdAt: invoice.createdAt.toISOString(),
     paidAt: invoice.paidAt?.toISOString(),
+    refundTxHash: invoice.refundTxHash,
+    refundedAt: invoice.refundedAt?.toISOString(),
+    refundLedger: invoice.refundLedger,
     expiresAt: invoice.expiresAt.toISOString(),
     originalExpiresAt: originalExpiresAt.toISOString(),
     expiryExtended: invoice.expiryExtended ?? false,
   };
 
   if (
-    invoice.status === 'PAID' &&
+    (invoice.status === 'PAID' || invoice.status === 'REFUNDED') &&
     invoice.paymentTxHash &&
     invoice.payerPublicKey
   ) {

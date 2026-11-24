@@ -89,6 +89,8 @@ export function getStatusColor(status: string): string {
   switch (status.toLowerCase()) {
     case 'paid':
       return 'text-green-600 bg-green-50';
+    case 'refunded':
+      return 'text-blue-600 bg-blue-50';
     case 'pending':
       return 'text-yellow-600 bg-yellow-50';
     case 'expired':
