@@ -24,6 +24,7 @@ export const createInvoiceSchema = z.object({
   assetCode: z.string().default('XLM').optional(),
   assetIssuer: z.string().optional(),
   description: z.string().max(500).optional(),
+  lineItems: z.array(z.unknown()).optional(),
   customerName: z.string().max(255).optional(),
   customerEmail: z.string().email().optional(),
   sellerName: z.string().max(255).optional(),

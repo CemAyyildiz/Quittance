@@ -43,7 +43,7 @@ describe('MVP duplicate invoice', () => {
       customerEmail: 'ada@example.com',
       lineItems: [{ description: 'Design', amount: 12.5 }],
     });
-    memoryStorage.markAsPaid(source.id, 'a'.repeat(64), OTHER_SELLER);
+    memoryStorage.markAsPaid(source.id, 'a'.repeat(64), OTHER_SELLER, { ledger: 1 });
 
     const result = await call(`/api/invoices/${source.id}/duplicate`, {
       sellerPublicKey: SELLER,

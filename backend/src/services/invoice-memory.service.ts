@@ -36,6 +36,7 @@ class InvoiceMemoryService {
       assetIssuer: input.assetIssuer,
       memo,
       description: input.description,
+      lineItems: input.lineItems,
       customerName: input.customerName,
       customerEmail: input.customerEmail,
       expiresAt,
@@ -75,12 +76,13 @@ class InvoiceMemoryService {
     sellerPublicKey: string,
     copyCustomerEmail = false,
   ): Promise<any> {
-    const source = memoryStorage.getInvoiceById(invoiceId);
+    const storage = await getStorage();
+    const source = await storage.getInvoiceById(invoiceId);
     if (!source || source.sellerPublicKey !== sellerPublicKey) {
       throw Object.assign(new Error('Invoice not found'), { code: 'NOT_FOUND', status: 404 });
     }
 
-    return this.createInvoice({
+    const copy = await this.createInvoice({
       sellerPublicKey,
       amount: source.amount,
       assetCode: source.assetCode,
@@ -91,6 +93,13 @@ class InvoiceMemoryService {
       customerEmail: copyCustomerEmail ? source.customerEmail : undefined,
       expiresInDays: 7,
     } as CreateInvoiceInput & { lineItems?: unknown[] });
+
+    if (source.lineItems) {
+      return storage.updateInvoice(copy.id, {
+        lineItems: [...source.lineItems],
+      });
+    }
+    return copy;
   }
 
   /**
