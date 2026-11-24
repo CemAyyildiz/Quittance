@@ -40,9 +40,14 @@ export const invoiceApi = USE_MOCK_API ? mockInvoiceApi : {
     sellerPublicKey?: string;
     sellerName?: string;
     sellerEmail?: string;
-    acknowledgeNoTrustline?: boolean;
-  }) => {
-    const response = await api.post('/invoices', data);
+  }, options?: { idempotencyKey?: string }) => {
+    // A key per submit attempt lets the backend return the original invoice
+    // if the same submit reaches it twice.
+    const response = await api.post('/invoices', data, {
+      headers: options?.idempotencyKey
+        ? { 'Idempotency-Key': options.idempotencyKey }
+        : undefined,
+    });
     return response.data;
   },
 

@@ -37,9 +37,12 @@ import {
 } from './utils/verify-invoice-payment';
 import { parsePaginationQuery } from './utils/parse-pagination';
 import { isSmtpConfigured, sendEmail, generateInvoiceEmail } from './utils/smtp';
-import { z } from 'zod';
-import { memoByteLengthSchema, stellarPublicKeySchema } from './utils/validation';
-import memoryStorage, { type Invoice } from './storage/memory-storage';
+import { STELLAR_NETWORK } from './config/stellar';
+import {
+  IDEMPOTENCY_KEY_HEADER,
+  createOnce,
+  parseIdempotencyKey,
+} from './utils/idempotency';
 
 // Load environment variables
 dotenv.config();
@@ -102,75 +105,69 @@ app.get('/api/health', (req: Request, res: Response) => {
   });
 });
 
-// Create invoice (per-seller rate limit on by default)
+/** Builds the create-invoice response payload (shared by new creates and replays). */
+async function buildCreateInvoiceResponse(invoice: any) {
+  const paymentUrl = `${FRONTEND_URL}/pay/${invoice.id}`;
+  const qrCodeDataUrl = await generatePaymentQR(paymentUrl);
+  const stellarQrCode = await generateStellarPaymentQR(
+    invoice.sellerPublicKey,
+    invoice.amount.toString(),
+    invoice.assetCode,
+    invoice.memo,
+    invoice.assetIssuer
+  );
+  const stellarPaymentUri = buildStellarPaymentUri(
+    invoice.sellerPublicKey,
+    invoice.amount.toString(),
+    invoice.assetCode,
+    invoice.memo,
+    invoice.assetIssuer
+  );
+
+  return {
+    invoice: toInvoiceDTO(invoice),
+    paymentUrl,
+    qrCode: qrCodeDataUrl,
+    stellarQrCode,
+    stellarPaymentUri,
+  };
+}
+
+// Create invoice (per-seller rate limit on by default).
+// An optional Idempotency-Key header makes a double submit safe: the same
+// seller and key return the original invoice instead of minting a new memo.
 app.post('/api/invoices', sellerCreateRateLimit(), async (req: Request, res: Response) => {
   try {
-    const validatedData = createInvoiceSchema.parse(req.body);
-
-    // Check the seller on Horizon BEFORE anything is persisted. A network
-    // outage must never leave a partially created invoice behind.
-    let readiness;
-    try {
-      readiness = await stellarService.checkSellerAccountForAsset(
-        validatedData.sellerPublicKey,
-        validatedData.assetCode ?? 'XLM',
-        validatedData.assetIssuer,
-      );
-    } catch (error) {
-      if (error instanceof UnfundedAccountError) {
-        return res.status(400).json({
-          success: false,
-          code: 'SELLER_ACCOUNT_UNFUNDED',
-          error: error.message,
-        });
-      }
-      if (error instanceof HorizonUnavailableError) {
-        return res.status(503).json({
-          success: false,
-          code: 'HORIZON_UNAVAILABLE',
-          error: error.message,
-        });
-      }
-      throw error;
-    }
-
-    if (!readiness.ok && validatedData.acknowledgeNoTrustline !== true) {
-      return res.status(409).json({
+    const parsedKey = parseIdempotencyKey(req.get(IDEMPOTENCY_KEY_HEADER));
+    if (!parsedKey.ok) {
+      return res.status(400).json({
         success: false,
-        code: 'SELLER_TRUSTLINE_WARNING',
-        warning: readiness.warning,
-        error: readiness.warning,
+        error: parsedKey.error,
       });
     }
 
-    const invoice = await invoiceService.createInvoice(validatedData);
+    const validatedData = createInvoiceSchema.parse(req.body);
 
-    const paymentUrl = `${FRONTEND_URL}/pay/${invoice.id}`;
-    const qrCodeDataUrl = await generatePaymentQR(paymentUrl);
-    const stellarQrCode = await generateStellarPaymentQR(
-      invoice.sellerMuxedAddress ?? invoice.sellerPublicKey,
-      invoice.amount.toString(),
-      invoice.assetCode,
-      invoice.memo,
-      invoice.assetIssuer
-    );
-    const stellarPaymentUri = buildStellarPaymentUri(
-      invoice.sellerMuxedAddress ?? invoice.sellerPublicKey,
-      invoice.amount.toString(),
-      invoice.assetCode,
-      invoice.memo,
-      invoice.assetIssuer
-    );
+    let invoice: any;
+    let replayed = false;
+    if (parsedKey.key) {
+      ({ invoice, replayed } = await createOnce(
+        validatedData.sellerPublicKey,
+        parsedKey.key,
+        (invoiceId) => invoiceService.getInvoiceById(invoiceId),
+        () => invoiceService.createInvoice(validatedData),
+      ));
+    } else {
+      invoice = await invoiceService.createInvoice(validatedData);
+    }
+
+    if (replayed) {
+      res.set('Idempotent-Replayed', 'true');
+    }
 
     res.status(201).json({
       success: true,
-      data: {
-        invoice: toInvoiceDTO(invoice),
-        paymentUrl,
-        qrCode: qrCodeDataUrl,
-        stellarQrCode,
-        stellarPaymentUri,
-      },
+      data: await buildCreateInvoiceResponse(invoice),
     });
   } catch (error: any) {
     console.error('Create invoice error:', error);

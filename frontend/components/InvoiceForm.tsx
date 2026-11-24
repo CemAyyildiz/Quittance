@@ -45,6 +45,14 @@ function roundStellarAmount(value: number): number {
   return Math.round((value + Number.EPSILON) * 10_000_000) / 10_000_000;
 }
 
+/** One fresh key per submit attempt, sent as the Idempotency-Key header. */
+function newIdempotencyKey(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+}
+
 export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps) {
   const amountInput = useRef<HTMLInputElement>(null);
   const emailInput = useRef<HTMLInputElement>(null);
@@ -52,6 +60,9 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
   const [submitError, setSubmitError] = useState('');
   const [memoSubmitted, setMemoSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
+  // `loading` only disables the button after a re-render, so a fast double
+  // click could start two requests; this ref blocks re-entry synchronously.
+  const submittingRef = useRef(false);
   const [amount, setAmount] = useState('');
   const [lineItems, setLineItems] = useState<InvoiceLineInput[]>([
     { label: '', quantity: '1', unitPrice: '' },
@@ -256,6 +267,10 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
     e.preventDefault();
     setSubmitError('');
 
+    if (submittingRef.current) {
+      return;
+    }
+
     if (!userWallet) {
       setSubmitError('Connect your wallet first');
       toast.error('Connect your wallet first');
@@ -277,14 +292,9 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
       return;
     }
 
-    if (customerEmail && !isValidEmail(customerEmail)) {
-      setEmailError('Enter a valid client email');
-      emailInput.current?.focus();
-      return;
-    }
-    setEmailError('');
-
+    submittingRef.current = true;
     setLoading(true);
+    const idempotencyKey = newIdempotencyKey();
     try {
       const selectedAsset = getAssetByCode(assetCode);
       const submittedLineItems = lineItems.map((line) => ({
@@ -304,9 +314,7 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
         memo: memo || undefined,
         customerName: customerName.trim() || undefined,
         customerEmail: customerEmail.trim() || undefined,
-        // Only sent once the seller has ticked the acknowledgement box below.
-        acknowledgeNoTrustline: acknowledgedWarning,
-      });
+      }, { idempotencyKey });
 
       toast.success('Invoice created');
       onSuccess?.(result.data);
@@ -333,6 +341,7 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
       setSubmitError(message);
       toast.error(message);
     } finally {
+      submittingRef.current = false;
       setLoading(false);
     }
   };

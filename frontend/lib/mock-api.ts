@@ -84,7 +84,7 @@ const mockInvoices: MockInvoice[] = [
 ];
 
 export const mockInvoiceApi = {
-  create: async (data: any) => {
+  create: async (data: any, _options?: { idempotencyKey?: string }) => {
     await delay(1000); // Simulate network delay
     
     const newInvoice = {

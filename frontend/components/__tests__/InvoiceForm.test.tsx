@@ -101,6 +101,7 @@ describe('InvoiceForm memo byte limit', () => {
     await waitFor(() =>
       expect(invoiceApi.create).toHaveBeenCalledWith(
         expect.objectContaining({ memo: 'a'.repeat(28) }),
+        expect.objectContaining({ idempotencyKey: expect.any(String) }),
       ),
     );
   });
@@ -198,5 +199,56 @@ describe('InvoiceForm client email validation', () => {
     changeEmailTo(emailInput, '');
     expect(screen.queryByText('Enter a valid email address')).toBeNull();
     expect(emailInput.getAttribute('aria-invalid')).toBe('false');
+  });
+});
+
+describe('InvoiceForm idempotent submit', () => {
+  it('sends an Idempotency-Key and ignores a second submit while the first is pending', async () => {
+    const { invoiceApi } = await import('@/lib/api');
+    let resolveCreate: (value: unknown) => void = () => {};
+    vi.mocked(invoiceApi.create).mockImplementationOnce(
+      () => new Promise((resolve) => (resolveCreate = resolve)) as any,
+    );
+    render(<InvoiceForm userWallet="GABC1234567890" />);
+
+    fireEvent.change(screen.getByPlaceholderText('10.00'), { target: { value: '5' } });
+    const form = screen.getByRole('button', { name: /create invoice/i }).closest('form')!;
+    fireEvent.submit(form);
+    fireEvent.submit(form);
+
+    expect(invoiceApi.create).toHaveBeenCalledTimes(1);
+    const [, options] = vi.mocked(invoiceApi.create).mock.calls[0] as any[];
+    expect(typeof options.idempotencyKey).toBe('string');
+    expect(options.idempotencyKey.length).toBeGreaterThan(0);
+    expect(options.idempotencyKey.length).toBeLessThanOrEqual(128);
+
+    const busy = screen.getByRole('button', { name: /creating/i }) as HTMLButtonElement;
+    expect(busy.disabled).toBe(true);
+
+    resolveCreate({ data: {} });
+    await waitFor(() => {
+      const submit = screen.getByRole('button', { name: /create invoice/i }) as HTMLButtonElement;
+      expect(submit.disabled).toBe(false);
+    });
+  });
+
+  it('uses a new key for each submit attempt', async () => {
+    const { invoiceApi } = await import('@/lib/api');
+    vi.mocked(invoiceApi.create).mockRejectedValueOnce(new Error('network'));
+    render(<InvoiceForm userWallet="GABC1234567890" />);
+
+    fireEvent.change(screen.getByPlaceholderText('10.00'), { target: { value: '5' } });
+    fireEvent.click(screen.getByRole('button', { name: /create invoice/i }));
+    await waitFor(() => expect(invoiceApi.create).toHaveBeenCalledTimes(1));
+    await waitFor(() => {
+      const submit = screen.getByRole('button', { name: /create invoice/i }) as HTMLButtonElement;
+      expect(submit.disabled).toBe(false);
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /create invoice/i }));
+    await waitFor(() => expect(invoiceApi.create).toHaveBeenCalledTimes(2));
+
+    const calls = vi.mocked(invoiceApi.create).mock.calls as any[][];
+    expect(calls[0][1].idempotencyKey).not.toBe(calls[1][1].idempotencyKey);
   });
 });
