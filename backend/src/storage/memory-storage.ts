@@ -22,6 +22,8 @@ interface Invoice {
   originalExpiresAt: Date;
   /** True after the seller has used the one allowed extension. */
   expiryExtended: boolean;
+  payments: Array<{ txHash: string; amount: string; payerPublicKey: string; ledger: number; paidAt: Date }>;
+  receivedAmount: string;
 }
 
 class MemoryStorage {
@@ -47,6 +49,8 @@ class MemoryStorage {
       expiresAt,
       originalExpiresAt: data.originalExpiresAt || expiresAt,
       expiryExtended: data.expiryExtended ?? false,
+      payments: data.payments ?? [],
+      receivedAmount: data.receivedAmount ?? '0',
     };
 
     this.invoices.set(invoice.id, invoice);
@@ -115,6 +119,32 @@ class MemoryStorage {
       this.invoicesByTxHash.set(txHash, id);
     }
 
+    return invoice;
+  }
+
+  recordPayment(
+    id: string,
+    payment: { txHash: string; amount: string; payerPublicKey: string; ledger: number; paidAt: Date },
+    receivedAmount: string,
+    paid: boolean,
+  ): Invoice | undefined {
+    const existing = this.invoices.get(id);
+    if (!existing) return undefined;
+
+    const invoice = this.updateInvoice(id, {
+      payments: [...existing.payments, payment],
+      receivedAmount,
+      ...(paid
+        ? {
+            status: 'PAID',
+            paymentTxHash: payment.txHash,
+            payerPublicKey: payment.payerPublicKey,
+            paidAt: payment.paidAt,
+            ledger: payment.ledger,
+          }
+        : {}),
+    });
+    if (invoice) this.invoicesByTxHash.set(payment.txHash, id);
     return invoice;
   }
 

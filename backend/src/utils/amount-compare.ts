@@ -142,3 +142,33 @@ export function isDecimalGreaterThan(a: string, b: string): boolean {
 export const decimalsEqual = isDecimalEqual;
 export const decimalsLessThan = isDecimalLessThan;
 export const decimalsGreaterThan = isDecimalGreaterThan;
+
+const STELLAR_SCALE = 7;
+
+function toScaledUnits(value: string): bigint {
+  const trimmed = value.trim();
+  if (!/^\d+(?:\.\d{0,7})?$/.test(trimmed)) {
+    throw new Error('Amount must be a non-negative decimal with at most 7 places');
+  }
+  const [whole, fraction = ''] = trimmed.split('.');
+  return BigInt(whole) * 10n ** BigInt(STELLAR_SCALE) + BigInt(fraction.padEnd(STELLAR_SCALE, '0'));
+}
+
+function fromScaledUnits(value: bigint): string {
+  const scale = 10n ** BigInt(STELLAR_SCALE);
+  const whole = value / scale;
+  const fraction = (value % scale).toString().padStart(STELLAR_SCALE, '0').replace(/0+$/, '');
+  return fraction ? `${whole}.${fraction}` : whole.toString();
+}
+
+/** Add Stellar decimal amounts without IEEE-754 rounding. */
+export function addDecimalAmounts(a: string, b: string): string {
+  return fromScaledUnits(toScaledUnits(a) + toScaledUnits(b));
+}
+
+/** Subtract non-negative Stellar decimal amounts without rounding. */
+export function subtractDecimalAmounts(a: string, b: string): string {
+  const result = toScaledUnits(a) - toScaledUnits(b);
+  if (result < 0n) throw new Error('Amount subtraction cannot be negative');
+  return fromScaledUnits(result);
+}

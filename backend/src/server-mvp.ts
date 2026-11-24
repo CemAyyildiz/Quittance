@@ -13,7 +13,7 @@ import {
 } from './middleware/rate-limit-stub';
 import healthDetailRouter from './routes/health-detail';
 import { toInvoiceDTO as mapInvoiceDTO } from './utils/invoice-dto';
-import { isDecimalEqual } from './utils/amount-compare';
+import { addDecimalAmounts, compareDecimals, subtractDecimalAmounts } from './utils/amount-compare';
 import { VerifyErrorCode, VerifyErrorMessages } from './utils/verify-errors';
 import {
   assertInvoiceSettleable,
@@ -443,7 +443,7 @@ app.post('/api/invoices/:id/verify', invoiceVerifyRateLimit(), async (req: Reque
     // Horizon so a known hash never costs a round trip. The response names the
     // problem only: no other invoice (or its customer email) is returned.
     const invoiceWithSameHash = await invoiceService.getInvoiceByTxHash(txHash);
-    if (invoiceWithSameHash && invoiceWithSameHash.id !== invoice.id) {
+    if (invoiceWithSameHash) {
       return res.status(400).json({
         success: false,
         code: VerifyErrorCode.TX_HASH_ALREADY_USED,
@@ -518,7 +518,12 @@ app.post('/api/invoices/:id/verify', invoiceVerifyRateLimit(), async (req: Reque
       });
     }
 
-    if (!isDecimalEqual(paymentOp.amount, String(invoice.amount))) {
+    const receivedAmount = String(invoice.receivedAmount ?? '0');
+    const remainingAmount = subtractDecimalAmounts(String(invoice.amount), receivedAmount);
+    if (
+      compareDecimals(paymentOp.amount, '0') <= 0 ||
+      compareDecimals(paymentOp.amount, remainingAmount) > 0
+    ) {
       return res.status(400).json({
         success: false,
         code: VerifyErrorCode.AMOUNT_MISMATCH,
@@ -553,18 +558,25 @@ app.post('/api/invoices/:id/verify', invoiceVerifyRateLimit(), async (req: Reque
     // alone would store the outer fee-bump account.
     const payerPublicKey = paymentOp.source_account ?? paymentOp.from;
 
-    const updatedInvoice = await invoiceService.markAsPaid(
+    const nextReceivedAmount = addDecimalAmounts(receivedAmount, paymentOp.amount);
+    const isPaid = compareDecimals(nextReceivedAmount, String(invoice.amount)) === 0;
+    const updatedInvoice = await invoiceService.recordPayment(
       id,
-      txHash,
-      payerPublicKey,
-      ledgerSequence,
-      transaction.created_at ? new Date(transaction.created_at) : undefined
+      {
+        txHash,
+        amount: paymentOp.amount,
+        payerPublicKey,
+        ledger: ledgerSequence,
+        paidAt: transaction.created_at ? new Date(transaction.created_at) : new Date(),
+      },
+      nextReceivedAmount,
+      isPaid,
     );
 
     res.json({
       success: true,
       data: toInvoiceDTO(updatedInvoice),
-      message: 'Payment verified on Stellar',
+      message: isPaid ? 'Payment verified on Stellar' : 'Partial payment recorded on Stellar',
     });
   } catch (error: any) {
     console.error('Verify payment error:', error);
