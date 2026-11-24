@@ -178,7 +178,8 @@ export const buildPaymentTransaction = (
   amount: string,
   memo: string,
   assetCode: string = 'XLM',
-  assetIssuer?: string
+  assetIssuer?: string,
+  maxTime?: number
 ): StellarSdk.Transaction => {
   if (assetCode !== 'XLM' && !assetIssuer) {
     throw new Error(`An issuer is required for ${assetCode} payments.`);
@@ -214,8 +215,15 @@ export const buildPaymentTransaction = (
         amount,
       })
     )
-    .addMemo(StellarSdk.Memo.text(memo))
-    .setTimeout(180);
+    .addMemo(StellarSdk.Memo.text(memo));
+
+  // A payment for an invoice must not outlive the invoice: bound it to the
+  // invoice expiry (unix seconds). Otherwise fall back to a short window.
+  if (maxTime !== undefined) {
+    builder.setTimebounds(0, maxTime);
+  } else {
+    builder.setTimeout(180);
+  }
 
   return builder.build();
 };
@@ -228,7 +236,8 @@ export const sendPayment = async (
   amount: string,
   memo: string,
   assetCode: string = 'XLM',
-  assetIssuer?: string
+  assetIssuer?: string,
+  maxTime?: number
 ): Promise<string> => {
   try {
     // Check wallet connection
@@ -276,7 +285,8 @@ export const sendPayment = async (
       amount,
       memo,
       assetCode,
-      assetIssuer
+      assetIssuer,
+      maxTime
     );
 
     // Sign with Freighter

@@ -654,6 +654,11 @@ export default function PaymentPage() {
                   <p className="text-sm text-gray-600 text-center mb-4">
                     Open this invoice in a wallet that supports SEP-0007.
                   </p>
+                  <p className="text-xs text-gray-600 text-center mb-4">
+                    Pay before {formatDate(invoice.expiresAt)}. When paying manually, set the
+                    transaction max time to that deadline; later or unbounded payments are
+                    rejected.
+                  </p>
                   <code className="block text-xs font-mono text-gray-700 break-all bg-gray-50 border border-gray-200 rounded-lg p-3 mb-4">
                     {stellarPaymentUri}
                   </code>
@@ -701,6 +706,7 @@ export default function PaymentPage() {
                     assetCode={invoice.assetCode}
                     assetIssuer={invoice.assetIssuer}
                     invoiceId={invoice.id}
+                    expiresAt={invoice.expiresAt}
                     onSuccess={handlePaymentSuccess}
                     onError={handlePaymentError}
                   />

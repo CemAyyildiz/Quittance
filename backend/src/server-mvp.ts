@@ -28,6 +28,7 @@ import {
   startExpirySweep,
 } from './utils/invoice-expiry';
 import {
+  checkTransactionTimeBounds,
   isSelfPayment,
   paymentAssetMatchesInvoice,
 } from './utils/verify-invoice-payment';
@@ -1099,6 +1100,20 @@ app.post('/api/invoices/:id/verify', invoiceVerifyRateLimit(), async (req: Reque
         success: false,
         code: VerifyErrorCode.MISSING_LEDGER_SEQUENCE,
         error: VerifyErrorMessages[VerifyErrorCode.MISSING_LEDGER_SEQUENCE],
+      });
+    }
+
+    // The transaction must be bound by the invoice expiry, and must have been
+    // included in a ledger no later than it, however early this request came.
+    const timeBounds = checkTransactionTimeBounds({
+      invoiceExpiresAt: invoice.expiresAt,
+      tx: transaction,
+    });
+    if (!timeBounds.ok) {
+      return res.status(400).json({
+        success: false,
+        code: timeBounds.code,
+        error: VerifyErrorMessages[timeBounds.code],
       });
     }
 

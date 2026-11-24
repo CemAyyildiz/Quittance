@@ -97,6 +97,11 @@ export enum VerifyErrorCode {
    */
   INVOICE_EXPIRED = 'INVOICE_EXPIRED',
   /**
+   * The transaction carries no usable max time (or Horizon reported no ledger
+   * time), so it cannot be shown to be bound by the invoice expiry.
+   */
+  TX_TIME_BOUNDS_INVALID = 'TX_TIME_BOUNDS_INVALID',
+  /**
    * Catch-all for Horizon / network / unexpected-derive failures
    * that the MVP collapses into a single generic error. Replace
    * with finer-grained codes as the verify path matures.
@@ -133,6 +138,8 @@ export const VerifyErrorMessages: Readonly<Record<VerifyErrorCode, string>> = Ob
   [VerifyErrorCode.INVOICE_ALREADY_PAID]: 'Invoice has already been paid.',
   [VerifyErrorCode.INVOICE_NOT_PENDING]: 'Invoice is not pending',
   [VerifyErrorCode.INVOICE_EXPIRED]: 'Invoice settlement window has expired.',
+  [VerifyErrorCode.TX_TIME_BOUNDS_INVALID]:
+    'Transaction must set a max time no later than the invoice expiry.',
   [VerifyErrorCode.VERIFY_FAILED]: 'Failed to verify payment',
 });
 

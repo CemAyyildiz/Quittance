@@ -221,6 +221,30 @@ describe('PaymentButton', () => {
     expect(screen.queryByText(/Paying with/)).not.toBeInTheDocument();
     expect(screen.queryByText(/trustline/)).not.toBeInTheDocument();
   });
+
+  describe('invoice time bounds', () => {
+    const inSeconds = (seconds: number) => new Date(Date.now() + seconds * 1000).toISOString();
+
+    it('passes the invoice expiry in unix seconds to sendPayment as maxTime', async () => {
+      const expiresAt = inSeconds(3600);
+      renderButton({ expiresAt });
+
+      fireEvent.click(screen.getByRole('button', { name: PAY_IDLE_LABEL }));
+
+      await waitFor(() => expect(mockSendPayment).toHaveBeenCalled());
+      expect(mockSendPayment.mock.calls[0][5]).toBe(Math.floor(Date.parse(expiresAt) / 1000));
+    });
+
+    it('refuses to pay an invoice that expires in under a minute', () => {
+      renderButton({ expiresAt: inSeconds(30) });
+
+      expect(screen.getByRole('alert')).toHaveTextContent('about to expire');
+      const button = screen.getByRole('button', { name: PAY_IDLE_LABEL });
+      expect(button).toBeDisabled();
+      fireEvent.click(button);
+      expect(mockSendPayment).not.toHaveBeenCalled();
+    });
+  });
 });
 
 describe('PaymentButton testnet fee funding', () => {
