@@ -38,10 +38,14 @@
 export enum VerifyErrorCode {
   /** Caller did not supply a `txHash`. */
   TX_HASH_REQUIRED = 'TX_HASH_REQUIRED',
+  /** The supplied hash is not 64 hexadecimal characters. */
+  INVALID_TX_HASH = 'INVALID_TX_HASH',
   /** Invoice id in the URL did not match any invoice on record. */
   INVOICE_NOT_FOUND = 'INVOICE_NOT_FOUND',
   /** The matched transaction contained no payment operation. */
   NO_PAYMENT_OPERATION = 'NO_PAYMENT_OPERATION',
+  /** The matched transaction did not expose a usable ledger sequence. */
+  MISSING_LEDGER_SEQUENCE = 'MISSING_LEDGER_SEQUENCE',
   /**
    * The transaction hash is already stored on a different invoice, so it
    * cannot settle this one.
@@ -104,8 +108,11 @@ export enum VerifyErrorCode {
  */
 export const VerifyErrorMessages: Readonly<Record<VerifyErrorCode, string>> = Object.freeze({
   [VerifyErrorCode.TX_HASH_REQUIRED]: 'Transaction hash is required',
+  [VerifyErrorCode.INVALID_TX_HASH]:
+    'Transaction hash must be 64 hexadecimal characters.',
   [VerifyErrorCode.INVOICE_NOT_FOUND]: 'Invoice not found',
   [VerifyErrorCode.NO_PAYMENT_OPERATION]: 'No payment operation found',
+  [VerifyErrorCode.MISSING_LEDGER_SEQUENCE]: 'Transaction is missing a ledger sequence',
   [VerifyErrorCode.TX_HASH_ALREADY_USED]:
     'This transaction hash has already been used.',
   [VerifyErrorCode.MEMO_MISMATCH]: 'Memo mismatch',

@@ -13,7 +13,7 @@
  * without spinning up Express, Stellar Horizon, or the in-memory store.
  */
 
-import { isDecimalEqual } from './amount-compare';
+import { amountsMatch } from './amount-compare';
 import { memosMatch } from './memo-normalize';
 import { NATIVE_ASSET_CODE } from './asset-helpers';
 import { VerifyErrorCode } from './verify-errors';
@@ -143,7 +143,12 @@ export function paymentAssetMatchesInvoice(input: {
   invoiceAssetIssuer?: string | null;
   paymentIsNative?: boolean;
 }): boolean {
-  const invoiceIsNative = input.invoiceAssetCode === NATIVE_ASSET_CODE;
+  // An `XLM` invoice that records an issuer is a *credit* asset that happens
+  // to share the native code, not native lumens; only an issuer-less XLM
+  // invoice is native.
+  const invoiceIsNative =
+    input.invoiceAssetCode === NATIVE_ASSET_CODE &&
+    normalizeIssuer(input.invoiceAssetIssuer) === undefined;
 
   if (invoiceIsNative) {
     // `paymentIsNative` is only consulted when the caller supplied it, so
@@ -208,7 +213,10 @@ export function verifyInvoicePayment(
     return { ok: false, code: VerifyErrorCode.DESTINATION_MISMATCH };
   }
 
-  if (!isDecimalEqual(input.paymentAmount, String(input.invoiceAmount))) {
+  // Convert both sides to integer stroops before comparing. Comparing
+  // `toFixed(7)` decimal strings through floating point can make amounts one
+  // stroop apart look equal (or equal amounts look different).
+  if (!amountsMatch(input.paymentAmount, input.invoiceAmount)) {
     return { ok: false, code: VerifyErrorCode.AMOUNT_MISMATCH };
   }
 

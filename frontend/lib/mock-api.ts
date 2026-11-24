@@ -143,15 +143,49 @@ export const mockInvoiceApi = {
       filtered = filtered.filter(inv => inv.status === params.status);
     }
 
+    const limit = params?.limit || 50;
+    const cursorIndex = params?.cursor
+      ? filtered.findIndex(inv => inv.id === params.cursor)
+      : -1;
+    const start = cursorIndex >= 0 ? cursorIndex + 1 : 0;
+    const page = filtered.slice(start, start + limit);
+
     return {
       success: true,
-      data: filtered,
+      data: page,
       pagination: {
-        limit: params?.limit || 50,
-        offset: params?.offset || 0,
+        limit,
+        nextCursor:
+          start + page.length < filtered.length ? page[page.length - 1]?.id : undefined,
         total: filtered.length,
       },
     };
+  },
+
+  getHistory: async (id: string, _sellerPublicKey?: string) => {
+    await delay(200);
+    const invoice = mockInvoices.find((inv) => inv.id === id);
+    return {
+      success: true,
+      data: invoice
+        ? [{ status: 'CREATED', at: invoice.createdAt }]
+        : [],
+    };
+  },
+
+  getProofDigest: async (_id: string, _sellerPublicKey: string) => {
+    await delay(200);
+    return { success: true, data: { invoiceId: _id, digest: '', contractId: null } };
+  },
+
+  prepareAnchorProof: async (id: string, digest: string, _sellerPublicKey: string) => {
+    await delay(200);
+    return { success: true, data: { invoiceId: id, digest, contractId: null } };
+  },
+
+  anchorProof: async (_id: string, _payload: any) => {
+    await delay(200);
+    return { success: true, data: {} };
   },
 
   getPaymentInfo: async (id: string) => {

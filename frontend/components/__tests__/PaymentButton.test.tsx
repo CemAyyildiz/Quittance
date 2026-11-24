@@ -7,12 +7,18 @@ const {
   mockSendPayment,
   mockCheckWalletConnection,
   mockRequestWalletAccess,
+  mockGetUserPublicKey,
+  mockGetAccountBalance,
+  mockRequestFriendbotFunding,
   mockVerify,
   mockToast,
 } = vi.hoisted(() => ({
   mockSendPayment: vi.fn(),
   mockCheckWalletConnection: vi.fn(),
   mockRequestWalletAccess: vi.fn(),
+  mockGetUserPublicKey: vi.fn(),
+  mockGetAccountBalance: vi.fn(),
+  mockRequestFriendbotFunding: vi.fn(),
   mockVerify: vi.fn(),
   mockToast: {
     error: vi.fn(),
@@ -22,13 +28,29 @@ const {
   },
 }));
 
-// The payment flow must never touch the real Horizon/Freighter SDK or the
-// real invoice backend while testing, so both are replaced with mocks.
-vi.mock('@/lib/stellar', () => ({
-  sendPayment: mockSendPayment,
-  checkWalletConnection: mockCheckWalletConnection,
-  requestWalletAccess: mockRequestWalletAccess,
+// The wallet extension is not available in jsdom.
+vi.mock('@stellar/freighter-api', () => ({
+  isConnected: vi.fn(),
+  getPublicKey: vi.fn(),
+  signTransaction: vi.fn(),
+  isAllowed: vi.fn(),
+  setAllowed: vi.fn(),
 }));
+
+// Network calls are mocked, but the pure testnet/fee helpers stay real so the
+// fee threshold and the network gate are exercised, not stubbed.
+vi.mock('@/lib/stellar', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/stellar')>();
+  return {
+    ...actual,
+    sendPayment: mockSendPayment,
+    checkWalletConnection: mockCheckWalletConnection,
+    requestWalletAccess: mockRequestWalletAccess,
+    getUserPublicKey: mockGetUserPublicKey,
+    getAccountBalance: mockGetAccountBalance,
+    requestFriendbotFunding: mockRequestFriendbotFunding,
+  };
+});
 
 vi.mock('@/lib/api', () => ({
   invoiceApi: {
@@ -41,6 +63,7 @@ vi.mock('sonner', () => ({
 }));
 
 const DESTINATION = 'GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5';
+const PAYER_PUBLIC_KEY = 'GCQTGZQQ5G4PTM2GL7CDIFKUBIPEC52BROAQIAPW53XBRJVN6ZJVTG6V';
 const TX_HASH = 'a'.repeat(64);
 const PAY_IDLE_LABEL = 'Pay with Freighter';
 const PAY_PROCESSING_LABEL = 'Processing...';
@@ -71,14 +94,19 @@ function renderButton(overrides: Partial<PaymentButtonProps> = {}) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.stubEnv('NEXT_PUBLIC_STELLAR_NETWORK', 'TESTNET');
   mockCheckWalletConnection.mockResolvedValue(true);
   mockRequestWalletAccess.mockResolvedValue(true);
+  mockGetUserPublicKey.mockResolvedValue(PAYER_PUBLIC_KEY);
+  mockGetAccountBalance.mockResolvedValue([{ assetCode: 'XLM', balance: '100.0000000' }]);
+  mockRequestFriendbotFunding.mockResolvedValue(undefined);
   mockSendPayment.mockResolvedValue(TX_HASH);
   mockVerify.mockResolvedValue({ verified: true });
 });
 
 afterEach(() => {
   cleanup();
+  vi.unstubAllEnvs();
 });
 
 describe('PaymentButton', () => {
@@ -192,5 +220,107 @@ describe('PaymentButton', () => {
 
     expect(screen.queryByText(/Paying with/)).not.toBeInTheDocument();
     expect(screen.queryByText(/trustline/)).not.toBeInTheDocument();
+  });
+});
+
+describe('PaymentButton testnet fee funding', () => {
+  const FRIENDBOT_LABEL = /get test xlm from friendbot/i;
+
+  it('offers Friendbot on testnet when XLM cannot cover the fee', async () => {
+    mockGetAccountBalance.mockResolvedValue([{ assetCode: 'XLM', balance: '0.0000000' }]);
+    renderButton();
+
+    fireEvent.click(screen.getByRole('button', { name: PAY_IDLE_LABEL }));
+
+    expect(
+      await screen.findByRole('button', { name: FRIENDBOT_LABEL }),
+    ).toBeInTheDocument();
+    expect(mockSendPayment).not.toHaveBeenCalled();
+    expect(mockVerify).not.toHaveBeenCalled();
+    expect(mockToast.error).not.toHaveBeenCalled();
+  });
+
+  it('does not offer Friendbot when the account already has enough XLM', async () => {
+    mockGetAccountBalance.mockResolvedValue([{ assetCode: 'XLM', balance: '100.0000000' }]);
+    renderButton();
+
+    fireEvent.click(screen.getByRole('button', { name: PAY_IDLE_LABEL }));
+
+    await waitFor(() => expect(mockSendPayment).toHaveBeenCalled());
+    expect(screen.queryByRole('button', { name: FRIENDBOT_LABEL })).not.toBeInTheDocument();
+  });
+
+  it('does not offer Friendbot off testnet even with no XLM', async () => {
+    vi.stubEnv('NEXT_PUBLIC_STELLAR_NETWORK', 'PUBLIC');
+    mockGetAccountBalance.mockResolvedValue([{ assetCode: 'XLM', balance: '0.0000000' }]);
+    renderButton();
+
+    fireEvent.click(screen.getByRole('button', { name: PAY_IDLE_LABEL }));
+
+    await waitFor(() => expect(mockSendPayment).toHaveBeenCalled());
+    expect(screen.queryByRole('button', { name: FRIENDBOT_LABEL })).not.toBeInTheDocument();
+    expect(mockRequestFriendbotFunding).not.toHaveBeenCalled();
+  });
+
+  it('retries the payment after Friendbot funds the account', async () => {
+    mockGetAccountBalance.mockResolvedValue([{ assetCode: 'XLM', balance: '0.0000000' }]);
+    const { onSuccess } = renderButton({ invoiceId: 'inv-482' });
+
+    fireEvent.click(screen.getByRole('button', { name: PAY_IDLE_LABEL }));
+    fireEvent.click(await screen.findByRole('button', { name: FRIENDBOT_LABEL }));
+
+    await waitFor(() =>
+      expect(mockRequestFriendbotFunding).toHaveBeenCalledWith(PAYER_PUBLIC_KEY),
+    );
+    await waitFor(() => expect(mockSendPayment).toHaveBeenCalled());
+    await waitFor(() =>
+      expect(mockVerify).toHaveBeenCalledWith('inv-482', TX_HASH, {
+        payerName: undefined,
+        payerEmail: undefined,
+      }),
+    );
+    expect(onSuccess).toHaveBeenCalledWith(TX_HASH);
+  });
+
+  it('shows one sentence and keeps the invoice pending when Friendbot fails', async () => {
+    mockGetAccountBalance.mockResolvedValue([{ assetCode: 'XLM', balance: '0.0000000' }]);
+    mockRequestFriendbotFunding.mockRejectedValueOnce(new Error('friendbot unavailable'));
+    const { onSuccess, onError } = renderButton({ invoiceId: 'inv-482' });
+
+    fireEvent.click(screen.getByRole('button', { name: PAY_IDLE_LABEL }));
+    fireEvent.click(await screen.findByRole('button', { name: FRIENDBOT_LABEL }));
+
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent(
+      'Friendbot could not fund this account. Try again in a moment.',
+    );
+    expect(mockSendPayment).not.toHaveBeenCalled();
+    expect(mockVerify).not.toHaveBeenCalled();
+    expect(onSuccess).not.toHaveBeenCalled();
+    expect(onError).not.toHaveBeenCalled();
+
+    // The offer stays available for another attempt.
+    expect(screen.getByRole('button', { name: FRIENDBOT_LABEL })).toBeEnabled();
+  });
+
+  it('does not offer Friendbot for a USDC balance problem', async () => {
+    mockGetAccountBalance.mockResolvedValue([
+      { assetCode: 'XLM', balance: '100.0000000' },
+      { assetCode: 'USDC', balance: '0.0000000' },
+    ]);
+    mockSendPayment.mockRejectedValueOnce(
+      new Error('Insufficient USDC balance to send 10 USDC.'),
+    );
+    const { onError } = renderButton({
+      assetCode: 'USDC',
+      assetIssuer: 'G-USDC-ISSUER',
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: PAY_IDLE_LABEL }));
+
+    await waitFor(() => expect(onError).toHaveBeenCalled());
+    expect(mockRequestFriendbotFunding).not.toHaveBeenCalled();
+    expect(screen.queryByRole('button', { name: FRIENDBOT_LABEL })).not.toBeInTheDocument();
+    expect(screen.getByText(USDC_TRUSTLINE_GUIDANCE)).toBeInTheDocument();
   });
 });

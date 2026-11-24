@@ -6,7 +6,7 @@ import { toast } from 'sonner';
 import { Loader2 } from 'lucide-react';
 import { STELLAR_ASSETS, getAssetByCode } from '@/lib/assets';
 import { checkAssetReadiness } from '@/lib/stellar';
-import { isValidEmail } from '@/lib/utils';
+import { MAX_MEMO_BYTES, getUtf8ByteLength, isValidEmail } from '@/lib/utils';
 import AssetLogo from './AssetLogo';
 import { parseAmount } from '@/lib/amountParse';
 
@@ -16,22 +16,88 @@ interface InvoiceFormProps {
 }
 
 const amountErrorId = 'amount-error';
+const draftStoragePrefix = 'quittance:invoice-draft:';
+
+interface InvoiceDraft {
+  amount: string;
+  assetCode: string;
+  description: string;
+  customerName: string;
+}
+const memoCounterId = 'memo-counter';
+const memoErrorId = 'memo-error';
 
 export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps) {
   const [loading, setLoading] = useState(false);
   const [amount, setAmount] = useState('');
   const [assetCode, setAssetCode] = useState('XLM');
   const [description, setDescription] = useState('');
+  const [memo, setMemo] = useState('');
   const [customerName, setCustomerName] = useState('');
   const [customerEmail, setCustomerEmail] = useState('');
   const [trustlineWarning, setTrustlineWarning] = useState<string | null>(null);
+  const [serverWarning, setServerWarning] = useState<string | null>(null);
+  const [acknowledgedWarning, setAcknowledgedWarning] = useState(false);
   const [amountError, setAmountError] = useState('');
   const [emailError, setEmailError] = useState('');
+  const [draftReadyFor, setDraftReadyFor] = useState<string | null>(null);
 
   const selectedAsset = getAssetByCode(assetCode);
+  const memoBytes = getUtf8ByteLength(memo);
+  const memoTooLong = memoBytes > MAX_MEMO_BYTES;
+
+  useEffect(() => {
+    setDraftReadyFor(null);
+    if (!userWallet || typeof window === 'undefined') {
+      setAmount('');
+      setAssetCode('XLM');
+      setDescription('');
+      setCustomerName('');
+      return;
+    }
+
+    const storageKey = `${draftStoragePrefix}${userWallet}`;
+    try {
+      const rawDraft = window.localStorage.getItem(storageKey);
+      if (rawDraft) {
+        const draft = JSON.parse(rawDraft) as Partial<InvoiceDraft>;
+        setAmount(typeof draft.amount === 'string' ? draft.amount : '');
+        setAssetCode(
+          typeof draft.assetCode === 'string' && getAssetByCode(draft.assetCode)
+            ? draft.assetCode
+            : 'XLM'
+        );
+        setDescription(typeof draft.description === 'string' ? draft.description : '');
+        setCustomerName(typeof draft.customerName === 'string' ? draft.customerName : '');
+      } else {
+        setAmount('');
+        setAssetCode('XLM');
+        setDescription('');
+        setCustomerName('');
+      }
+    } catch {
+      setAmount('');
+      setAssetCode('XLM');
+      setDescription('');
+      setCustomerName('');
+    }
+    setDraftReadyFor(userWallet);
+  }, [userWallet]);
+
+  useEffect(() => {
+    if (!userWallet || draftReadyFor !== userWallet || typeof window === 'undefined') return;
+    const draft: InvoiceDraft = { amount, assetCode, description, customerName };
+    try {
+      window.localStorage.setItem(`${draftStoragePrefix}${userWallet}`, JSON.stringify(draft));
+    } catch {
+      // Draft persistence is best effort and must never block invoice creation.
+    }
+  }, [amount, assetCode, description, customerName, draftReadyFor, userWallet]);
 
   useEffect(() => {
     setTrustlineWarning(null);
+    setServerWarning(null);
+    setAcknowledgedWarning(false);
     const asset = getAssetByCode(assetCode);
     if (!userWallet || !asset?.issuer) return;
     let cancelled = false;
@@ -89,6 +155,11 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
     }
     setEmailError('');
 
+    if (memoTooLong) {
+      toast.error(`Memo must be at most ${MAX_MEMO_BYTES} bytes`);
+      return;
+    }
+
     setLoading(true);
     try {
       const selectedAsset = getAssetByCode(assetCode);
@@ -99,21 +170,42 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
         expiresInDays: 7,
         sellerPublicKey: userWallet,
         description: description || undefined,
+        memo: memo || undefined,
         customerName: customerName.trim() || undefined,
         customerEmail: customerEmail.trim() || undefined,
+        // Only sent once the seller has ticked the acknowledgement box below.
+        acknowledgeNoTrustline: acknowledgedWarning,
       });
 
       toast.success('Invoice created');
       onSuccess?.(result.data);
+      try {
+        if (typeof window !== 'undefined' && userWallet) {
+          window.localStorage.removeItem(`${draftStoragePrefix}${userWallet}`);
+        }
+      } catch {
+        // Draft cleanup is best effort after a successful create.
+      }
       setAmount('');
       setAssetCode('XLM');
       setDescription('');
+      setMemo('');
       setCustomerName('');
       setCustomerEmail('');
       setAmountError('');
       setEmailError('');
+      setServerWarning(null);
+      setAcknowledgedWarning(false);
     } catch (error: any) {
-      toast.error(error.response?.data?.error || 'Failed to create invoice');
+      const data = error.response?.data;
+      if (error.response?.status === 409 && data?.code === 'SELLER_TRUSTLINE_WARNING') {
+        // The server checked Horizon and refused to create anything until the
+        // seller explicitly acknowledges the missing trustline.
+        setServerWarning(data.warning || data.error);
+      } else {
+        setServerWarning(null);
+      }
+      toast.error(data?.error || 'Failed to create invoice');
     } finally {
       setLoading(false);
     }
@@ -171,6 +263,24 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
             )}
           </div>
         )}
+        {serverWarning && (
+          <div
+            className="mt-3 rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900"
+            role="alert"
+          >
+            <p className="font-semibold">Seller account is not ready to receive {assetCode}</p>
+            <p className="mt-1 break-all">{serverWarning}</p>
+            <label className="mt-2 flex items-start gap-2 font-medium">
+              <input
+                type="checkbox"
+                checked={acknowledgedWarning}
+                onChange={(e) => setAcknowledgedWarning(e.target.checked)}
+                aria-label={`I understand the seller has no ${assetCode} trustline`}
+              />
+              <span>I understand and want to create the invoice anyway (or add the trustline first).</span>
+            </label>
+          </div>
+        )}
       </div>
 
       <div>
@@ -182,6 +292,35 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
           onChange={(e) => setDescription(e.target.value)}
           maxLength={500}
         />
+      </div>
+
+      <div>
+        <label className="label" htmlFor="invoice-memo">
+          Memo (optional)
+        </label>
+        <input
+          id="invoice-memo"
+          type="text"
+          className={`input text-sm ${memoTooLong ? 'border-red-500' : ''}`}
+          placeholder="Payment reference, e.g. INV-2026"
+          value={memo}
+          onChange={(e) => setMemo(e.target.value)}
+          aria-invalid={memoTooLong}
+          aria-describedby={memoTooLong ? `${memoCounterId} ${memoErrorId}` : memoCounterId}
+        />
+        <p
+          id={memoCounterId}
+          aria-live="polite"
+          className={`text-xs mt-1 ${memoTooLong ? 'text-red-600 font-semibold' : 'text-gray-500'}`}
+        >
+          {memoBytes}/{MAX_MEMO_BYTES} bytes
+        </p>
+        {memoTooLong && (
+          <p id={memoErrorId} className="text-sm text-red-600 mt-1">
+            Memo is {memoBytes} bytes. Stellar allows at most {MAX_MEMO_BYTES} bytes, and
+            non-ASCII characters use more than one byte each.
+          </p>
+        )}
       </div>
 
       <div>
@@ -221,7 +360,7 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
 
       <button
         type="submit"
-        disabled={loading}
+        disabled={loading || memoTooLong}
         aria-busy={loading}
         className="btn btn-primary w-full flex items-center justify-center gap-2 mt-6"
       >

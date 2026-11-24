@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { invoiceApi } from '@/lib/api';
@@ -17,6 +17,35 @@ import { Copy, ExternalLink, Loader2, Check, FileText, Mail, RefreshCw } from 'l
 import { toast } from 'sonner';
 import { openInvoicePDF, shareInvoiceByEmail } from '@/lib/export';
 import { extractHorizonCode, mapHorizonError } from '@/lib/horizonErrorMap';
+import { loadAssetIssuerDomain } from '@/lib/stellarToml';
+
+const TX_HASH_PATTERN = /^[0-9a-fA-F]{64}$/;
+
+const VERIFY_FIELD_BY_CODE: Record<string, string> = {
+  MEMO_MISMATCH: 'memo',
+  AMOUNT_MISMATCH: 'amount',
+  DESTINATION_MISMATCH: 'destination',
+  ASSET_MISMATCH: 'asset',
+};
+
+function describeVerifyFailure(error: any): string {
+  const data = error?.response?.data;
+  const field = typeof data?.code === 'string' ? VERIFY_FIELD_BY_CODE[data.code] : undefined;
+
+  if (field) {
+    return `Verification failed: the ${field} does not match this invoice.`;
+  }
+
+  if (data?.code === 'INVOICE_EXPIRED') {
+    return 'This invoice has expired, so the payment cannot be verified.';
+  }
+
+  if (typeof data?.error === 'string' && data.error.trim()) {
+    return data.error;
+  }
+
+  return 'Could not verify this transaction. Check the hash and try again.';
+}
 
 export default function PaymentPage() {
   const params = useParams();
@@ -28,14 +57,39 @@ export default function PaymentPage() {
   const [paymentInfoLoading, setPaymentInfoLoading] = useState(true);
   const [paymentInfoError, setPaymentInfoError] = useState<string | null>(null);
   const [polling, setPolling] = useState(true);
+  const [issuerDomain, setIssuerDomain] = useState<string | null>(null);
   const verifiedRef = useRef(false);
   const [userWallet, setUserWallet] = useState<string | null>(null);
+  const [txHash, setTxHash] = useState('');
+  const [verifying, setVerifying] = useState(false);
+  const [verifyError, setVerifyError] = useState<string | null>(null);
   const timeRemaining = useCountdown(invoice?.status === 'PENDING' ? invoice.expiresAt : null);
 
   useEffect(() => {
     void loadInvoice();
     void loadPaymentInfo();
   }, [id]);
+
+  useEffect(() => {
+    if (!invoice || invoice.assetCode === 'XLM' || !invoice.assetIssuer) {
+      setIssuerDomain(null);
+      return;
+    }
+
+    let active = true;
+    void loadAssetIssuerDomain(invoice.assetCode, invoice.assetIssuer)
+      .then((domain) => {
+        if (active) setIssuerDomain(domain);
+      })
+      .catch((error) => {
+        console.warn('Could not load asset issuer domain:', error);
+        if (active) setIssuerDomain(null);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [invoice?.assetCode, invoice?.assetIssuer]);
 
   // Auto-refresh for pending invoices
   useEffect(() => {
@@ -101,6 +155,33 @@ export default function PaymentPage() {
       code ?? (error as { message?: unknown })?.message,
     );
     toast.error('Payment failed', { description: resolved.message });
+  };
+
+  const handleVerifyHash = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const candidate = txHash.trim();
+    setVerifyError(null);
+
+    // Reject the obvious cases in the browser too; the API performs the same
+    // check before it calls Horizon.
+    if (!TX_HASH_PATTERN.test(candidate)) {
+      setVerifyError('Enter a 64-character hexadecimal Stellar transaction hash.');
+      return;
+    }
+
+    setVerifying(true);
+    try {
+      await invoiceApi.verify(id, candidate);
+      verifiedRef.current = true;
+      setPolling(false);
+      setTxHash('');
+      toast.success('Payment verified');
+      await Promise.all([loadInvoice(), loadPaymentInfo()]);
+    } catch (error: any) {
+      setVerifyError(describeVerifyFailure(error));
+    } finally {
+      setVerifying(false);
+    }
   };
 
   const copyInfo = async (text: string, label: string) => {
@@ -225,6 +306,11 @@ export default function PaymentPage() {
                     </p>
                     <p className="text-xl font-bold text-cyan-600 mt-2">
                       {invoice.assetCode}
+                      {issuerDomain && (
+                        <span className="ml-2 text-sm font-medium text-gray-600">
+                          {issuerDomain}
+                        </span>
+                      )}
                     </p>
                   </div>
                 </div>
@@ -299,6 +385,39 @@ export default function PaymentPage() {
                   </p>
                 </div>
               )}
+
+              {invoice.status === 'PAID' && invoice.proofDigest && (
+                <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 space-y-3">
+                  <div>
+                    <p className="text-sm text-slate-600 font-semibold mb-1">Proof Digest</p>
+                    <code className="block text-xs font-mono text-slate-900 break-all bg-white border rounded p-2">
+                      {invoice.proofDigest}
+                    </code>
+                    <button
+                      type="button"
+                      onClick={() => copyInfo(invoice.proofDigest, 'Proof digest')}
+                      className="mt-2 text-xs text-cyan-700 hover:underline"
+                    >
+                      Copy digest
+                    </button>
+                  </div>
+                  {invoice.proofCanonical && (
+                    <div>
+                      <p className="text-sm text-slate-600 font-semibold mb-1">Canonical String</p>
+                      <pre className="text-xs font-mono text-slate-800 whitespace-pre-wrap break-all bg-white border rounded p-2">
+                        {invoice.proofCanonical}
+                      </pre>
+                      <button
+                        type="button"
+                        onClick={() => copyInfo(invoice.proofCanonical, 'Canonical string')}
+                        className="mt-2 text-xs text-cyan-700 hover:underline"
+                      >
+                        Copy canonical string
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             {invoice.status === 'PAID' && (
@@ -326,18 +445,21 @@ export default function PaymentPage() {
 
             {invoice.status === 'PENDING' && (
               <div className="bg-gray-50 p-4 rounded-lg space-y-3 border">
-                <h3 className="font-semibold text-gray-900 mb-3">Payment Information</h3>
-                
+                <h3 className="font-semibold text-gray-900 mb-1">Pay manually from any wallet</h3>
+                <p className="text-xs text-gray-600 mb-4">
+                  Send the exact amount to the destination below and include the memo. Then paste the transaction hash to confirm payment.
+                </p>
+
                 <div>
-                  <p className="text-xs text-gray-600 mb-1">Destination Address</p>
+                  <p className="text-xs text-gray-600 mb-1">Destination</p>
                   <div className="flex items-center gap-2">
                     <code className="flex-1 text-xs bg-white p-2 rounded border truncate">
                       {invoice.sellerPublicKey}
                     </code>
                     <button
-                      onClick={() => copyInfo(invoice.sellerPublicKey, 'Address')}
+                      onClick={() => copyInfo(invoice.sellerPublicKey, 'Destination')}
                       className="p-2 hover:bg-gray-200 rounded transition"
-                      aria-label="Copy address"
+                      aria-label="Copy destination"
                     >
                       <Copy className="w-4 h-4" aria-hidden="true" />
                     </button>
@@ -361,10 +483,10 @@ export default function PaymentPage() {
                 </div>
 
                 <div>
-                  <p className="text-xs text-gray-600 mb-1">Exact Amount</p>
+                  <p className="text-xs text-gray-600 mb-1">Amount</p>
                   <div className="flex items-center gap-2">
                     <code className="flex-1 text-xs bg-white p-2 rounded border font-semibold">
-                      {invoice.amount} {invoice.assetCode}
+                      {invoice.amount}
                     </code>
                     <button
                       onClick={() => copyInfo(invoice.amount.toString(), 'Amount')}
@@ -375,6 +497,100 @@ export default function PaymentPage() {
                     </button>
                   </div>
                 </div>
+
+                {invoice.status === 'PAID' && (
+                  <div className="border-t pt-4 mt-4">
+                    <p className="text-xs text-gray-600 mb-1">Payment Details</p>
+                    <div className="grid grid-cols-3 gap-2 text-sm">
+                      <div>
+                        <p className="text-gray-500">Payer</p>
+                        <p className="font-medium">{invoice.payerPublicKey || 'N/A'}</p>
+                      </div>
+                      <div>
+                        <p className="text-gray-500">Ledger</p>
+                        <p className="font-medium">{invoice.ledger || 'N/A'}</p>
+                      </div>
+                      <div>
+                        <p className="text-gray-500">Paid At</p>
+                        <p className="font-medium">{invoice.paidAt ? formatDate(invoice.paidAt) : 'N/A'}</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                <div>
+                  <p className="text-xs text-gray-600 mb-1">Asset code</p>
+                  <div className="flex items-center gap-2">
+                    <code className="flex-1 text-xs bg-white p-2 rounded border font-semibold">
+                      {invoice.assetCode}
+                    </code>
+                    <button
+                      onClick={() => copyInfo(invoice.assetCode, 'Asset code')}
+                      className="p-2 hover:bg-gray-200 rounded transition"
+                      aria-label="Copy asset code"
+                    >
+                      <Copy className="w-4 h-4" aria-hidden="true" />
+                    </button>
+                  </div>
+                </div>
+
+                {invoice.assetCode !== 'XLM' && invoice.assetIssuer && (
+                  <div>
+                    <p className="text-xs text-gray-600 mb-1">Asset issuer</p>
+                    <div className="flex items-center gap-2">
+                      <code className="flex-1 text-xs bg-white p-2 rounded border truncate">
+                        {invoice.assetIssuer}
+                      </code>
+                      <button
+                        onClick={() => copyInfo(invoice.assetIssuer, 'Asset issuer')}
+                        className="p-2 hover:bg-gray-200 rounded transition"
+                        aria-label="Copy asset issuer"
+                      >
+                        <Copy className="w-4 h-4" aria-hidden="true" />
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                <form onSubmit={handleVerifyHash} className="mt-5 pt-4 border-t border-gray-200 space-y-3">
+                  <div>
+                    <label htmlFor="transaction-hash" className="label">
+                      Transaction hash
+                    </label>
+                    <input
+                      id="transaction-hash"
+                      type="text"
+                      value={txHash}
+                      onChange={(event) => {
+                        setTxHash(event.target.value);
+                        if (verifyError) setVerifyError(null);
+                      }}
+                      placeholder="Paste the 64-character transaction hash"
+                      className="input font-mono text-xs"
+                      autoComplete="off"
+                      spellCheck={false}
+                      aria-invalid={verifyError ? true : undefined}
+                      aria-describedby={verifyError ? 'transaction-hash-error' : undefined}
+                    />
+                  </div>
+
+                  {verifyError && (
+                    <p
+                      id="transaction-hash-error"
+                      role="alert"
+                      className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-md px-3 py-2"
+                    >
+                      {verifyError}
+                    </p>
+                  )}
+
+                  <button type="submit" disabled={verifying} className="btn btn-primary w-full">
+                    {verifying && (
+                      <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
+                    )}
+                    {verifying ? 'Verifying…' : 'Verify payment'}
+                  </button>
+                </form>
               </div>
             )}
           </div>

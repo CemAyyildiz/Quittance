@@ -31,6 +31,40 @@ describe('createInvoiceSchema', () => {
     expect(result.success).toBe(true);
   });
 
+  it('accepts a memo of exactly 28 bytes and rejects 29', () => {
+    const validResult = createInvoiceSchema.safeParse({
+      amount: 10,
+      memo: 'a'.repeat(28),
+      sellerPublicKey: validSellerPublicKey,
+    });
+    expect(validResult.success).toBe(true);
+
+    const invalidResult = createInvoiceSchema.safeParse({
+      amount: 10,
+      memo: 'a'.repeat(29),
+      sellerPublicKey: validSellerPublicKey,
+    });
+    expect(invalidResult.success).toBe(false);
+    if (invalidResult.success) {
+      throw new Error('Expected a 29-byte memo to fail validation');
+    }
+    expect(invalidResult.error.issues.some((issue) => issue.path.includes('memo'))).toBe(true);
+  });
+
+  it('rejects a memo whose UTF-8 length exceeds 28 bytes', () => {
+    const result = createInvoiceSchema.safeParse({
+      amount: 10,
+      memo: 'é'.repeat(15), // 15 characters, 30 bytes
+      sellerPublicKey: validSellerPublicKey,
+    });
+
+    expect(result.success).toBe(false);
+    if (result.success) {
+      throw new Error('Expected a multi-byte memo over 28 bytes to fail validation');
+    }
+    expect(result.error.issues.some((issue) => issue.path.includes('memo'))).toBe(true);
+  });
+
   it('accepts a valid USDC invoice with a Stellar issuer', () => {
     const result = createInvoiceSchema.safeParse({
       amount: 25.5,

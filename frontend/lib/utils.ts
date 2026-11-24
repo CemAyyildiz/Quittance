@@ -108,6 +108,18 @@ export function getStatusColor(status: string): string {
 }
 
 /**
+ * Stellar text memos are limited to 28 bytes, not 28 characters.
+ */
+export const MAX_MEMO_BYTES = 28;
+
+/**
+ * Byte length of a string when encoded as UTF-8
+ */
+export function getUtf8ByteLength(value: string): number {
+  return new TextEncoder().encode(value).length;
+}
+
+/**
  * Validate email
  */
 export function isValidEmail(email: string): boolean {
