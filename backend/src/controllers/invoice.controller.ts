@@ -5,7 +5,7 @@ import { createInvoiceSchema } from '../utils/validation';
 import { generatePaymentQR, generateStellarPaymentQR, buildStellarPaymentUri } from '../utils/qrcode';
 import { SELLER_PUBLIC_KEY } from '../config/stellar';
 import { toInvoiceDTO } from '../utils/invoice-dto';
-import { paymentAssetMatchesInvoice } from '../utils/verify-invoice-payment';
+import { paymentAssetMatchesInvoice, paymentDestinationMatchesInvoice } from '../utils/verify-invoice-payment';
 import { assertInvoiceSettleable } from '../utils/invoice-expiry';
 import { isDecimalEqual } from '../utils/amount-compare';
 import { VerifyErrorCode, VerifyErrorMessages } from '../utils/verify-errors';
@@ -19,14 +19,14 @@ class InvoiceController {
       const paymentUrl = `${frontendUrl}/pay/${invoice.id}`;
       const qrCodeDataUrl = await generatePaymentQR(paymentUrl);
       const stellarQrCode = await generateStellarPaymentQR(
-        invoice.sellerPublicKey,
+        invoice.sellerMuxedAddress ?? invoice.sellerPublicKey,
         invoice.amount.toString(),
         invoice.assetCode,
         invoice.memo,
         invoice.assetIssuer
       );
       const stellarPaymentUri = buildStellarPaymentUri(
-        invoice.sellerPublicKey,
+        invoice.sellerMuxedAddress ?? invoice.sellerPublicKey,
         invoice.amount.toString(),
         invoice.assetCode,
         invoice.memo,
@@ -185,7 +185,13 @@ class InvoiceController {
       }
 
       // Verify destination matches seller
-      if (paymentOp.to !== invoice.sellerPublicKey) {
+      if (!paymentDestinationMatchesInvoice({
+        paymentTo: paymentOp.to,
+        paymentToMuxed: paymentOp.to_muxed,
+        paymentToMuxedId: paymentOp.to_muxed_id,
+        invoiceSellerPublicKey: invoice.sellerPublicKey,
+        invoiceSellerMuxedAddress: invoice.sellerMuxedAddress,
+      })) {
         return res.status(400).json({
           success: false,
           code: VerifyErrorCode.DESTINATION_MISMATCH,
@@ -275,14 +281,14 @@ class InvoiceController {
 
       const qrCodeDataUrl = await generatePaymentQR(paymentUrl);
       const stellarQrCode = await generateStellarPaymentQR(
-        invoice.sellerPublicKey,
+        invoice.sellerMuxedAddress ?? invoice.sellerPublicKey,
         invoice.amount.toString(),
         invoice.assetCode,
         invoice.memo,
         invoice.assetIssuer
       );
       const stellarPaymentUri = buildStellarPaymentUri(
-        invoice.sellerPublicKey,
+        invoice.sellerMuxedAddress ?? invoice.sellerPublicKey,
         invoice.amount.toString(),
         invoice.assetCode,
         invoice.memo,

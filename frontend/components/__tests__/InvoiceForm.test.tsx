@@ -3,6 +3,7 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import React from 'react';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import InvoiceForm from '../InvoiceForm';
+import { encodeMuxedAccount, encodeMuxedAccountToAddress } from '@stellar/stellar-sdk';
 
 vi.mock('@/lib/api', () => ({
   invoiceApi: { create: vi.fn().mockResolvedValue({ data: {} }) },
@@ -41,45 +42,35 @@ function changeEmailTo(input: HTMLElement, value: string) {
 
 const MEMO_PLACEHOLDER = 'Payment reference, e.g. INV-2026';
 
-describe('InvoiceForm line items', () => {
-  it('adds two lines and submits their calculated sum', async () => {
+describe('InvoiceForm muxed seller address', () => {
+  const wallet = 'GC4VWBK5QSJCBSRWIZJYWCF2SJAPCKU3OFHH4XK7ZBTZ5HCK7VYLU6FL';
+  const otherWallet = 'GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN';
+  const muxed = (base: string) => encodeMuxedAccountToAddress(encodeMuxedAccount(base, '42'), true);
+
+  it('submits a valid M address belonging to the connected wallet', async () => {
     const { invoiceApi } = await import('@/lib/api');
-    render(<InvoiceForm userWallet="GABC1234567890" />);
-
-    fireEvent.change(screen.getByLabelText('Line 1 label'), {
-      target: { value: 'Design' },
-    });
-    fireEvent.change(screen.getByLabelText('Line 1 quantity'), {
-      target: { value: '2' },
-    });
-    fireEvent.change(screen.getByLabelText('Line 1 unit price'), {
-      target: { value: '10' },
-    });
-    fireEvent.click(screen.getByRole('button', { name: 'Add line' }));
-    fireEvent.change(screen.getByLabelText('Line 2 label'), {
-      target: { value: 'Consulting' },
-    });
-    fireEvent.change(screen.getByLabelText('Line 2 quantity'), {
-      target: { value: '1' },
-    });
-    fireEvent.change(screen.getByLabelText('Line 2 unit price'), {
-      target: { value: '5' },
-    });
-
-    expect(screen.getByText(/25 XLM/i)).toBeTruthy();
+    render(<InvoiceForm userWallet={wallet} />);
+    fireEvent.change(screen.getByPlaceholderText('10.00'), { target: { value: '5' } });
+    fireEvent.change(screen.getByPlaceholderText('M... address for this invoice'), { target: { value: muxed(wallet) } });
     fireEvent.click(screen.getByRole('button', { name: /create invoice/i }));
+    await waitFor(() => expect(invoiceApi.create).toHaveBeenCalledWith(
+      expect.objectContaining({ sellerPublicKey: muxed(wallet) }),
+    ));
+  });
 
-    await waitFor(() =>
-      expect(invoiceApi.create).toHaveBeenCalledWith(
-        expect.objectContaining({
-          amount: 25,
-          lineItems: [
-            { label: 'Design', quantity: 2, unitPrice: 10 },
-            { label: 'Consulting', quantity: 1, unitPrice: 5 },
-          ],
-        }),
-      ),
-    );
+  it('blocks a different account or malformed M address', async () => {
+    const { invoiceApi } = await import('@/lib/api');
+    render(<InvoiceForm userWallet={wallet} />);
+    fireEvent.change(screen.getByPlaceholderText('10.00'), { target: { value: '5' } });
+    const address = screen.getByPlaceholderText('M... address for this invoice');
+    fireEvent.change(address, { target: { value: muxed(otherWallet) } });
+    fireEvent.click(screen.getByRole('button', { name: /create invoice/i }));
+    expect(invoiceApi.create).not.toHaveBeenCalled();
+    expect(screen.getByText('Enter a valid M address for your connected wallet')).toBeTruthy();
+
+    fireEvent.change(address, { target: { value: 'MALFORMED' } });
+    fireEvent.click(screen.getByRole('button', { name: /create invoice/i }));
+    expect(invoiceApi.create).not.toHaveBeenCalled();
   });
 });
 

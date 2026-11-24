@@ -16,6 +16,7 @@ CREATE TABLE IF NOT EXISTS invoices (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID REFERENCES users(id) ON DELETE CASCADE,
   seller_public_key VARCHAR(56) NOT NULL,
+  seller_muxed_address VARCHAR(69),
   seller_name VARCHAR(255),
   seller_email VARCHAR(255),
   amount DECIMAL(20, 7) NOT NULL,
@@ -39,6 +40,8 @@ CREATE TABLE IF NOT EXISTS invoices (
   anchoring_tx_hash VARCHAR(64),
   metadata JSONB
 );
+
+ALTER TABLE invoices ADD COLUMN IF NOT EXISTS seller_muxed_address VARCHAR(69);
 
 -- Transactions Table
 CREATE TABLE IF NOT EXISTS transactions (

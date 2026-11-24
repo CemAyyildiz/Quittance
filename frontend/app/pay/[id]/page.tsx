@@ -306,7 +306,7 @@ export default function PaymentPage() {
   const stellarPaymentUri =
     paymentInfo?.stellarPaymentUri ??
     buildStellarPaymentUri(
-      invoice.sellerPublicKey,
+      invoice.sellerMuxedAddress ?? invoice.sellerPublicKey,
       invoice.amount.toString(),
       invoice.assetCode,
       invoice.memo,
@@ -555,10 +555,10 @@ export default function PaymentPage() {
                   <p className="text-xs text-gray-600 mb-1">Destination</p>
                   <div className="flex items-center gap-2">
                     <code className="flex-1 text-xs bg-white p-2 rounded border truncate">
-                      {invoice.sellerPublicKey}
+                      {invoice.sellerMuxedAddress ?? invoice.sellerPublicKey}
                     </code>
                     <button
-                      onClick={() => copyInfo(invoice.sellerPublicKey, 'Destination')}
+                      onClick={() => copyInfo(invoice.sellerMuxedAddress ?? invoice.sellerPublicKey, 'Address')}
                       className="p-2 hover:bg-gray-200 rounded transition"
                       aria-label="Copy destination"
                     >
@@ -807,7 +807,7 @@ export default function PaymentPage() {
                   </div>
 
                   <PaymentButton
-                    destination={invoice.sellerPublicKey}
+                    destination={invoice.sellerMuxedAddress ?? invoice.sellerPublicKey}
                     amount={invoice.amount.toString()}
                     memo={invoice.memo}
                     assetCode={invoice.assetCode}

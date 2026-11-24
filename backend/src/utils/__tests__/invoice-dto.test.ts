@@ -24,6 +24,12 @@ function makeInvoice(overrides: Partial<Parameters<typeof toInvoiceDTO>[0]> = {}
 }
 
 describe('toInvoiceDTO', () => {
+  it('includes a muxed destination only for muxed invoices', () => {
+    const muxed = toInvoiceDTO(makeInvoice({ sellerMuxedAddress: 'MSELLER' }));
+    expect(muxed.sellerMuxedAddress).toBe('MSELLER');
+    expect(toInvoiceDTO(makeInvoice())).not.toHaveProperty('sellerMuxedAddress');
+  });
+
   it('maps all fields from a memory invoice to the DTO shape', () => {
     const invoice = makeInvoice();
     const result = toInvoiceDTO(invoice);

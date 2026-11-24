@@ -490,7 +490,7 @@ export default function InvoiceDetailPage() {
                     stellarPaymentUri={
                       paymentInfo.stellarPaymentUri ??
                       buildStellarPaymentUri(
-                        invoice.sellerPublicKey,
+                        invoice.sellerMuxedAddress ?? invoice.sellerPublicKey,
                         invoice.amount.toString(),
                         invoice.assetCode,
                         invoice.memo,

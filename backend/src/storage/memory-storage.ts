@@ -22,6 +22,7 @@ export interface StatusEvent {
 export interface Invoice {
   id: string;
   sellerPublicKey: string;
+  sellerMuxedAddress?: string;
   amount: number;
   lineItems?: Array<{ label: string; quantity: number; unitPrice: number }>;
   assetCode: string;
@@ -73,6 +74,7 @@ class MemoryStorage {
     const invoice: Invoice = {
       id: data.id || uuidv4(),
       sellerPublicKey: data.sellerPublicKey!,
+      sellerMuxedAddress: data.sellerMuxedAddress,
       amount: data.amount!,
       lineItems: data.lineItems,
       assetCode: data.assetCode || 'XLM',

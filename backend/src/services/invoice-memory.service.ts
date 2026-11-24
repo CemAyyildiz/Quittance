@@ -6,12 +6,7 @@ import { getStorage } from '../storage/storage-factory';
 import type { InvoiceStore } from '../storage/storage-factory';
 import type { StatusEvent, StatusEventStatus } from '../storage/memory-storage';
 import { DEFAULT_PAGE_LIMIT, MAX_PAGE_LIMIT } from '../utils/parse-pagination';
-import {
-  AnchorError,
-  AnchorErrorCode,
-  canonicalDigestMatches,
-} from '../utils/canonical-proof';
-import { queueInvoicePaidWebhook } from './webhook.service';
+import { extractBaseAddress, StrKey } from '@stellar/stellar-sdk';
 
 class InvoiceMemoryService {
   /**
@@ -37,8 +32,12 @@ class InvoiceMemoryService {
     expiresAt.setDate(expiresAt.getDate() + (input.expiresInDays || 7));
 
     const storage = await getStorage();
+    const sellerMuxedAddress = StrKey.isValidMed25519PublicKey(input.sellerPublicKey)
+      ? input.sellerPublicKey
+      : undefined;
     const invoice = await storage.createInvoice({
-      sellerPublicKey: input.sellerPublicKey, // Dynamic wallet of the caller.
+      sellerPublicKey: sellerMuxedAddress ? extractBaseAddress(sellerMuxedAddress) : input.sellerPublicKey,
+      sellerMuxedAddress,
       amount: input.amount,
       lineItems: input.lineItems,
       assetCode: input.assetCode || 'XLM',

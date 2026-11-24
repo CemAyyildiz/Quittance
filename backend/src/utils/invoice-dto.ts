@@ -20,6 +20,7 @@ export function toStatusHistoryDTO(event: StatusEvent): StatusHistoryEntryDTO {
 export interface InvoiceDTO {
   id: string;
   sellerPublicKey: string;
+  sellerMuxedAddress?: string;
   amount: number;
   lineItems?: Array<{ label: string; quantity: number; unitPrice: number }>;
   assetCode: string;
@@ -47,6 +48,7 @@ export interface InvoiceDTO {
 export function toInvoiceDTO(invoice: {
   id: string;
   sellerPublicKey: string;
+  sellerMuxedAddress?: string;
   amount: number;
   lineItems?: Array<{ label: string; quantity: number; unitPrice: number }>;
   assetCode: string;
@@ -133,6 +135,7 @@ export function toInvoiceDTO(
   const dto: InvoiceDTO = {
     id: invoice.id,
     sellerPublicKey: invoice.sellerPublicKey,
+    ...(invoice.sellerMuxedAddress ? { sellerMuxedAddress: invoice.sellerMuxedAddress } : {}),
     amount: invoice.amount,
     lineItems: invoice.lineItems ?? [
       {

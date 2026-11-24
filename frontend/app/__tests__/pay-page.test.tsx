@@ -102,6 +102,18 @@ describe('PaymentPage SEP-7 handoff', () => {
     ).toBeInTheDocument();
   });
 
+  it('uses the M address in the URI and manual payment instructions', async () => {
+    const muxed = 'MSELLERADDRESS';
+    mockInvoice({ sellerMuxedAddress: muxed });
+    render(<PaymentPage />);
+
+    const openControl = await screen.findByRole('link', {
+      name: /open sep-7 payment uri/i,
+    });
+    expect(openControl.getAttribute('href')).toContain(`destination=${muxed}`);
+    expect(screen.getByText(muxed)).toBeInTheDocument();
+  });
+
   it('includes asset code and issuer for a credit asset such as USDC', async () => {
     mockInvoice({ assetCode: 'USDC', assetIssuer: USDC_ISSUER, memo: 'INV 42' });
     render(<PaymentPage />);

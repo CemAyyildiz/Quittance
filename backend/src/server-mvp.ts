@@ -32,6 +32,7 @@ import {
   isFeeBumpTransaction,
   isNestedFeeBump,
   isSelfPayment,
+  paymentDestinationMatchesInvoice,
   paymentAssetMatchesInvoice,
 } from './utils/verify-invoice-payment';
 import { parsePaginationQuery } from './utils/parse-pagination';
@@ -144,14 +145,14 @@ app.post('/api/invoices', sellerCreateRateLimit(), async (req: Request, res: Res
     const paymentUrl = `${FRONTEND_URL}/pay/${invoice.id}`;
     const qrCodeDataUrl = await generatePaymentQR(paymentUrl);
     const stellarQrCode = await generateStellarPaymentQR(
-      invoice.sellerPublicKey,
+      invoice.sellerMuxedAddress ?? invoice.sellerPublicKey,
       invoice.amount.toString(),
       invoice.assetCode,
       invoice.memo,
       invoice.assetIssuer
     );
     const stellarPaymentUri = buildStellarPaymentUri(
-      invoice.sellerPublicKey,
+      invoice.sellerMuxedAddress ?? invoice.sellerPublicKey,
       invoice.amount.toString(),
       invoice.assetCode,
       invoice.memo,
@@ -778,14 +779,14 @@ app.get('/api/invoices/:id/payment-info', async (req: Request, res: Response) =>
     const paymentUrl = `${FRONTEND_URL}/pay/${invoice.id}`;
     const qrCodeDataUrl = await generatePaymentQR(paymentUrl);
     const stellarQrCode = await generateStellarPaymentQR(
-      invoice.sellerPublicKey,
+      invoice.sellerMuxedAddress ?? invoice.sellerPublicKey,
       invoice.amount.toString(),
       invoice.assetCode,
       invoice.memo,
       invoice.assetIssuer
     );
     const stellarPaymentUri = buildStellarPaymentUri(
-      invoice.sellerPublicKey,
+      invoice.sellerMuxedAddress ?? invoice.sellerPublicKey,
       invoice.amount.toString(),
       invoice.assetCode,
       invoice.memo,
@@ -1191,7 +1192,13 @@ app.post('/api/invoices/:id/verify', invoiceVerifyRateLimit(), async (req: Reque
       });
     }
 
-    if (paymentOp.to !== invoice.sellerPublicKey) {
+    if (!paymentDestinationMatchesInvoice({
+      paymentTo: paymentOp.to,
+      paymentToMuxed: paymentOp.to_muxed,
+      paymentToMuxedId: paymentOp.to_muxed_id,
+      invoiceSellerPublicKey: invoice.sellerPublicKey,
+      invoiceSellerMuxedAddress: invoice.sellerMuxedAddress,
+    })) {
       return res.status(400).json({
         success: false,
         code: VerifyErrorCode.DESTINATION_MISMATCH,
