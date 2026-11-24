@@ -6,12 +6,18 @@ import { Check, Download, ExternalLink, FileText, Mail } from 'lucide-react';
 import AssetLogo from './AssetLogo';
 import { openInvoicePDF, shareInvoiceByEmail } from '@/lib/export';
 import { toast } from 'sonner';
+import CopyButton from './CopyButton';
 
 interface PaymentReceiptProps {
   invoice: any;
 }
 
 export default function PaymentReceipt({ invoice }: PaymentReceiptProps) {
+  const paymentHash = invoice.paymentTxHash;
+  if (invoice.status !== 'PAID' || typeof paymentHash !== 'string' || !/^[0-9a-fA-F]{64}$/.test(paymentHash)) {
+    return null;
+  }
+
   const handleDownloadPDF = () => {
     openInvoicePDF(invoice as any);
     toast.success('Opening payment proof');
@@ -149,8 +155,16 @@ Stellar Blockchain Payment System
         
         <div className="space-y-3">
           <div className="bg-gray-50 rounded-lg p-4">
-            <p className="text-xs text-gray-600 mb-1">Transaction Hash</p>
-            <p className="text-xs font-mono text-gray-900 break-all">{invoice.paymentTxHash}</p>
+            <div className="flex items-center justify-between gap-2 mb-1">
+              <p className="text-xs text-gray-600">Transaction Hash</p>
+              <CopyButton
+                text={paymentHash}
+                label="Copy hash"
+                copiedLabel="Hash copied"
+                className="text-cyan-700 print:hidden"
+              />
+            </div>
+            <p className="text-xs font-mono text-gray-900 break-all select-all">{paymentHash}</p>
           </div>
 
           {invoice.payerPublicKey && (
