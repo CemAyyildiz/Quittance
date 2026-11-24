@@ -173,15 +173,17 @@ Stellar Blockchain Payment System
       </div>
 
       <div className="border-t pt-6 space-y-3 print:hidden">
-        <button
-          onClick={handleDownloadPDF}
-          className="btn btn-primary w-full flex items-center justify-center gap-2"
-        >
-          <FileText aria-hidden="true" className="w-5 h-5" />
-          Download Proof
-        </button>
+        {invoice.status === 'PAID' && (
+          <button
+            onClick={handleDownloadPDF}
+            className="btn btn-primary w-full flex items-center justify-center gap-2"
+          >
+            <FileText aria-hidden="true" className="w-5 h-5" />
+            Download Proof
+          </button>
+        )}
 
-        {invoice.customerEmail && (
+        {invoice.status === 'PAID' && invoice.customerEmail && (
           <button
             onClick={handleEmailProof}
             className="btn btn-secondary w-full flex items-center justify-center gap-2"

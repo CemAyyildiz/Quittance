@@ -5,7 +5,7 @@ import PaymentReceipt from '../PaymentReceipt';
 
 const baseInvoice = {
   id: 'inv-fixture-001',
-  status: 'paid',
+  status: 'PAID',
   amount: '125.5000000',
   assetCode: 'USDC',
   paidAt: '2026-01-15T10:30:00.000Z',
@@ -66,5 +66,12 @@ describe('PaymentReceipt', () => {
       <PaymentReceipt invoice={{ ...baseInvoice, customerEmail: 'client@example.com' }} />
     );
     expect(withEmail).toContain('Download Proof');
+  });
+
+  it('does not offer Download Proof for an unpaid invoice', () => {
+    const html = renderToStaticMarkup(
+      <PaymentReceipt invoice={{ ...baseInvoice, status: 'PENDING' }} />
+    );
+    expect(html).not.toContain('Download Proof');
   });
 });

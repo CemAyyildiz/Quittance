@@ -23,6 +23,7 @@ interface Invoice {
   sellerPublicKey: string;
   payerPublicKey?: string;
   paymentTxHash?: string;
+  invoiceNumber?: string;
 }
 
 /**
@@ -408,6 +409,7 @@ interface Invoice {
   sellerPublicKey: string;
   payerPublicKey?: string;
   paymentTxHash?: string;
+  invoiceNumber?: string;
 }
 
 
@@ -748,6 +750,36 @@ export function generateInvoicePDF(invoice: Invoice): string {
 }
 
 /**
+ * Build a filesystem-safe proof PDF filename from invoice number (or id) and UTC paid date.
+ * Never includes customer email or a full public key.
+ */
+export function buildProofPdfFilename(invoice: {
+  id: string;
+  paidAt?: string;
+  invoiceNumber?: string;
+  number?: string;
+  invoiceNo?: string;
+  invoice_number?: string;
+  customerEmail?: string;
+  sellerPublicKey?: string;
+  payerPublicKey?: string;
+}): string {
+  const rawNumber =
+    invoice.invoiceNumber ?? invoice.number ?? invoice.invoiceNo ?? invoice.invoice_number ?? '';
+  const label = String(rawNumber).trim() || invoice.id;
+  const safeLabel = label
+    .replace(/[^a-zA-Z0-9._-]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 80) || invoice.id;
+
+  const paidUtc = invoice.paidAt
+    ? new Date(invoice.paidAt).toISOString().slice(0, 10)
+    : 'unknown-date';
+
+  return `invoice-proof-${safeLabel}-${paidUtc}.pdf`;
+}
+
+/**
  * Download invoice as PDF file
  * Uses html2pdf.js to generate PDF from HTML content
  */
@@ -771,8 +803,7 @@ export async function openInvoicePDF(invoice: Invoice): Promise<void> {
     // Dynamically import html2pdf.js to avoid SSR issues
     const html2pdf = (await import('html2pdf.js')).default;
     
-    // Generate filename with invoice ID
-    const filename = `invoice-proof-${invoice.id.substring(0, 8)}.pdf`;
+    const filename = buildProofPdfFilename(invoice);
     
     // Configure PDF options
     const options = {
