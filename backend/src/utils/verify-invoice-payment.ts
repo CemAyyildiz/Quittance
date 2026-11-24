@@ -172,6 +172,66 @@ export function paymentAssetMatchesInvoice(input: {
   return invoiceIssuer === paymentIssuer;
 }
 
+/** Horizon transaction fields that carry the time bounds and ledger time. */
+export interface HorizonTimeBoundsSource {
+  created_at?: string | null;
+  valid_before?: string | null;
+  preconditions?: { timebounds?: { max_time?: string | number | null } | null } | null;
+}
+
+/** Unix seconds of a date-like value, or `undefined` when unparseable. */
+function toUnixSeconds(value: Date | string | number | null | undefined): number | undefined {
+  if (value === null || value === undefined || value === '') {
+    return undefined;
+  }
+  const ms = value instanceof Date ? value.getTime() : new Date(value).getTime();
+  return Number.isFinite(ms) ? Math.floor(ms / 1000) : undefined;
+}
+
+/**
+ * The transaction max time in unix seconds, or `undefined` when unbounded.
+ *
+ * Current Horizon reports `preconditions.timebounds.max_time` (unix seconds,
+ * `"0"` meaning no bound); older Horizon only reports `valid_before` (ISO).
+ */
+export function getTransactionMaxTime(tx: HorizonTimeBoundsSource): number | undefined {
+  const raw = tx.preconditions?.timebounds?.max_time;
+  if (raw !== undefined && raw !== null) {
+    const seconds = Number(raw);
+    return Number.isFinite(seconds) && seconds > 0 ? seconds : undefined;
+  }
+  return toUnixSeconds(tx.valid_before);
+}
+
+/**
+ * Whether a confirmed transaction respects the invoice expiry.
+ *
+ * Judged on ledger close time rather than request arrival, so a payment that
+ * was signed and held cannot settle an invoice after it expired. Seconds are
+ * compared, and `ledgerTime == expiry` is still accepted. A transaction with
+ * no max time, or without a readable ledger time, is rejected.
+ */
+export function checkTransactionTimeBounds(input: {
+  invoiceExpiresAt: Date | string;
+  tx: HorizonTimeBoundsSource;
+}): VerifyInvoicePaymentResult {
+  const expiry = toUnixSeconds(input.invoiceExpiresAt);
+  if (expiry === undefined) {
+    return { ok: true };
+  }
+
+  const ledgerTime = toUnixSeconds(input.tx.created_at);
+  if (getTransactionMaxTime(input.tx) === undefined || ledgerTime === undefined) {
+    return { ok: false, code: VerifyErrorCode.TX_TIME_BOUNDS_INVALID };
+  }
+
+  if (ledgerTime > expiry) {
+    return { ok: false, code: VerifyErrorCode.INVOICE_EXPIRED };
+  }
+
+  return { ok: true };
+}
+
 /**
  * Verify that a Stellar payment operation matches the invoice it claims to
  * settle.

@@ -50,7 +50,12 @@ function seedInvoice(expiresAt: Date) {
 
 function matchingHorizonTx(memo: string) {
   return {
-    transaction: { memo, ledger_sequence: 12345 },
+    transaction: {
+      memo,
+      ledger_sequence: 12345,
+      created_at: new Date().toISOString(),
+      preconditions: { timebounds: { max_time: String(Math.floor(Date.now() / 1000) + 3600) } },
+    },
     operations: [
       {
         type: 'payment',
@@ -128,6 +133,50 @@ describe('MVP invoice expiry', () => {
     expect(body.success).toBe(true);
     expect(body.data.status).toBe('PAID');
     expect(getTransaction).toHaveBeenCalledWith(TX_HASH);
+  });
+
+  it('rejects a payment whose ledger time is after the invoice expiry', async () => {
+    // The request arrives before expiry, but the ledger closed one second after.
+    const expiresAt = new Date(Math.floor(Date.now() / 1000) * 1000 + 60_000);
+    const invoice = seedInvoice(expiresAt);
+    const tx = matchingHorizonTx(invoice.memo);
+    tx.transaction.created_at = new Date(expiresAt.getTime() + 1000).toISOString();
+    getTransaction.mockResolvedValue(tx);
+
+    const { status, body } = await call('POST', `/api/invoices/${invoice.id}/verify`, {
+      txHash: TX_HASH,
+    });
+
+    expect(status).toBe(400);
+    expect(body.code).toBe('INVOICE_EXPIRED');
+  });
+
+  it('accepts a payment whose ledger time equals the invoice expiry', async () => {
+    const expiresAt = new Date(Math.floor(Date.now() / 1000) * 1000 + 60_000);
+    const invoice = seedInvoice(expiresAt);
+    const tx = matchingHorizonTx(invoice.memo);
+    tx.transaction.created_at = expiresAt.toISOString();
+    getTransaction.mockResolvedValue(tx);
+
+    const { status } = await call('POST', `/api/invoices/${invoice.id}/verify`, {
+      txHash: TX_HASH,
+    });
+
+    expect(status).toBe(200);
+  });
+
+  it('rejects a payment with no max time when the invoice has an expiry', async () => {
+    const invoice = seedInvoice(nextWeek());
+    const tx = matchingHorizonTx(invoice.memo);
+    delete (tx.transaction as { preconditions?: unknown }).preconditions;
+    getTransaction.mockResolvedValue(tx);
+
+    const { status, body } = await call('POST', `/api/invoices/${invoice.id}/verify`, {
+      txHash: TX_HASH,
+    });
+
+    expect(status).toBe(400);
+    expect(body.code).toBe('TX_TIME_BOUNDS_INVALID');
   });
 
   it('reports EXPIRED from the single-invoice endpoint', async () => {
