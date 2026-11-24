@@ -158,7 +158,8 @@ class InvoiceMemoryService {
 
   /** Mark a pending invoice as uncollectible for its owning seller. */
   async markUncollectible(invoiceId: string, sellerPublicKey: string): Promise<any> {
-    const invoice = memoryStorage.getInvoiceById(invoiceId);
+    const storage = await getStorage();
+    const invoice = await storage.getInvoiceById(invoiceId);
 
     if (!invoice || invoice.sellerPublicKey !== sellerPublicKey) {
       throw Object.assign(new Error('Invoice not found'), { code: 'NOT_FOUND', status: 404 });
@@ -172,7 +173,7 @@ class InvoiceMemoryService {
       });
     }
 
-    return memoryStorage.markUncollectible(invoiceId);
+    return storage.updateInvoice(invoiceId, { status: 'UNCOLLECTIBLE' });
   }
 
   /**
