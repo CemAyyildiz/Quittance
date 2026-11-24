@@ -11,6 +11,10 @@ vi.mock('@/lib/stellar', () => ({
   requestWalletAccess: vi.fn().mockRejectedValue(new Error('Freighter not available')),
   getUserPublicKey: vi.fn().mockResolvedValue(null),
   getAccountBalance: vi.fn().mockResolvedValue([]),
+  getWalletNetwork: vi.fn().mockResolvedValue('TESTNET'),
+  getConfiguredNetwork: () => 'TESTNET',
+  getNetworkMismatch: (wallet: string, configured: string) =>
+    wallet !== 'UNKNOWN' && wallet !== configured,
 }));
 
 vi.mock('@/lib/store', () => ({

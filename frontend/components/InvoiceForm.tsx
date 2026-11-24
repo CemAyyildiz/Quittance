@@ -5,7 +5,13 @@ import { invoiceApi } from '@/lib/api';
 import { toast } from 'sonner';
 import { Loader2 } from 'lucide-react';
 import { STELLAR_ASSETS, getAssetByCode } from '@/lib/assets';
-import { checkAssetReadiness } from '@/lib/stellar';
+import {
+  checkAssetReadiness,
+  getConfiguredNetwork,
+  getNetworkMismatch,
+  getWalletNetwork,
+  type WalletNetwork,
+} from '@/lib/stellar';
 import { MAX_MEMO_BYTES, getUtf8ByteLength, isValidEmail } from '@/lib/utils';
 import AssetLogo from './AssetLogo';
 import { parseAmount } from '@/lib/amountParse';
@@ -54,7 +60,9 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
   const [acknowledgedWarning, setAcknowledgedWarning] = useState(false);
   const [amountError, setAmountError] = useState('');
   const [emailError, setEmailError] = useState('');
-  const [draftReadyFor, setDraftReadyFor] = useState<string | null>(null);
+  const [walletNetwork, setWalletNetwork] = useState<WalletNetwork>('UNKNOWN');
+  const [networkMismatch, setNetworkMismatch] = useState(false);
+  const configuredNetwork = getConfiguredNetwork();
 
   const selectedAsset = getAssetByCode(assetCode);
   const memoBytes = getUtf8ByteLength(memo);
@@ -132,6 +140,34 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
       // Draft persistence is best effort and must never block invoice creation.
     }
   }, [amount, assetCode, description, customerName, draftReadyFor, userWallet]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const recheckNetwork = async () => {
+      if (!userWallet) {
+        if (!cancelled) {
+          setWalletNetwork('UNKNOWN');
+          setNetworkMismatch(false);
+        }
+        return;
+      }
+      const wallet = await getWalletNetwork();
+      if (!cancelled) {
+        setWalletNetwork(wallet);
+        setNetworkMismatch(getNetworkMismatch(wallet, configuredNetwork));
+      }
+    };
+    void recheckNetwork();
+    const interval = window.setInterval(recheckNetwork, 500);
+    window.addEventListener('focus', recheckNetwork);
+    document.addEventListener('visibilitychange', recheckNetwork);
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+      window.removeEventListener('focus', recheckNetwork);
+      document.removeEventListener('visibilitychange', recheckNetwork);
+    };
+  }, [userWallet, configuredNetwork]);
 
   useEffect(() => {
     setTrustlineWarning(null);
@@ -235,6 +271,17 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
       return;
     }
 
+    const liveWalletNetwork = await getWalletNetwork();
+    const mismatch = getNetworkMismatch(liveWalletNetwork, configuredNetwork);
+    setWalletNetwork(liveWalletNetwork);
+    setNetworkMismatch(mismatch);
+    if (mismatch) {
+      toast.error(
+        `Network mismatch: Freighter is on ${liveWalletNetwork}, but the API is configured for ${configuredNetwork}.`,
+      );
+      return;
+    }
+
     setLoading(true);
     try {
       const selectedAsset = getAssetByCode(assetCode);
@@ -295,6 +342,11 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
 
   return (
     <form noValidate onSubmit={handleSubmit} className="space-y-4">
+      {networkMismatch && userWallet && (
+        <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+          Network mismatch: Freighter is on {walletNetwork}, but the API is configured for {configuredNetwork}.
+        </div>
+      )}
       <div>
         <label className="label">Line Items *</label>
         <div className="grid grid-cols-1 sm:grid-cols-[1fr_100px_140px] gap-3">
@@ -529,7 +581,7 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
 
       <button
         type="submit"
-        disabled={loading || memoTooLong}
+        disabled={loading || memoTooLong || networkMismatch}
         aria-busy={loading}
         className="btn btn-primary w-full flex items-center justify-center gap-2 mt-6"
       >

@@ -34,21 +34,8 @@ import {
   isSelfPayment,
   paymentAssetMatchesInvoice,
 } from './utils/verify-invoice-payment';
-import { MAX_PAGE_LIMIT, parsePaginationQuery } from './utils/parse-pagination';
-import {
-  AnchorError,
-  AnchorErrorCode,
-  canonicalDigestMatches,
-  computeCanonicalDigest,
-  getAnchorContractId,
-} from './utils/canonical-proof';
-import { verifyAnchorTransaction } from './utils/anchor-transaction';
-import { memosMatch } from './utils/memo-normalize';
-import { isSmtpConfigured, sendEmail, generateInvoiceEmail } from './utils/smtp';
+import { parsePaginationQuery } from './utils/parse-pagination';
 import { STELLAR_NETWORK } from './config/stellar';
-import { getStorage } from './storage/storage-factory';
-import { parseSellerPublicKeyQuery } from './utils/query-public-key';
-import { createInvoiceBackup } from './utils/invoice-backup';
 
 // Load environment variables
 dotenv.config();
@@ -1032,13 +1019,29 @@ app.post('/api/invoices/:id/verify', invoiceVerifyRateLimit(), async (req: Reque
       });
     }
 
-    // A short or non-hex hash can never match a Stellar transaction. Reject it
-    // here so it never costs a Horizon round trip.
-    if (!verifyTxHashSchema.safeParse(txHash).success) {
+    const reportedNetwork =
+      typeof req.body.network === 'string'
+        ? req.body.network.trim().toUpperCase()
+        : typeof req.body.networkPassphrase === 'string'
+          ? req.body.networkPassphrase.trim()
+          : undefined;
+    const reportedKind =
+      reportedNetwork === 'TESTNET' ||
+      reportedNetwork === 'Test SDF Network ; September 2015' ||
+      (reportedNetwork?.includes?.('TESTNET') ?? false)
+        ? 'TESTNET'
+        : reportedNetwork === 'PUBLIC' ||
+            reportedNetwork === 'Public Global Stellar Network; September 2015' ||
+            (reportedNetwork?.includes?.('PUBLIC') ?? false)
+          ? 'PUBLIC'
+          : undefined;
+    const configuredKind =
+      STELLAR_NETWORK?.trim().toUpperCase() === 'PUBLIC' ? 'PUBLIC' : 'TESTNET';
+    if (reportedKind && reportedKind !== configuredKind) {
       return res.status(400).json({
         success: false,
-        code: VerifyErrorCode.INVALID_TX_HASH,
-        error: VerifyErrorMessages[VerifyErrorCode.INVALID_TX_HASH],
+        code: VerifyErrorCode.NETWORK_MISMATCH,
+        error: VerifyErrorMessages[VerifyErrorCode.NETWORK_MISMATCH],
       });
     }
 
@@ -1094,20 +1097,19 @@ app.post('/api/invoices/:id/verify', invoiceVerifyRateLimit(), async (req: Reque
       });
     }
 
-    let txDetails;
+    let txDetails: { transaction: any; operations: any[] };
     try {
       txDetails = await stellarService.getTransaction(txHash);
-    } catch (horizonError: any) {
-      // A 404 means Horizon has not applied the hash (yet). Report it as such
-      // and leave the invoice as it was; it must not flip to failed.
-      if (horizonError?.code === VerifyErrorCode.TX_NOT_FOUND) {
-        return res.status(404).json({
+    } catch (error: any) {
+      const status = error?.response?.status ?? error?.status;
+      if (status === 404) {
+        return res.status(400).json({
           success: false,
-          code: VerifyErrorCode.TX_NOT_FOUND,
-          error: VerifyErrorMessages[VerifyErrorCode.TX_NOT_FOUND],
+          code: VerifyErrorCode.NETWORK_MISMATCH,
+          error: VerifyErrorMessages[VerifyErrorCode.NETWORK_MISMATCH],
         });
       }
-      throw horizonError;
+      throw error;
     }
     const transaction = txDetails.transaction;
 

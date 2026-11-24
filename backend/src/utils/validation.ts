@@ -78,7 +78,7 @@ export function sumLineItems(lineItems: InvoiceLineItem[]): number {
 export const createInvoiceSchema = z.object({
   amount: z.number().finite().positive().max(1000000000),
   assetCode: z.string().default('XLM').optional(),
-  assetIssuer: z.string().optional(),
+  assetIssuer: stellarPublicKeySchema.optional(),
   description: z.string().max(500).optional(),
   customerName: z.string().max(255).optional(),
   customerEmail: z.string().email().optional(),

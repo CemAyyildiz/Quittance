@@ -228,15 +228,7 @@ class StellarService {
       };
     } catch (error: any) {
       console.error('Error fetching transaction:', error);
-      const failure: Error & { code?: string } = new Error(
-        `Transaction not found: ${error.message}`
-      );
-      // A Horizon 404 means the hash is unknown (possibly still pending).
-      // Callers branch on `code` to tell it apart from other Horizon failures.
-      if (error?.response?.status === 404 || error?.name === 'NotFoundError') {
-        failure.code = VerifyErrorCode.TX_NOT_FOUND;
-      }
-      throw failure;
+      throw error;
     }
   }
 

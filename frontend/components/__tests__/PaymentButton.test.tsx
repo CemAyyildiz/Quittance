@@ -12,6 +12,7 @@ const {
   mockRequestFriendbotFunding,
   mockIsValidPublicKey,
   mockVerify,
+  mockGetWalletNetwork,
   mockToast,
 } = vi.hoisted(() => ({
   mockSendPayment: vi.fn(),
@@ -22,6 +23,7 @@ const {
   mockRequestFriendbotFunding: vi.fn(),
   mockIsValidPublicKey: vi.fn(),
   mockVerify: vi.fn(),
+  mockGetWalletNetwork: vi.fn(),
   mockToast: {
     error: vi.fn(),
     loading: vi.fn(),
@@ -30,13 +32,16 @@ const {
   },
 }));
 
-// The wallet extension is not available in jsdom.
-vi.mock('@stellar/freighter-api', () => ({
-  isConnected: vi.fn(),
-  getPublicKey: vi.fn(),
-  signTransaction: vi.fn(),
-  isAllowed: vi.fn(),
-  setAllowed: vi.fn(),
+// The payment flow must never touch the real Horizon/Freighter SDK or the
+// real invoice backend while testing, so both are replaced with mocks.
+vi.mock('@/lib/stellar', () => ({
+  sendPayment: mockSendPayment,
+  checkWalletConnection: mockCheckWalletConnection,
+  requestWalletAccess: mockRequestWalletAccess,
+  getWalletNetwork: mockGetWalletNetwork,
+  getConfiguredNetwork: () => 'TESTNET',
+  getNetworkMismatch: (wallet: string, configured: string) =>
+    wallet !== 'UNKNOWN' && wallet !== configured,
 }));
 
 // Network calls are mocked, but the pure testnet/fee helpers stay real so the
@@ -101,10 +106,7 @@ beforeEach(() => {
   vi.stubEnv('NEXT_PUBLIC_STELLAR_NETWORK', 'TESTNET');
   mockCheckWalletConnection.mockResolvedValue(true);
   mockRequestWalletAccess.mockResolvedValue(true);
-  mockGetUserPublicKey.mockResolvedValue(PAYER_PUBLIC_KEY);
-  mockGetAccountBalance.mockResolvedValue([{ assetCode: 'XLM', balance: '100.0000000' }]);
-  mockRequestFriendbotFunding.mockResolvedValue(undefined);
-  mockIsValidPublicKey.mockReturnValue(true);
+  mockGetWalletNetwork.mockResolvedValue('TESTNET');
   mockSendPayment.mockResolvedValue(TX_HASH);
   mockVerify.mockResolvedValue({ verified: true });
 });
@@ -267,6 +269,26 @@ describe('PaymentButton', () => {
 
     expect(screen.queryByText(/Paying with/)).not.toBeInTheDocument();
     expect(screen.queryByText(/trustline/)).not.toBeInTheDocument();
+  });
+
+  it('blocks mismatch, names both networks, and clears after switching', async () => {
+    mockGetWalletNetwork.mockResolvedValue('PUBLIC');
+    renderButton();
+
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: PAY_IDLE_LABEL })).toBeDisabled(),
+    );
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'Freighter is on PUBLIC, but the API is configured for TESTNET',
+    );
+
+    mockGetWalletNetwork.mockResolvedValue('TESTNET');
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: PAY_IDLE_LABEL })).toBeEnabled(),
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: PAY_IDLE_LABEL }));
+    await waitFor(() => expect(mockSendPayment).toHaveBeenCalled());
   });
 });
 

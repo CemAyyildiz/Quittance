@@ -53,6 +53,8 @@ export enum VerifyErrorCode {
   NO_PAYMENT_OPERATION = 'NO_PAYMENT_OPERATION',
   /** The matched transaction did not expose a usable ledger sequence. */
   MISSING_LEDGER_SEQUENCE = 'MISSING_LEDGER_SEQUENCE',
+  /** Transaction was fetched from a Stellar network different from API config. */
+  NETWORK_MISMATCH = 'NETWORK_MISMATCH',
   /**
    * A fee-bump transaction did not wrap exactly one payment operation, or it
    * wrapped another fee-bump transaction.
@@ -127,8 +129,8 @@ export const VerifyErrorMessages: Readonly<Record<VerifyErrorCode, string>> = Ob
   [VerifyErrorCode.TX_FAILED]: 'Transaction failed on Stellar',
   [VerifyErrorCode.NO_PAYMENT_OPERATION]: 'No payment operation found',
   [VerifyErrorCode.MISSING_LEDGER_SEQUENCE]: 'Transaction is missing a ledger sequence',
-  [VerifyErrorCode.INVALID_FEE_BUMP]:
-    'Fee-bump transaction must wrap exactly one payment operation.',
+  [VerifyErrorCode.NETWORK_MISMATCH]:
+    'Transaction was fetched from a different Stellar network than the API is configured for',
   [VerifyErrorCode.TX_HASH_ALREADY_USED]:
     'This transaction hash has already been used.',
   [VerifyErrorCode.MEMO_MISMATCH]: 'Memo mismatch',
