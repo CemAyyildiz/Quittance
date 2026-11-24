@@ -162,6 +162,32 @@ export const mockInvoiceApi = {
     };
   },
 
+  getHistory: async (id: string, _sellerPublicKey?: string) => {
+    await delay(200);
+    const invoice = mockInvoices.find((inv) => inv.id === id);
+    return {
+      success: true,
+      data: invoice
+        ? [{ status: 'CREATED', at: invoice.createdAt }]
+        : [],
+    };
+  },
+
+  getProofDigest: async (_id: string, _sellerPublicKey: string) => {
+    await delay(200);
+    return { success: true, data: { invoiceId: _id, digest: '', contractId: null } };
+  },
+
+  prepareAnchorProof: async (id: string, digest: string, _sellerPublicKey: string) => {
+    await delay(200);
+    return { success: true, data: { invoiceId: id, digest, contractId: null } };
+  },
+
+  anchorProof: async (_id: string, _payload: any) => {
+    await delay(200);
+    return { success: true, data: {} };
+  },
+
   getPaymentInfo: async (id: string) => {
     await delay(500);
     const invoice = mockInvoices.find(inv => inv.id === id);

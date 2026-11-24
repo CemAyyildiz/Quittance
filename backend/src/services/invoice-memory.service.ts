@@ -3,7 +3,14 @@ import { generateInvoiceMemo, validateMemoByteLength } from '../utils/memo';
 import { CreateInvoiceInput } from '../utils/validation';
 import { assertCanExtendExpiry } from '../utils/invoice-expiry';
 import { getStorage } from '../storage/storage-factory';
+import type { InvoiceStore } from '../storage/storage-factory';
+import type { StatusEvent, StatusEventStatus } from '../storage/memory-storage';
 import { DEFAULT_PAGE_LIMIT, MAX_PAGE_LIMIT } from '../utils/parse-pagination';
+import {
+  AnchorError,
+  AnchorErrorCode,
+  canonicalDigestMatches,
+} from '../utils/canonical-proof';
 
 class InvoiceMemoryService {
   /**
@@ -119,13 +126,16 @@ class InvoiceMemoryService {
   }
 
   /**
-   * Get all invoices for a seller with cursor-based pagination
+   * Get all invoices for a seller with cursor-based pagination.
+   * Search runs inside the seller-scoped list and before the page is cut, so a
+   * match on any invoice is returned even when it is not on the current page.
    */
   async getInvoicesBySeller(
     sellerPublicKey: string,
     status?: string,
     limit: number = DEFAULT_PAGE_LIMIT,
-    cursor?: string
+    cursor?: string,
+    search?: string
   ): Promise<{ invoices: any[]; nextCursor?: string; limit: number }> {
     const pageLimit = Number.isFinite(limit)
       ? Math.min(Math.max(Math.floor(limit), 1), MAX_PAGE_LIMIT)
@@ -136,6 +146,23 @@ class InvoiceMemoryService {
 
     if (sellerPublicKey) {
       invoices = invoices.filter((inv) => inv.sellerPublicKey === sellerPublicKey);
+    }
+
+    if (search) {
+      const query = search.toLowerCase();
+      invoices = invoices.filter((inv) => {
+        const matchesInvoiceNumber = String(inv.id).toLowerCase().includes(query);
+        // A memo is an exact reference, not free text: a substring must not
+        // surface unrelated invoices that merely share a few characters.
+        const matchesMemo = String(inv.memo).toLowerCase() === query;
+        const matchesCustomerName = Boolean(
+          inv.customerName && String(inv.customerName).toLowerCase().includes(query)
+        );
+        const matchesSellerName = Boolean(
+          (inv as any).sellerName && String((inv as any).sellerName).toLowerCase().includes(query)
+        );
+        return matchesInvoiceNumber || matchesMemo || matchesCustomerName || matchesSellerName;
+      });
     }
 
     // Sort by createdAt descending for consistent pagination
@@ -219,6 +246,126 @@ class InvoiceMemoryService {
 
     const updated = await storage.updateInvoice(invoiceId, updates);
     console.log('✅ Invoice expiry extended:', invoiceId);
+    return updated;
+  }
+
+  /**
+   * The active backend, narrowed to the append-only history methods.
+   */
+  private async historyStore(): Promise<
+    InvoiceStore & Required<Pick<InvoiceStore, 'appendStatusEvent' | 'getStatusHistory'>>
+  > {
+    const storage = await getStorage();
+    if (!storage.appendStatusEvent || !storage.getStatusHistory) {
+      throw new Error('Status history is not supported by this storage backend');
+    }
+    return storage as InvoiceStore &
+      Required<Pick<InvoiceStore, 'appendStatusEvent' | 'getStatusHistory'>>;
+  }
+
+  /**
+   * Append a lifecycle event to an invoice's audit trail.
+   */
+  async recordStatusEvent(
+    invoiceId: string,
+    status: StatusEventStatus,
+    txHash?: string,
+  ): Promise<StatusEvent[]> {
+    const storage = await getStorage();
+    if (!(await storage.getInvoiceById(invoiceId))) {
+      throw new Error('Invoice not found');
+    }
+    const history = await this.historyStore();
+    await history.appendStatusEvent(invoiceId, status, txHash);
+    return history.getStatusHistory(invoiceId);
+  }
+
+  /**
+   * Status history for the owning seller, oldest first. The rows contain only
+   * status / time / optional transaction hash — never customer contact data.
+   */
+  async getStatusHistory(invoiceId: string): Promise<StatusEvent[]> {
+    const storage = await getStorage();
+    if (!(await storage.getInvoiceById(invoiceId))) {
+      throw new Error('Invoice not found');
+    }
+    const history = await this.historyStore();
+    return history.getStatusHistory(invoiceId);
+  }
+
+  /** Extend the settlement window and record the EXTENDED transition. */
+  async extendInvoice(invoiceId: string, days: number): Promise<any> {
+    const storage = await getStorage();
+    const invoice = await storage.getInvoiceById(invoiceId);
+    if (!invoice || invoice.status !== 'PENDING') {
+      throw new Error('Invoice not found or not pending');
+    }
+
+    const expiresAt = new Date(invoice.expiresAt);
+    expiresAt.setDate(expiresAt.getDate() + days);
+    const updated = await storage.updateInvoice(invoiceId, { expiresAt });
+
+    const history = await this.historyStore();
+    await history.appendStatusEvent(invoiceId, 'EXTENDED');
+    return updated;
+  }
+
+  /** Record a partial payment without moving the invoice to PAID. */
+  async recordPartialPayment(invoiceId: string, txHash?: string): Promise<any> {
+    const storage = await getStorage();
+    const invoice = await storage.getInvoiceById(invoiceId);
+    if (!invoice || invoice.status !== 'PENDING') {
+      throw new Error('Invoice not found or not pending');
+    }
+
+    const history = await this.historyStore();
+    await history.appendStatusEvent(invoiceId, 'PARTIALLY_PAID', txHash);
+    return invoice;
+  }
+
+  /** Record a refund of a previously paid invoice. */
+  async recordRefund(invoiceId: string, txHash?: string): Promise<any> {
+    const storage = await getStorage();
+    const invoice = await storage.getInvoiceById(invoiceId);
+    if (!invoice || invoice.status !== 'PAID') {
+      throw new Error('Invoice not found or not paid');
+    }
+
+    const history = await this.historyStore();
+    await history.appendStatusEvent(invoiceId, 'REFUNDED', txHash);
+    return invoice;
+  }
+
+  /**
+   * Record the single on-chain anchor for a paid invoice.
+   *
+   * The canonical digest is recomputed from the stored invoice and compared
+   * before anything is written — the backend never signs and never accepts a
+   * digest that would not satisfy the contract.
+   */
+  async anchorProof(invoiceId: string, digest: string, txHash: string): Promise<any> {
+    const storage = await getStorage();
+    const invoice = await storage.getInvoiceById(invoiceId);
+    if (!invoice) {
+      throw new AnchorError(AnchorErrorCode.INVOICE_NOT_FOUND, 'Invoice not found');
+    }
+    if (invoice.status !== 'PAID') {
+      throw new AnchorError(AnchorErrorCode.INVOICE_NOT_PAID, 'Only a paid invoice can be anchored');
+    }
+    if (invoice.anchoringTxHash) {
+      throw new AnchorError(AnchorErrorCode.ALREADY_ANCHORED, 'Invoice is already anchored');
+    }
+    if (!canonicalDigestMatches(invoice, digest)) {
+      throw new AnchorError(AnchorErrorCode.DIGEST_MISMATCH, 'Digest does not match the invoice');
+    }
+    if (!/^[0-9a-fA-F]{64}$/.test(txHash)) {
+      throw new AnchorError(AnchorErrorCode.INVALID_TX_HASH, 'Invalid anchoring transaction hash');
+    }
+
+    const updated = await storage.updateInvoice(invoiceId, { anchoringTxHash: txHash });
+    if (!updated) {
+      throw new AnchorError(AnchorErrorCode.INVOICE_NOT_FOUND, 'Invoice not found');
+    }
     return updated;
   }
 

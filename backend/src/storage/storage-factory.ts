@@ -2,6 +2,7 @@
  * Storage factory - Returns Postgres or memory storage based on DATABASE_URL
  */
 import memoryStorage from './memory-storage';
+import type { StatusEvent, StatusEventStatus } from './memory-storage';
 import postgresStorage from './postgres-storage';
 import { pool } from '../config/database';
 
@@ -20,6 +21,18 @@ export interface InvoiceStore {
   getAllInvoices(filter?: { status?: string }): Promise<any[]> | any[];
   getStats(sellerPublicKey: string): Promise<any> | any;
   markExpiredInvoices(): Promise<number> | number;
+  /**
+   * Append one lifecycle event. Optional: a backend without an append-only
+   * history table simply does not implement it.
+   */
+  appendStatusEvent?(
+    invoiceId: string,
+    status: StatusEventStatus,
+    txHash?: string,
+    at?: Date
+  ): Promise<StatusEvent | undefined> | StatusEvent | undefined;
+  /** All events for an invoice, oldest first. */
+  getStatusHistory?(invoiceId: string): Promise<StatusEvent[]> | StatusEvent[];
 }
 
 let storageInstance: InvoiceStore | null = null;
