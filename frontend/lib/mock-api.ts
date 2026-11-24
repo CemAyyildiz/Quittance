@@ -198,6 +198,36 @@ export const mockInvoiceApi = {
     };
   },
 
+  duplicate: async (id: string, data: { sellerPublicKey: string; copyCustomerEmail?: boolean }) => {
+    await delay(500);
+    const source = mockInvoices.find(inv => inv.id === id);
+
+    if (!source) {
+      throw new Error('Invoice not found');
+    }
+    if (source.sellerPublicKey !== data.sellerPublicKey) {
+      throw new Error('Only the owning seller can duplicate this invoice');
+    }
+
+    const duplicate = {
+      ...source,
+      id: `mock-invoice-${Date.now()}`,
+      memo: `MOCK${Date.now()}`,
+      status: 'PENDING',
+      customerEmail: data.copyCustomerEmail ? source.customerEmail : undefined,
+      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+      createdAt: new Date().toISOString(),
+      paymentTxHash: undefined,
+      paidAt: undefined,
+    };
+    mockInvoices.push(duplicate);
+
+    return {
+      success: true,
+      data: { invoice: duplicate },
+    };
+  },
+
   verify: async (id: string, txHash: string) => {
     await delay(1000);
     const invoice = mockInvoices.find(inv => inv.id === id);
