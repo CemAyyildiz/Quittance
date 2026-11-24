@@ -6,7 +6,7 @@ import { toast } from 'sonner';
 import { Loader2 } from 'lucide-react';
 import { STELLAR_ASSETS, getAssetByCode } from '@/lib/assets';
 import { checkAssetReadiness } from '@/lib/stellar';
-import { isValidEmail } from '@/lib/utils';
+import { MAX_MEMO_BYTES, getUtf8ByteLength, isValidEmail } from '@/lib/utils';
 import AssetLogo from './AssetLogo';
 
 interface InvoiceFormProps {
@@ -16,12 +16,16 @@ interface InvoiceFormProps {
 
 const amountErrorId = 'amount-error';
 const draftStoragePrefix = 'quittance:invoice-draft:';
+const memoCounterId = 'memo-counter';
+const memoErrorId = 'memo-error';
 
 interface InvoiceDraft {
   amount: string;
   assetCode: string;
   description: string;
+  memo: string;
   customerName: string;
+  customerEmail: string;
 }
 
 export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps) {
@@ -29,6 +33,7 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
   const [amount, setAmount] = useState('');
   const [assetCode, setAssetCode] = useState('XLM');
   const [description, setDescription] = useState('');
+  const [memo, setMemo] = useState('');
   const [customerName, setCustomerName] = useState('');
   const [customerEmail, setCustomerEmail] = useState('');
   const [trustlineWarning, setTrustlineWarning] = useState<string | null>(null);
@@ -37,6 +42,8 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
   const [draftReadyFor, setDraftReadyFor] = useState<string | null>(null);
 
   const selectedAsset = getAssetByCode(assetCode);
+  const memoBytes = getUtf8ByteLength(memo);
+  const memoTooLong = memoBytes > MAX_MEMO_BYTES;
 
   useEffect(() => {
     setDraftReadyFor(null);
@@ -44,7 +51,9 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
       setAmount('');
       setAssetCode('XLM');
       setDescription('');
+      setMemo('');
       setCustomerName('');
+      setCustomerEmail('');
       return;
     }
 
@@ -60,31 +69,44 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
             : 'XLM'
         );
         setDescription(typeof draft.description === 'string' ? draft.description : '');
+        setMemo(typeof draft.memo === 'string' ? draft.memo : '');
         setCustomerName(typeof draft.customerName === 'string' ? draft.customerName : '');
+        setCustomerEmail(typeof draft.customerEmail === 'string' ? draft.customerEmail : '');
       } else {
         setAmount('');
         setAssetCode('XLM');
         setDescription('');
+        setMemo('');
         setCustomerName('');
+        setCustomerEmail('');
       }
     } catch {
       setAmount('');
       setAssetCode('XLM');
       setDescription('');
+      setMemo('');
       setCustomerName('');
+      setCustomerEmail('');
     }
     setDraftReadyFor(userWallet);
   }, [userWallet]);
 
   useEffect(() => {
     if (!userWallet || draftReadyFor !== userWallet || typeof window === 'undefined') return;
-    const draft: InvoiceDraft = { amount, assetCode, description, customerName };
+    const draft: InvoiceDraft = {
+      amount,
+      assetCode,
+      description,
+      memo,
+      customerName,
+      customerEmail,
+    };
     try {
       window.localStorage.setItem(`${draftStoragePrefix}${userWallet}`, JSON.stringify(draft));
     } catch {
       // Draft persistence is best effort and must never block invoice creation.
     }
-  }, [amount, assetCode, description, customerName, draftReadyFor, userWallet]);
+  }, [amount, assetCode, description, memo, customerName, customerEmail, draftReadyFor, userWallet]);
 
   useEffect(() => {
     setTrustlineWarning(null);
@@ -144,6 +166,11 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
     }
     setEmailError('');
 
+    if (memoTooLong) {
+      toast.error(`Memo must be at most ${MAX_MEMO_BYTES} bytes`);
+      return;
+    }
+
     setLoading(true);
     try {
       const selectedAsset = getAssetByCode(assetCode);
@@ -154,6 +181,7 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
         expiresInDays: 7,
         sellerPublicKey: userWallet,
         description: description || undefined,
+        memo: memo || undefined,
         customerName: customerName.trim() || undefined,
         customerEmail: customerEmail.trim() || undefined,
       });
@@ -170,6 +198,7 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
       setAmount('');
       setAssetCode('XLM');
       setDescription('');
+      setMemo('');
       setCustomerName('');
       setCustomerEmail('');
       setAmountError('');
@@ -246,6 +275,35 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
       </div>
 
       <div>
+        <label className="label" htmlFor="invoice-memo">
+          Memo (optional)
+        </label>
+        <input
+          id="invoice-memo"
+          type="text"
+          className={`input text-sm ${memoTooLong ? 'border-red-500' : ''}`}
+          placeholder="Payment reference, e.g. INV-2026"
+          value={memo}
+          onChange={(e) => setMemo(e.target.value)}
+          aria-invalid={memoTooLong}
+          aria-describedby={memoTooLong ? `${memoCounterId} ${memoErrorId}` : memoCounterId}
+        />
+        <p
+          id={memoCounterId}
+          aria-live="polite"
+          className={`text-xs mt-1 ${memoTooLong ? 'text-red-600 font-semibold' : 'text-gray-500'}`}
+        >
+          {memoBytes}/{MAX_MEMO_BYTES} bytes
+        </p>
+        {memoTooLong && (
+          <p id={memoErrorId} className="text-sm text-red-600 mt-1">
+            Memo is {memoBytes} bytes. Stellar allows at most {MAX_MEMO_BYTES} bytes, and
+            non-ASCII characters use more than one byte each.
+          </p>
+        )}
+      </div>
+
+      <div>
         <label className="label">Client name (optional)</label>
         <input
           type="text"
@@ -282,7 +340,7 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
 
       <button
         type="submit"
-        disabled={loading}
+        disabled={loading || memoTooLong}
         aria-busy={loading}
         className="btn btn-primary w-full flex items-center justify-center gap-2 mt-6"
       >

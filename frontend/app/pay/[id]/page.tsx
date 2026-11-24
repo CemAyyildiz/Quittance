@@ -299,6 +299,39 @@ export default function PaymentPage() {
                   </p>
                 </div>
               )}
+
+              {invoice.status === 'PAID' && invoice.proofDigest && (
+                <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 space-y-3">
+                  <div>
+                    <p className="text-sm text-slate-600 font-semibold mb-1">Proof Digest</p>
+                    <code className="block text-xs font-mono text-slate-900 break-all bg-white border rounded p-2">
+                      {invoice.proofDigest}
+                    </code>
+                    <button
+                      type="button"
+                      onClick={() => copyInfo(invoice.proofDigest, 'Proof digest')}
+                      className="mt-2 text-xs text-cyan-700 hover:underline"
+                    >
+                      Copy digest
+                    </button>
+                  </div>
+                  {invoice.proofCanonical && (
+                    <div>
+                      <p className="text-sm text-slate-600 font-semibold mb-1">Canonical String</p>
+                      <pre className="text-xs font-mono text-slate-800 whitespace-pre-wrap break-all bg-white border rounded p-2">
+                        {invoice.proofCanonical}
+                      </pre>
+                      <button
+                        type="button"
+                        onClick={() => copyInfo(invoice.proofCanonical, 'Canonical string')}
+                        className="mt-2 text-xs text-cyan-700 hover:underline"
+                      >
+                        Copy canonical string
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             {invoice.status === 'PAID' && (
@@ -375,6 +408,26 @@ export default function PaymentPage() {
                     </button>
                   </div>
                 </div>
+
+                {invoice.status === 'PAID' && (
+                  <div className="border-t pt-4 mt-4">
+                    <p className="text-xs text-gray-600 mb-1">Payment Details</p>
+                    <div className="grid grid-cols-3 gap-2 text-sm">
+                      <div>
+                        <p className="text-gray-500">Payer</p>
+                        <p className="font-medium">{invoice.payerPublicKey || 'N/A'}</p>
+                      </div>
+                      <div>
+                        <p className="text-gray-500">Ledger</p>
+                        <p className="font-medium">{invoice.ledger || 'N/A'}</p>
+                      </div>
+                      <div>
+                        <p className="text-gray-500">Paid At</p>
+                        <p className="font-medium">{invoice.paidAt ? formatDate(invoice.paidAt) : 'N/A'}</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>
