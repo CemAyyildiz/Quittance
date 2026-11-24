@@ -15,6 +15,7 @@ interface Invoice {
   status: 'PENDING' | 'PAID' | 'EXPIRED' | 'CANCELLED';
   paymentTxHash?: string;
   payerPublicKey?: string;
+  ledger?: number;
   createdAt: Date;
   paidAt?: Date;
   expiresAt: Date;
@@ -87,12 +88,28 @@ class MemoryStorage {
   }
 
   // Mark as paid
-  markAsPaid(id: string, txHash: string, payerPublicKey: string): Invoice | undefined {
+  markAsPaid(
+    id: string,
+    txHash: string,
+    payerPublicKey: string,
+    meta?: { ledger?: number; paidAt?: Date }
+  ): Invoice | undefined {
+    const existing = this.invoices.get(id);
+    if (!existing) {
+      return undefined;
+    }
+
+    if (meta?.ledger === undefined || meta?.ledger === null || !Number.isFinite(meta.ledger)) {
+      throw new Error('Ledger sequence is required to mark invoice as paid');
+    }
+
+    const paidAtDate = meta?.paidAt ?? new Date();
     const invoice = this.updateInvoice(id, {
       status: 'PAID',
       paymentTxHash: txHash,
       payerPublicKey,
-      paidAt: new Date(),
+      paidAt: paidAtDate,
+      ledger: meta.ledger,
     });
 
     // Remember the hash so it cannot settle a second invoice later.

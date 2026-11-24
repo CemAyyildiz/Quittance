@@ -182,6 +182,8 @@ describe('toInvoiceDTO', () => {
       'expiresAt',
       'expiryExtended',
       'id',
+      'ledger',
+      'lineItems',
       'memo',
       'originalExpiresAt',
       'paidAt',
@@ -190,6 +192,8 @@ describe('toInvoiceDTO', () => {
       'sellerPublicKey',
       'status',
     ]);
+    expect(result).not.toHaveProperty('proofDigest');
+    expect(result).not.toHaveProperty('proofCanonical');
   });
 
   it('does not copy sellerName or sellerEmail while keeping customer fields', () => {
