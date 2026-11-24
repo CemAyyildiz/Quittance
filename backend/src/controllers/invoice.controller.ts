@@ -5,6 +5,10 @@ import { createInvoiceSchema } from '../utils/validation';
 import { generatePaymentQR, generateStellarPaymentQR, buildStellarPaymentUri } from '../utils/qrcode';
 import { SELLER_PUBLIC_KEY } from '../config/stellar';
 import { toInvoiceDTO } from '../utils/invoice-dto';
+import { paymentAssetMatchesInvoice } from '../utils/verify-invoice-payment';
+import { assertInvoiceSettleable } from '../utils/invoice-expiry';
+import { isDecimalEqual } from '../utils/amount-compare';
+import { VerifyErrorCode, VerifyErrorMessages } from '../utils/verify-errors';
 
 class InvoiceController {
   async createInvoice(req: Request, res: Response) {
@@ -84,7 +88,7 @@ class InvoiceController {
 
       res.json({
         success: true,
-        data: invoices.map(toInvoiceDTO),
+        data: invoices.map((invoice) => toInvoiceDTO(invoice)),
         pagination: {
           limit: parseInt(limit as string),
           offset: parseInt(offset as string),
@@ -124,7 +128,8 @@ class InvoiceController {
       if (!txHash) {
         return res.status(400).json({
           success: false,
-          error: 'Transaction hash is required',
+          code: VerifyErrorCode.TX_HASH_REQUIRED,
+          error: VerifyErrorMessages[VerifyErrorCode.TX_HASH_REQUIRED],
         });
       }
 
@@ -133,10 +138,31 @@ class InvoiceController {
       if (!invoice) {
         return res.status(404).json({
           success: false,
-          error: 'Invoice not found',
+          code: VerifyErrorCode.INVOICE_NOT_FOUND,
+          error: VerifyErrorMessages[VerifyErrorCode.INVOICE_NOT_FOUND],
         });
       }
 
+      // Check if already paid
+      if (invoice.status === 'PAID') {
+        return res.status(400).json({
+          success: false,
+          code: VerifyErrorCode.INVOICE_ALREADY_PAID,
+          error: VerifyErrorMessages[VerifyErrorCode.INVOICE_ALREADY_PAID],
+        });
+      }
+
+      // Check expiry before calling Horizon - fail fast if expired
+      const settleable = assertInvoiceSettleable(invoice);
+      if (!settleable.ok) {
+        return res.status(400).json({
+          success: false,
+          code: settleable.code,
+          error: VerifyErrorMessages[settleable.code],
+        });
+      }
+
+      // Now fetch transaction from Horizon
       const txDetails = await stellarService.getTransaction(txHash);
       const transaction = txDetails.transaction;
       const paymentOp = txDetails.operations.find((op: any) => op.type === 'payment');
@@ -144,21 +170,55 @@ class InvoiceController {
       if (!paymentOp) {
         return res.status(400).json({
           success: false,
-          error: 'No payment operation found',
+          code: VerifyErrorCode.NO_PAYMENT_OPERATION,
+          error: VerifyErrorMessages[VerifyErrorCode.NO_PAYMENT_OPERATION],
         });
       }
 
+      // Verify memo
       if (transaction.memo !== invoice.memo) {
         return res.status(400).json({
           success: false,
-          error: 'Memo mismatch',
+          code: VerifyErrorCode.MEMO_MISMATCH,
+          error: VerifyErrorMessages[VerifyErrorCode.MEMO_MISMATCH],
         });
       }
 
-      if (parseFloat(paymentOp.amount).toFixed(7) !== invoice.amount.toFixed(7)) {
+      // Verify destination matches seller
+      if (paymentOp.to !== invoice.sellerPublicKey) {
         return res.status(400).json({
           success: false,
-          error: 'Amount mismatch',
+          code: VerifyErrorCode.DESTINATION_MISMATCH,
+          error: VerifyErrorMessages[VerifyErrorCode.DESTINATION_MISMATCH],
+        });
+      }
+
+      // Verify amount
+      if (!isDecimalEqual(paymentOp.amount, String(invoice.amount))) {
+        return res.status(400).json({
+          success: false,
+          code: VerifyErrorCode.AMOUNT_MISMATCH,
+          error: VerifyErrorMessages[VerifyErrorCode.AMOUNT_MISMATCH],
+        });
+      }
+
+      // Verify asset using the shared matcher
+      const opIsNative = paymentOp.asset_type === 'native';
+      const opAsset = opIsNative ? 'XLM' : paymentOp.asset_code;
+
+      if (
+        !paymentAssetMatchesInvoice({
+          paymentAsset: opAsset,
+          invoiceAssetCode: invoice.assetCode,
+          paymentAssetIssuer: paymentOp.asset_issuer,
+          invoiceAssetIssuer: invoice.assetIssuer,
+          paymentIsNative: opIsNative,
+        })
+      ) {
+        return res.status(400).json({
+          success: false,
+          code: VerifyErrorCode.ASSET_MISMATCH,
+          error: VerifyErrorMessages[VerifyErrorCode.ASSET_MISMATCH],
         });
       }
 
@@ -176,7 +236,8 @@ class InvoiceController {
     } catch (error: any) {
       res.status(500).json({
         success: false,
-        error: error.message || 'Failed to verify payment',
+        code: VerifyErrorCode.VERIFY_FAILED,
+        error: VerifyErrorMessages[VerifyErrorCode.VERIFY_FAILED],
       });
     }
   }
