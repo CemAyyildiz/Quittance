@@ -128,6 +128,18 @@ describe('PaymentPage SEP-7 handoff', () => {
     // The payment URL is still handed to the QR section alongside the SEP-7 URI.
     expect(await screen.findByTestId('qr-codes')).toHaveTextContent(PAYMENT_URL);
   });
+
+  it('shows the expired state on the page itself', async () => {
+    mockInvoice({
+      status: 'EXPIRED',
+      expiresAt: new Date(Date.now() - 86_400_000).toISOString(),
+    });
+    render(<PaymentPage />);
+
+    expect(await screen.findByText('Payment Expired')).toBeInTheDocument();
+    expect(screen.queryByText(/expires in/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/waiting for payment/i)).not.toBeInTheDocument();
+  });
 });
 
 describe('PaymentPage manual payment', () => {
