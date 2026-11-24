@@ -4,6 +4,8 @@
 //! produced a hash commitment. Two separators with labels that differ in any
 //! byte produce completely different hashes for the same proof fields.
 
+use alloc::vec::Vec;
+
 /// Domain separator used to namespace Quittance receipt hashes.
 ///
 /// The default separator is `Quittance/ReceiptHash/v1/STELLAR`. Callers that
@@ -23,7 +25,9 @@ impl DomainSeparator {
 
     /// Build a domain separator from an arbitrary label.
     pub fn new(label: &str) -> Self {
-        Self { bytes: label.as_bytes().to_vec() }
+        Self {
+            bytes: label.as_bytes().to_vec(),
+        }
     }
 
     /// Return the default Quittance receipt hash domain separator.

@@ -5,15 +5,22 @@ import { requestId } from './middleware/request-id';
 import { createInvoiceSchema } from './utils/validation';
 import invoiceService from './services/invoice-memory.service';
 import { generatePaymentQR, generateStellarPaymentQR, buildStellarPaymentUri } from './utils/qrcode';
-import stellarService from './services/stellar.service';
+import stellarService, {
+  HorizonUnavailableError,
+  UnfundedAccountError,
+} from './services/stellar.service';
 import {
   rateLimitIfEnabled,
   sellerCreateRateLimit,
   invoiceVerifyRateLimit,
 } from './middleware/rate-limit-stub';
 import healthDetailRouter from './routes/health-detail';
-import { toInvoiceDTO as mapInvoiceDTO } from './utils/invoice-dto';
-import { isDecimalEqual } from './utils/amount-compare';
+import { toInvoiceDTO as mapInvoiceDTO, toStatusHistoryDTO } from './utils/invoice-dto';
+import {
+  amountToStroops,
+  amountsMatch,
+  isDecimalEqual,
+} from './utils/amount-compare';
 import { VerifyErrorCode, VerifyErrorMessages } from './utils/verify-errors';
 import {
   assertInvoiceSettleable,
@@ -25,6 +32,15 @@ import {
   paymentAssetMatchesInvoice,
 } from './utils/verify-invoice-payment';
 import { parsePaginationQuery } from './utils/parse-pagination';
+import {
+  AnchorError,
+  AnchorErrorCode,
+  canonicalDigestMatches,
+  computeCanonicalDigest,
+  getAnchorContractId,
+} from './utils/canonical-proof';
+import { verifyAnchorTransaction } from './utils/anchor-transaction';
+import { memosMatch } from './utils/memo-normalize';
 import { isSmtpConfigured, sendEmail, generateInvoiceEmail } from './utils/smtp';
 import { STELLAR_NETWORK } from './config/stellar';
 
@@ -93,6 +109,43 @@ app.get('/api/health', (req: Request, res: Response) => {
 app.post('/api/invoices', sellerCreateRateLimit(), async (req: Request, res: Response) => {
   try {
     const validatedData = createInvoiceSchema.parse(req.body);
+
+    // Check the seller on Horizon BEFORE anything is persisted. A network
+    // outage must never leave a partially created invoice behind.
+    let readiness;
+    try {
+      readiness = await stellarService.checkSellerAccountForAsset(
+        validatedData.sellerPublicKey,
+        validatedData.assetCode ?? 'XLM',
+        validatedData.assetIssuer,
+      );
+    } catch (error) {
+      if (error instanceof UnfundedAccountError) {
+        return res.status(400).json({
+          success: false,
+          code: 'SELLER_ACCOUNT_UNFUNDED',
+          error: error.message,
+        });
+      }
+      if (error instanceof HorizonUnavailableError) {
+        return res.status(503).json({
+          success: false,
+          code: 'HORIZON_UNAVAILABLE',
+          error: error.message,
+        });
+      }
+      throw error;
+    }
+
+    if (!readiness.ok && validatedData.acknowledgeNoTrustline !== true) {
+      return res.status(409).json({
+        success: false,
+        code: 'SELLER_TRUSTLINE_WARNING',
+        warning: readiness.warning,
+        error: readiness.warning,
+      });
+    }
+
     const invoice = await invoiceService.createInvoice(validatedData);
 
     const paymentUrl = `${FRONTEND_URL}/pay/${invoice.id}`;
@@ -239,6 +292,360 @@ app.get('/api/invoices', async (req: Request, res: Response) => {
       success: false,
       error: error.message || 'Failed to get invoices',
     });
+  }
+});
+
+// Append-only status history. Seller-scoped: the payer's payment page never
+// calls this endpoint and the rows deliberately carry no customer email.
+app.get('/api/invoices/:id/history', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const sellerPublicKey = req.query.sellerPublicKey as string | undefined;
+
+    if (!sellerPublicKey) {
+      return res.status(400).json({
+        success: false,
+        error: 'sellerPublicKey query parameter is required',
+      });
+    }
+
+    const invoice = await invoiceService.getInvoiceById(id);
+    if (!invoice) {
+      return res.status(404).json({ success: false, error: 'Invoice not found' });
+    }
+    if (invoice.sellerPublicKey !== sellerPublicKey) {
+      return res.status(403).json({ success: false, error: 'Not the owning seller' });
+    }
+
+    const history = await invoiceService.getStatusHistory(id);
+    return res.json({ success: true, data: history.map(toStatusHistoryDTO) });
+  } catch (error: any) {
+    console.error('Get status history error:', error);
+    return res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to get status history',
+    });
+  }
+});
+
+// Record a partial payment as its own history event. `verify` still requires
+// the full amount; this endpoint is the explicit partial-payment transition.
+// It is a seller-only write AND the hash must be a real, confirmed partial
+// payment to this invoice, otherwise anyone could pad the seller's history.
+app.post('/api/invoices/:id/partial-payment', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { txHash, sellerPublicKey } = req.body ?? {};
+
+    const invoice = await invoiceService.getInvoiceById(id);
+    if (!invoice) {
+      return res.status(404).json({
+        success: false,
+        code: VerifyErrorCode.INVOICE_NOT_FOUND,
+        error: VerifyErrorMessages[VerifyErrorCode.INVOICE_NOT_FOUND],
+      });
+    }
+    if (!sellerPublicKey || invoice.sellerPublicKey !== sellerPublicKey) {
+      return res.status(403).json({ success: false, error: 'Not the owning seller' });
+    }
+    if (invoice.status !== 'PENDING') {
+      return res.status(400).json({
+        success: false,
+        code: VerifyErrorCode.INVOICE_NOT_PENDING,
+        error: VerifyErrorMessages[VerifyErrorCode.INVOICE_NOT_PENDING],
+      });
+    }
+    if (!txHash) {
+      return res.status(400).json({
+        success: false,
+        code: VerifyErrorCode.TX_HASH_REQUIRED,
+        error: VerifyErrorMessages[VerifyErrorCode.TX_HASH_REQUIRED],
+      });
+    }
+    if (!/^[0-9a-fA-F]{64}$/.test(txHash)) {
+      return res.status(400).json({
+        success: false,
+        code: 'INVALID_TX_HASH',
+        error: 'Invalid Stellar transaction hash format',
+      });
+    }
+
+    // A hash that already settled (or partially paid) another invoice cannot
+    // be replayed here to manufacture history.
+    const invoiceWithSameHash = await invoiceService.getInvoiceByTxHash(txHash);
+    if (invoiceWithSameHash && invoiceWithSameHash.id !== invoice.id) {
+      return res.status(400).json({
+        success: false,
+        code: VerifyErrorCode.TX_HASH_ALREADY_USED,
+        error: VerifyErrorMessages[VerifyErrorCode.TX_HASH_ALREADY_USED],
+      });
+    }
+
+    const settleable = assertInvoiceSettleable(invoice);
+    if (!settleable.ok) {
+      return res.status(400).json({
+        success: false,
+        code: settleable.code,
+        error: VerifyErrorMessages[settleable.code],
+      });
+    }
+
+    const txDetails = await stellarService.getTransaction(txHash);
+    const transaction = txDetails.transaction;
+    const paymentOp = txDetails.operations.find((op: any) => op.type === 'payment');
+
+    if (!paymentOp) {
+      return res.status(400).json({
+        success: false,
+        code: VerifyErrorCode.NO_PAYMENT_OPERATION,
+        error: VerifyErrorMessages[VerifyErrorCode.NO_PAYMENT_OPERATION],
+      });
+    }
+
+    const paymentSource = paymentOp.source_account ?? paymentOp.from;
+    if (
+      isSelfPayment(transaction.source_account, invoice.sellerPublicKey) ||
+      isSelfPayment(paymentSource, invoice.sellerPublicKey)
+    ) {
+      return res.status(400).json({
+        success: false,
+        code: VerifyErrorCode.SELF_PAYMENT,
+        error: VerifyErrorMessages[VerifyErrorCode.SELF_PAYMENT],
+      });
+    }
+
+    if (!memosMatch(transaction.memo, invoice.memo)) {
+      return res.status(400).json({
+        success: false,
+        code: VerifyErrorCode.MEMO_MISMATCH,
+        error: VerifyErrorMessages[VerifyErrorCode.MEMO_MISMATCH],
+      });
+    }
+
+    if (paymentOp.to !== invoice.sellerPublicKey) {
+      return res.status(400).json({
+        success: false,
+        code: VerifyErrorCode.DESTINATION_MISMATCH,
+        error: VerifyErrorMessages[VerifyErrorCode.DESTINATION_MISMATCH],
+      });
+    }
+
+    const opIsNative = paymentOp.asset_type === 'native';
+    const opAsset = opIsNative ? 'XLM' : paymentOp.asset_code;
+    if (
+      !paymentAssetMatchesInvoice({
+        paymentAsset: opAsset,
+        invoiceAssetCode: invoice.assetCode,
+        paymentAssetIssuer: paymentOp.asset_issuer,
+        invoiceAssetIssuer: invoice.assetIssuer,
+        paymentIsNative: opIsNative,
+      })
+    ) {
+      return res.status(400).json({
+        success: false,
+        code: VerifyErrorCode.ASSET_MISMATCH,
+        error: VerifyErrorMessages[VerifyErrorCode.ASSET_MISMATCH],
+      });
+    }
+
+    // Partial means strictly between zero and the invoice total, compared in
+    // integer stroops so one stroop is never rounded away.
+    let paidStroops: bigint;
+    let invoiceStroops: bigint;
+    try {
+      paidStroops = amountToStroops(paymentOp.amount);
+      invoiceStroops = amountToStroops(invoice.amount);
+    } catch {
+      return res.status(400).json({
+        success: false,
+        code: VerifyErrorCode.AMOUNT_MISMATCH,
+        error: VerifyErrorMessages[VerifyErrorCode.AMOUNT_MISMATCH],
+      });
+    }
+    if (paidStroops <= 0n || paidStroops >= invoiceStroops) {
+      return res.status(400).json({
+        success: false,
+        code: VerifyErrorCode.AMOUNT_MISMATCH,
+        error: 'A partial payment must be more than zero and less than the invoice amount.',
+      });
+    }
+
+    const updated = await invoiceService.recordPartialPayment(id, txHash);
+    return res.json({ success: true, data: toInvoiceDTO(updated) });
+  } catch (error: any) {
+    console.error('Record partial payment error:', error);
+    return res.status(400).json({
+      success: false,
+      error: error.message || 'Failed to record partial payment',
+    });
+  }
+});
+
+// Canonical digest the seller must write on chain. Offered only after payment
+// and only to the owning seller; the server never signs anything.
+app.get('/api/invoices/:id/proof-digest', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const sellerPublicKey = req.query.sellerPublicKey as string | undefined;
+    const invoice = await invoiceService.getInvoiceById(id);
+
+    if (!invoice) {
+      return res.status(404).json({ success: false, error: 'Invoice not found' });
+    }
+    if (!sellerPublicKey || invoice.sellerPublicKey !== sellerPublicKey) {
+      return res.status(403).json({ success: false, error: 'Not the owning seller' });
+    }
+    if (invoice.status !== 'PAID') {
+      return res.status(400).json({
+        success: false,
+        code: AnchorErrorCode.INVOICE_NOT_PAID,
+        error: 'Only a paid invoice can be anchored',
+      });
+    }
+
+    return res.json({
+      success: true,
+      data: {
+        invoiceId: invoice.id,
+        digest: computeCanonicalDigest(invoice),
+        contractId: getAnchorContractId() ?? null,
+      },
+    });
+  } catch (error: any) {
+    console.error('Get proof digest error:', error);
+    return res.status(500).json({ success: false, error: error.message || 'Failed to compute digest' });
+  }
+});
+
+// Validate a proposed digest BEFORE the wallet is asked to sign anything.
+// The frontend calls this with the digest it intends to submit on chain.
+app.post('/api/invoices/:id/anchor/prepare', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { digest, sellerPublicKey } = req.body;
+    const invoice = await invoiceService.getInvoiceById(id);
+
+    if (!invoice) {
+      return res.status(404).json({ success: false, error: 'Invoice not found' });
+    }
+    if (!sellerPublicKey || invoice.sellerPublicKey !== sellerPublicKey) {
+      return res.status(403).json({ success: false, error: 'Not the owning seller' });
+    }
+    if (invoice.status !== 'PAID') {
+      return res.status(400).json({
+        success: false,
+        code: AnchorErrorCode.INVOICE_NOT_PAID,
+        error: 'Only a paid invoice can be anchored',
+      });
+    }
+    if (invoice.anchoringTxHash) {
+      return res.status(409).json({
+        success: false,
+        code: AnchorErrorCode.ALREADY_ANCHORED,
+        error: 'Invoice is already anchored',
+      });
+    }
+    if (!canonicalDigestMatches(invoice, digest)) {
+      return res.status(400).json({
+        success: false,
+        code: AnchorErrorCode.DIGEST_MISMATCH,
+        error: 'Digest does not match the invoice',
+      });
+    }
+
+    return res.json({
+      success: true,
+      data: {
+        invoiceId: invoice.id,
+        digest,
+        contractId: getAnchorContractId() ?? null,
+      },
+    });
+  } catch (error: any) {
+    console.error('Prepare anchor error:', error);
+    return res.status(500).json({ success: false, error: error.message || 'Failed to prepare anchor' });
+  }
+});
+
+// Record the hash of the seller-signed transaction that wrote the anchor.
+// Seller-only, and the hash must be a confirmed anchor call for THIS invoice
+// and digest: an unverified hash would let a caller record a fake anchor and
+// permanently block the real one (an invoice anchors at most once).
+app.post('/api/invoices/:id/anchor', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { digest, txHash, sellerPublicKey } = req.body ?? {};
+
+    const invoice = await invoiceService.getInvoiceById(id);
+    if (!invoice) {
+      return res.status(404).json({ success: false, error: 'Invoice not found' });
+    }
+    if (!sellerPublicKey || invoice.sellerPublicKey !== sellerPublicKey) {
+      return res.status(403).json({ success: false, error: 'Not the owning seller' });
+    }
+    if (!txHash || !/^[0-9a-fA-F]{64}$/.test(txHash)) {
+      return res.status(400).json({
+        success: false,
+        code: AnchorErrorCode.INVALID_TX_HASH,
+        error: 'Invalid anchoring transaction hash',
+      });
+    }
+
+    const contractId = getAnchorContractId();
+    if (!contractId) {
+      return res.status(409).json({
+        success: false,
+        code: 'ANCHOR_CONTRACT_NOT_CONFIGURED',
+        error: 'Receipt anchoring contract is not configured',
+      });
+    }
+
+    let txDetails: any;
+    try {
+      txDetails = await stellarService.getTransaction(txHash);
+    } catch {
+      return res.status(400).json({
+        success: false,
+        code: 'ANCHOR_TX_NOT_FOUND',
+        error: 'Anchoring transaction was not found on chain',
+      });
+    }
+
+    const check = verifyAnchorTransaction({
+      transaction: txDetails.transaction,
+      operations: txDetails.operations,
+      sellerPublicKey,
+      contractId,
+      invoiceId: invoice.id,
+      digest,
+    });
+    if (!check.ok) {
+      return res.status(400).json({
+        success: false,
+        code: 'ANCHOR_TX_MISMATCH',
+        error: 'Transaction does not contain the expected anchor call for this invoice',
+        reason: check.reason,
+      });
+    }
+
+    const updated = await invoiceService.anchorProof(id, digest, txHash);
+    return res.json({ success: true, data: toInvoiceDTO(updated) });
+  } catch (error: any) {
+    if (error instanceof AnchorError) {
+      const status =
+        error.code === AnchorErrorCode.ALREADY_ANCHORED
+          ? 409
+          : error.code === AnchorErrorCode.INVOICE_NOT_FOUND
+            ? 404
+            : 400;
+      return res.status(status).json({
+        success: false,
+        code: error.code,
+        error: error.message,
+      });
+    }
+    console.error('Anchor proof error:', error);
+    return res.status(500).json({ success: false, error: error.message || 'Failed to anchor proof' });
   }
 });
 
@@ -518,7 +925,7 @@ app.post('/api/invoices/:id/verify', invoiceVerifyRateLimit(), async (req: Reque
       });
     }
 
-    if (!isDecimalEqual(paymentOp.amount, String(invoice.amount))) {
+    if (!amountsMatch(paymentOp.amount, invoice.amount)) {
       return res.status(400).json({
         success: false,
         code: VerifyErrorCode.AMOUNT_MISMATCH,

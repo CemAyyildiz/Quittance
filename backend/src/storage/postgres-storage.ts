@@ -21,6 +21,8 @@ interface Invoice {
   expiresAt: Date;
   originalExpiresAt: Date;
   expiryExtended: boolean;
+  /** Hash of the transaction that anchored the proof digest on chain. */
+  anchoringTxHash?: string;
 }
 
 class PostgresStorage {
@@ -32,6 +34,7 @@ class PostgresStorage {
         ALTER TABLE invoices ADD COLUMN IF NOT EXISTS ledger BIGINT;
         ALTER TABLE invoices ADD COLUMN IF NOT EXISTS original_expires_at TIMESTAMP;
         ALTER TABLE invoices ADD COLUMN IF NOT EXISTS expiry_extended BOOLEAN NOT NULL DEFAULT false;
+        ALTER TABLE invoices ADD COLUMN IF NOT EXISTS anchoring_tx_hash VARCHAR(64);
         CREATE INDEX IF NOT EXISTS idx_invoices_payment_tx_hash ON invoices(payment_tx_hash);
       `).then(() => undefined);
     }
@@ -149,6 +152,10 @@ class PostgresStorage {
       fields.push(`expiry_extended = $${paramIndex++}`);
       values.push(updates.expiryExtended);
     }
+    if (updates.anchoringTxHash !== undefined) {
+      fields.push(`anchoring_tx_hash = $${paramIndex++}`);
+      values.push(updates.anchoringTxHash);
+    }
 
     if (fields.length === 0) return invoice;
 
@@ -261,6 +268,7 @@ class PostgresStorage {
       expiresAt: new Date(row.expires_at),
       originalExpiresAt: row.original_expires_at ? new Date(row.original_expires_at) : new Date(row.expires_at),
       expiryExtended: Boolean(row.expiry_extended),
+      anchoringTxHash: row.anchoring_tx_hash || undefined,
     };
   }
 }

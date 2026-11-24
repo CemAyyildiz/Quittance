@@ -1,5 +1,22 @@
 import { createHash } from 'crypto';
 
+import type { StatusEvent, StatusEventStatus } from '../storage/memory-storage';
+
+/** JSON shape of one append-only status history row. */
+export interface StatusHistoryEntryDTO {
+  status: StatusEventStatus;
+  at: string;
+  txHash?: string;
+}
+
+export function toStatusHistoryDTO(event: StatusEvent): StatusHistoryEntryDTO {
+  return {
+    status: event.status,
+    at: event.at.toISOString(),
+    ...(event.txHash ? { txHash: event.txHash } : {}),
+  };
+}
+
 export interface InvoiceDTO {
   id: string;
   sellerPublicKey: string;

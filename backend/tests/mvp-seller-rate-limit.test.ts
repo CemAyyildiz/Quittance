@@ -22,7 +22,10 @@ const getTransaction = vi.fn();
 vi.mock('../src/services/stellar.service', () => ({
   default: {
     getTransaction: (hash: string) => getTransaction(hash),
+    checkSellerAccountForAsset: async () => ({ ok: true }),
   },
+  HorizonUnavailableError: class HorizonUnavailableError extends Error {},
+  UnfundedAccountError: class UnfundedAccountError extends Error {},
 }));
 
 const { default: app } = await import('../src/server-mvp');

@@ -1,5 +1,6 @@
 //! SHA-256 receipt hash computation and the `ReceiptHash` value type.
 
+use alloc::string::String;
 use sha2::{Digest, Sha256};
 
 use crate::domain::DomainSeparator;
@@ -54,6 +55,7 @@ pub fn compute_hex(domain: &DomainSeparator, fields: &ReceiptFields) -> String {
 mod tests {
     use super::*;
     use crate::receipt::{Asset, ReceiptFieldsBuilder};
+    use alloc::string::ToString;
 
     fn sample() -> ReceiptFields {
         ReceiptFieldsBuilder::default()
@@ -87,7 +89,8 @@ mod tests {
         let hex = compute_hex(&DomainSeparator::quittance_v1(), &sample());
         assert_eq!(hex.len(), 64);
         assert!(
-            hex.chars().all(|c| c.is_ascii_digit() || ('a'..='f').contains(&c)),
+            hex.chars()
+                .all(|c| c.is_ascii_digit() || ('a'..='f').contains(&c)),
             "hex `{hex}` must match ^[0-9a-f]{{64}}$"
         );
     }
@@ -96,6 +99,9 @@ mod tests {
     fn display_matches_to_hex() {
         let hash = compute(&DomainSeparator::quittance_v1(), &sample());
         assert_eq!(hash.to_string(), hash.to_hex());
-        assert_eq!(hash.to_string(), compute_hex(&DomainSeparator::quittance_v1(), &sample()));
+        assert_eq!(
+            hash.to_string(),
+            compute_hex(&DomainSeparator::quittance_v1(), &sample())
+        );
     }
 }
