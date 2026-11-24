@@ -36,15 +36,54 @@ describe('createInvoiceSchema', () => {
       sellerPublicKey: validSellerPublicKey,
     }).success).toBe(false);
 
-    expect(createInvoiceSchema.safeParse({
-      amount: 20,
+    const overCap = createInvoiceSchema.safeParse({
+      amount: 21,
       lineItems: Array.from({ length: 21 }, (_, index) => ({
         label: `Line ${index + 1}`,
         quantity: 1,
         unitPrice: 1,
       })),
       sellerPublicKey: validSellerPublicKey,
-    }).success).toBe(false);
+    });
+    expect(overCap.success).toBe(false);
+    if (!overCap.success) {
+      expect(
+        overCap.error.issues.some(
+          (issue) =>
+            issue.path.includes('lineItems') &&
+            issue.message.toLowerCase().includes('too long'),
+        ),
+      ).toBe(true);
+    }
+  });
+
+  it('accepts exactly 20 line items when they sum to the amount and accepts empty line items', () => {
+    const twentyItemsFixture = Array.from({ length: 20 }, (_, index) => ({
+      label: `Service ${index + 1}`,
+      quantity: 1,
+      unitPrice: 2.5,
+    }));
+
+    const atCap = createInvoiceSchema.safeParse({
+      amount: 50,
+      lineItems: twentyItemsFixture,
+      sellerPublicKey: validSellerPublicKey,
+    });
+    expect(atCap.success).toBe(true);
+
+    const atCapMismatch = createInvoiceSchema.safeParse({
+      amount: 49,
+      lineItems: twentyItemsFixture,
+      sellerPublicKey: validSellerPublicKey,
+    });
+    expect(atCapMismatch.success).toBe(false);
+
+    const emptyList = createInvoiceSchema.safeParse({
+      amount: 50,
+      lineItems: [],
+      sellerPublicKey: validSellerPublicKey,
+    });
+    expect(emptyList.success).toBe(true);
   });
 
   it('accepts a valid invoice payload', () => {
