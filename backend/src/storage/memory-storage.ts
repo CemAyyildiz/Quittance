@@ -23,6 +23,7 @@ export interface Invoice {
   id: string;
   sellerPublicKey: string;
   amount: number;
+  lineItems?: Array<{ label: string; quantity: number; unitPrice: number }>;
   assetCode: string;
   assetIssuer?: string;
   memo: string;
@@ -73,6 +74,7 @@ class MemoryStorage {
       id: data.id || uuidv4(),
       sellerPublicKey: data.sellerPublicKey!,
       amount: data.amount!,
+      lineItems: data.lineItems,
       assetCode: data.assetCode || 'XLM',
       assetIssuer: data.assetIssuer,
       memo: data.memo!,

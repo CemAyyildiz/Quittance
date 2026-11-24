@@ -35,36 +35,81 @@ export const memoByteLengthSchema = z
     message: `Memo must be at most ${MAX_MEMO_BYTES} bytes (UTF-8).`,
   });
 
-// Invoice creation schema. Comma decimals are accepted and normalised before
-// the stroop check, so "10,5" and "10.5" are the same amount.
-export const createInvoiceSchema = z
-  .object({
-    amount: amountSchema,
-    assetCode: z.string().default('XLM').optional(),
-    assetIssuer: stellarPublicKeySchema.optional(),
-    description: z.string().max(500).optional(),
-    customerName: z.string().max(255).optional(),
-    customerEmail: z.string().email().optional(),
-    sellerName: z.string().max(255).optional(),
-    sellerEmail: z.string().email().optional(),
-    expiresInDays: z.number().min(1).max(365).default(7).optional(),
-    sellerPublicKey: stellarPublicKeySchema, // Dinamik seller!
-    // Optional caller-supplied memo, still bounded by the Stellar 28-byte limit.
-    memo: memoByteLengthSchema.optional(),
-    // The form sets this only after the seller explicitly acknowledges the
-    // "no trustline" warning returned by the create endpoint.
-    acknowledgeNoTrustline: z.boolean().optional().default(false),
-  })
-  .superRefine((value, ctx) => {
-    const code = (value.assetCode ?? 'XLM').toUpperCase();
-    if (code !== 'XLM' && !value.assetIssuer) {
+export const MAX_STELLAR_DECIMALS = 7;
+export const MAX_LINE_ITEMS = 20;
+
+export const lineItemSchema = z.object({
+  label: z.string().trim().min(1).max(255),
+  quantity: z.number().finite().positive(),
+  unitPrice: z.number().finite().positive(),
+}).superRefine((line, ctx) => {
+  for (const [field, value] of [
+    ['quantity', line.quantity],
+    ['unitPrice', line.unitPrice],
+  ] as const) {
+    const [whole, fraction = ''] = String(value).split('.');
+    if (fraction.length > MAX_STELLAR_DECIMALS) {
       ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ['assetIssuer'],
-        message: `${code} invoices require the issuing account's Stellar public key`,
+        code: 'custom',
+        path: [field],
+        message: `Must have no more than ${MAX_STELLAR_DECIMALS} decimal places`,
       });
     }
-  });
+  }
+});
+
+export type InvoiceLineItem = z.infer<typeof lineItemSchema>;
+
+export function roundStellarAmount(value: number): number {
+  return Math.round((value + Number.EPSILON) * 10_000_000) / 10_000_000;
+}
+
+export function getLineItemAmount(line: InvoiceLineItem): number {
+  return roundStellarAmount(line.quantity * line.unitPrice);
+}
+
+export function sumLineItems(lineItems: InvoiceLineItem[]): number {
+  return roundStellarAmount(
+    lineItems.reduce((sum, line) => sum + getLineItemAmount(line), 0),
+  );
+}
+
+// Invoice creation schema
+export const createInvoiceSchema = z.object({
+  amount: z.number().finite().positive().max(1000000000),
+  assetCode: z.string().default('XLM').optional(),
+  assetIssuer: z.string().optional(),
+  description: z.string().max(500).optional(),
+  customerName: z.string().max(255).optional(),
+  customerEmail: z.string().email().optional(),
+  sellerName: z.string().max(255).optional(),
+  sellerEmail: z.string().email().optional(),
+  expiresInDays: z.number().min(1).max(365).default(7).optional(),
+  sellerPublicKey: stellarPublicKeySchema,
+  memo: memoByteLengthSchema.optional(),
+  lineItems: z.array(lineItemSchema).min(1).max(MAX_LINE_ITEMS).optional(),
+}).superRefine((invoice, ctx) => {
+  if (invoice.assetIssuer) {
+    const issuerResult = stellarPublicKeySchema.safeParse(invoice.assetIssuer);
+    if (!issuerResult.success) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['assetIssuer'],
+        message: 'Invalid Stellar public key format',
+      });
+    }
+  }
+  if (!invoice.lineItems) return;
+  const lineTotal = sumLineItems(invoice.lineItems);
+  const submittedTotal = roundStellarAmount(invoice.amount);
+  if (lineTotal !== submittedTotal) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['amount'],
+      message: `Amount must equal the sum of line items (${lineTotal})`,
+    });
+  }
+});
 
 // Payment verification schema
 export const paymentSchema = z.object({

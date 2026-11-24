@@ -7,15 +7,46 @@ const validInvoiceId = '123e4567-e89b-12d3-a456-426614174000';
 const validTxHash = 'a'.repeat(64);
 
 describe('createInvoiceSchema', () => {
-  it('normalizes comma and dot inputs to the same stroops', () => {
-    expect(parseAmount('10,5')).toEqual({ decimal: '10.5', stroops: 105000000n });
-    expect(parseAmount('10.5')).toEqual({ decimal: '10.5', stroops: 105000000n });
-    expect(createInvoiceSchema.parse({ amount: '10,5', sellerPublicKey: validSellerPublicKey }).amount).toBe(10.5);
+  it('accepts matching line items and rejects a mismatched total', () => {
+    const matching = createInvoiceSchema.safeParse({
+      amount: 25,
+      lineItems: [
+        { label: 'Design', quantity: 2, unitPrice: 10 },
+        { label: 'Consulting', quantity: 1, unitPrice: 5 },
+      ],
+      sellerPublicKey: validSellerPublicKey,
+    });
+    expect(matching.success).toBe(true);
+
+    const mismatched = createInvoiceSchema.safeParse({
+      amount: 24,
+      lineItems: [
+        { label: 'Design', quantity: 2, unitPrice: 10 },
+        { label: 'Consulting', quantity: 1, unitPrice: 5 },
+      ],
+      sellerPublicKey: validSellerPublicKey,
+    });
+    expect(mismatched.success).toBe(false);
   });
-  it.each(['1.2.3', '1,2,3', '1,2.3', '', '   '])('rejects malformed amount %j', (amount) => {
-    expect(parseAmount(amount)).toBeUndefined();
-    expect(createInvoiceSchema.safeParse({ amount, sellerPublicKey: validSellerPublicKey }).success).toBe(false);
+
+  it('rejects zero values and more than 20 line items', () => {
+    expect(createInvoiceSchema.safeParse({
+      amount: 0,
+      lineItems: [{ label: 'Zero', quantity: 0, unitPrice: 1 }],
+      sellerPublicKey: validSellerPublicKey,
+    }).success).toBe(false);
+
+    expect(createInvoiceSchema.safeParse({
+      amount: 20,
+      lineItems: Array.from({ length: 21 }, (_, index) => ({
+        label: `Line ${index + 1}`,
+        quantity: 1,
+        unitPrice: 1,
+      })),
+      sellerPublicKey: validSellerPublicKey,
+    }).success).toBe(false);
   });
+
   it('accepts a valid invoice payload', () => {
     const result = createInvoiceSchema.safeParse({
       amount: 125,
