@@ -90,6 +90,7 @@ export default function InvoiceDetailPage() {
   };
 
   const handleDownloadProof = () => {
+    if (!isSeller) return;
     openInvoicePDF(invoice);
     toast.success('Opening payment proof');
   };
@@ -198,7 +199,7 @@ export default function InvoiceDetailPage() {
                     <span>Void Invoice</span>
                   </button>
                 )}
-              {invoice.status === 'PAID' && (
+              {invoice.status === 'PAID' && isSeller && (
                 <button
                   onClick={handleDownloadProof}
                   className="btn btn-primary flex items-center gap-2"
@@ -299,7 +300,7 @@ export default function InvoiceDetailPage() {
                   </div>
                 )}
 
-                {invoice.status === 'PAID' && (
+                {invoice.status === 'PAID' && isSeller && (
                   <button
                     type="button"
                     onClick={handleDownloadProof}
@@ -439,7 +440,7 @@ export default function InvoiceDetailPage() {
               )}
 
               {invoice.status === 'PAID' && (
-                <PaymentReceipt invoice={invoice} />
+                <PaymentReceipt invoice={invoice} userWallet={userWallet} />
               )}
 
               {invoice.status === 'PAID' && userWallet === invoice.sellerPublicKey && (

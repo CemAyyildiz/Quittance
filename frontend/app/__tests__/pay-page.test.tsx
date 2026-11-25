@@ -31,6 +31,9 @@ vi.mock('@/components/PaymentButton', () => ({
   default: () => <div data-testid="freighter-pay" />,
 }));
 vi.mock('@/components/PaymentReceipt', () => ({ default: () => null }));
+vi.mock('@/lib/stellarToml', () => ({
+  loadAssetIssuerDomain: vi.fn().mockResolvedValue(null),
+}));
 
 // The QR rendering itself is covered by PaymentQrCodes tests; surface the
 // payloads here so we can assert what the page hands to the QR sections.
@@ -205,6 +208,17 @@ describe('PaymentPage manual payment', () => {
 
     await screen.findByRole('button', { name: 'Copy asset code' });
     expect(screen.queryByRole('button', { name: 'Copy asset issuer' })).not.toBeInTheDocument();
+  });
+
+  it('displays and copies a stored issuer unchanged, even when it is not a G address', async () => {
+    const storedIssuer = 'legacy-issuer-value';
+    mockInvoice({ assetCode: 'USDC', assetIssuer: storedIssuer });
+    render(<PaymentPage />);
+
+    await screen.findByRole('button', { name: 'Copy asset issuer' });
+    expect(screen.getByText(storedIssuer)).toHaveAttribute('title', storedIssuer);
+    fireEvent.click(screen.getByRole('button', { name: 'Copy asset issuer' }));
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith(storedIssuer));
   });
 
   it.each([

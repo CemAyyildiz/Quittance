@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   checkWalletConnection,
   requestWalletAccess,
@@ -28,8 +28,21 @@ export default function WalletConnect({ onConnect, onConnectionFailure }: Wallet
   const [monitoringActive, setMonitoringActive] = useState(false);
   const [walletNetwork, setWalletNetwork] = useState<WalletNetwork>('UNKNOWN');
   const [networkMismatch, setNetworkMismatch] = useState(false);
+  const reportedWalletRef = useRef<string | null>(null);
   const configuredNetwork = getConfiguredNetwork();
   const { publicKey, balance, connected, setWallet, updateBalance, disconnect } = useWalletStore();
+
+  useEffect(() => {
+    if (!connected || !publicKey) {
+      reportedWalletRef.current = null;
+      return;
+    }
+
+    if (onConnect && reportedWalletRef.current !== publicKey) {
+      reportedWalletRef.current = publicKey;
+      onConnect(publicKey);
+    }
+  }, [connected, publicKey, onConnect]);
 
   useEffect(() => {
     let cancelled = false;
@@ -89,6 +102,7 @@ export default function WalletConnect({ onConnect, onConnectionFailure }: Wallet
         const key = await getUserPublicKey();
         if (key) {
           await loadBalance(key);
+          reportedWalletRef.current = key;
           toast.success('Wallet connected');
           onConnect?.(key);
         } else {

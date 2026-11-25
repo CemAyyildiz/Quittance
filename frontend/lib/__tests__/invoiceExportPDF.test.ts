@@ -101,6 +101,15 @@ describe('Invoice PDF Export (Issue #989)', () => {
     expect(pdfContent).toContain(paidInvoice.payerPublicKey);
   });
 
+  it('should render the optional client name escaped in the proof', () => {
+    const pdfContent = generateInvoicePDF({
+      ...paidInvoice,
+      customerName: '<script>alert("x")</script>',
+    } as any);
+
+    expect(pdfContent).toContain('&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt;');
+  });
+
   it('should include Stellar Expert link for paid invoices', () => {
     const pdfContent = generateInvoicePDF(paidInvoice as any);
 

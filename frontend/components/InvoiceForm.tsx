@@ -60,6 +60,7 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
   const [submitError, setSubmitError] = useState('');
   const [memoSubmitted, setMemoSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [draftReadyFor, setDraftReadyFor] = useState<string | null>(null);
   // `loading` only disables the button after a re-render, so a fast double
   // click could start two requests; this ref blocks re-entry synchronously.
   const submittingRef = useRef(false);
@@ -73,6 +74,8 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
   const [customerName, setCustomerName] = useState('');
   const [customerEmail, setCustomerEmail] = useState('');
   const [sellerName, setSellerName] = useState('');
+  const [muxedAddress, setMuxedAddress] = useState('');
+  const [muxedAddressError, setMuxedAddressError] = useState('');
   const [trustlineWarning, setTrustlineWarning] = useState<string | null>(null);
   const [serverWarning, setServerWarning] = useState<string | null>(null);
   const [acknowledgedWarning, setAcknowledgedWarning] = useState(false);
@@ -500,7 +503,7 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
           placeholder="Client or company name"
           value={customerName}
           onChange={(e) => setCustomerName(e.target.value)}
-          maxLength={255}
+          maxLength={80}
         />
       </div>
 

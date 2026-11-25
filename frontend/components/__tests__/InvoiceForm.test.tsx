@@ -58,6 +58,26 @@ describe('InvoiceForm seller display name', () => {
   });
 });
 
+describe('InvoiceForm client name', () => {
+  it('submits an optional trimmed client name with the 80-character limit', async () => {
+    const { invoiceApi } = await import('@/lib/api');
+    render(<InvoiceForm userWallet="GABC1234567890" />);
+    const clientName = screen.getByLabelText('Client name (optional)') as HTMLInputElement;
+
+    expect(clientName.maxLength).toBe(80);
+    fireEvent.change(clientName, { target: { value: '  Alice Example  ' } });
+    fireEvent.change(screen.getByPlaceholderText('10.00'), { target: { value: '5' } });
+    fireEvent.click(screen.getByRole('button', { name: /create invoice/i }));
+
+    await waitFor(() =>
+      expect(invoiceApi.create).toHaveBeenCalledWith(
+        expect.objectContaining({ customerName: 'Alice Example' }),
+        expect.any(Object),
+      ),
+    );
+  });
+});
+
 describe('InvoiceForm memo byte limit', () => {
   it('shows a live byte count for the memo', () => {
     render(<InvoiceForm />);

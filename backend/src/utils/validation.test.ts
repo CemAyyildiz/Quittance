@@ -253,10 +253,10 @@ describe('createInvoiceSchema', () => {
     ).toBe(true);
   });
 
-  it('accepts customerName at 255 chars and rejects 256', () => {
+  it('accepts customerName at 80 chars and rejects 81', () => {
     const validResult = createInvoiceSchema.safeParse({
       amount: 10,
-      customerName: 'a'.repeat(255),
+      customerName: 'a'.repeat(80),
       sellerPublicKey: validSellerPublicKey,
     });
 
@@ -264,17 +264,34 @@ describe('createInvoiceSchema', () => {
 
     const invalidResult = createInvoiceSchema.safeParse({
       amount: 10,
-      customerName: 'a'.repeat(256),
+      customerName: 'a'.repeat(81),
       sellerPublicKey: validSellerPublicKey,
     });
 
     expect(invalidResult.success).toBe(false);
     if (invalidResult.success) {
-      throw new Error('Expected customerName length 256 to fail validation');
+      throw new Error('Expected customerName length 81 to fail validation');
     }
     expect(
       invalidResult.error.issues.some((issue) => issue.path.includes('customerName')),
     ).toBe(true);
+  });
+
+  it('trims client names and treats whitespace-only names as absent', () => {
+    expect(
+      createInvoiceSchema.parse({
+        amount: 10,
+        customerName: '  Alice  ',
+        sellerPublicKey: validSellerPublicKey,
+      }).customerName,
+    ).toBe('Alice');
+    expect(
+      createInvoiceSchema.parse({
+        amount: 10,
+        customerName: '   ',
+        sellerPublicKey: validSellerPublicKey,
+      }).customerName,
+    ).toBeUndefined();
   });
 
   it('accepts sellerName at 80 chars and rejects 81', () => {
