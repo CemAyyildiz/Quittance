@@ -8,6 +8,7 @@ import UserProfile from '@/components/UserProfile';
 import TransactionHistory from '@/components/TransactionHistory';
 import { useWalletStore } from '@/lib/store';
 import NetworkBadge from '@/components/NetworkBadge';
+import InvoiceBackupExport from '@/components/InvoiceBackupExport';
 import Link from 'next/link';
 import {
   AlertCircle,
@@ -32,6 +33,10 @@ export default function DashboardPage() {
   const [stats, setStats] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const [csvExporting, setCsvExporting] = useState<'paid' | 'all' | null>(null);
+  const [importing, setImporting] = useState(false);
+  const importInput = useRef<HTMLInputElement>(null);
   const [filter, setFilter] = useState<string>('all');
   const [assetCode, setAssetCode] = useState('');
   const [createdFrom, setCreatedFrom] = useState('');
@@ -173,9 +178,9 @@ export default function DashboardPage() {
   };
 
   const handleExportCSV = async (type: 'paid' | 'all') => {
-    if (!publicKey || exporting) return;
+    if (!publicKey || exporting || csvExporting !== null || importing) return;
 
-    setExporting(type);
+    setCsvExporting(type);
     try {
       const status = type === 'paid' ? 'PAID' : undefined;
       const exported = await loadInvoicesForExport(status);
@@ -192,7 +197,7 @@ export default function DashboardPage() {
       console.error('Invoice CSV export failed:', error);
       toast.error('Failed to export invoices');
     } finally {
-      setExporting(null);
+      setCsvExporting(null);
     }
   };
 
@@ -213,7 +218,7 @@ export default function DashboardPage() {
   };
 
   const handleExportJSON = async () => {
-    if (!publicKey) return;
+    if (!publicKey || exporting || csvExporting !== null || importing) return;
     setExporting(true);
     try {
       const backup: any[] = [];
@@ -240,7 +245,7 @@ export default function DashboardPage() {
   };
 
   const handleImportJSON = async (file?: File) => {
-    if (!file || !publicKey) return;
+    if (!file || !publicKey || importing || exporting || csvExporting !== null) return;
     setImporting(true);
     try {
       const backup = JSON.parse(await file.text());
@@ -424,29 +429,29 @@ export default function DashboardPage() {
               <button
                 type="button"
                 onClick={() => void handleExportCSV('paid')}
-                disabled={exporting !== null}
+                disabled={csvExporting !== null || exporting || importing}
                 className="btn btn-primary flex items-center gap-2 whitespace-nowrap"
                 title="Export paid invoices"
                 aria-label="Export paid CSV"
               >
                 <Download className="w-5 h-5" aria-hidden="true" />
-                <span className="hidden sm:inline">{exporting === 'paid' ? 'Exporting…' : 'Export Paid CSV'}</span>
+                <span className="hidden sm:inline">{csvExporting === 'paid' ? 'Exporting…' : 'Export Paid CSV'}</span>
               </button>
               <button
                 type="button"
                 onClick={() => void handleExportCSV('all')}
-                disabled={exporting !== null}
+                disabled={csvExporting !== null || exporting || importing}
                 className="btn btn-outline flex items-center gap-2 whitespace-nowrap"
                 title="Export all invoices"
                 aria-label="Export all CSV"
               >
                 <Download className="w-5 h-5" aria-hidden="true" />
-                <span className="hidden sm:inline">{exporting === 'all' ? 'Exporting…' : 'Export All CSV'}</span>
+                <span className="hidden sm:inline">{csvExporting === 'all' ? 'Exporting…' : 'Export All CSV'}</span>
               </button>
               <button
                 type="button"
                 onClick={handleExportJSON}
-                disabled={exporting}
+                disabled={exporting || csvExporting !== null || importing}
                 className="btn btn-primary whitespace-nowrap"
               >
                 {exporting ? 'Exporting...' : 'Back up JSON'}
@@ -456,14 +461,14 @@ export default function DashboardPage() {
                 type="file"
                 accept=".json,application/json"
                 aria-label="Import invoice JSON backup"
-                disabled={importing}
+                disabled={importing || exporting || csvExporting !== null}
                 onChange={(event) => handleImportJSON(event.target.files?.[0])}
                 className="sr-only"
               />
               <button
                 type="button"
                 onClick={() => importInput.current?.click()}
-                disabled={importing}
+                disabled={importing || exporting || csvExporting !== null}
                 className="btn btn-primary whitespace-nowrap"
               >
                 {importing ? 'Importing...' : 'Import JSON'}
@@ -604,7 +609,7 @@ export default function DashboardPage() {
                   </div>
                 )}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {filteredInvoices.map((invoice) => {
+                  {invoices.map((invoice) => {
                     const reminder = getInvoiceReminder(
                       invoice,
                       paymentOrigin ? `${paymentOrigin}/pay/${invoice.id}` : '',
