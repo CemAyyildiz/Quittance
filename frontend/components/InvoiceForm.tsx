@@ -24,13 +24,66 @@ interface InvoiceFormProps {
 
 const amountErrorId = 'amount-error';
 const draftStoragePrefix = 'quittance:invoice-draft:';
+const rememberedAssetStorageKey = 'quittance:last-invoiced-asset';
 
 interface InvoiceDraft {
   amount: string;
-  assetCode: string;
   description: string;
   customerName: string;
 }
+
+interface RememberedInvoiceAsset {
+  assetCode: string;
+  assetIssuer: string | null;
+}
+
+function discardRememberedAsset(): boolean {
+  try {
+    window.localStorage.removeItem(rememberedAssetStorageKey);
+    return true;
+  } catch (error) {
+    console.warn('Could not clear remembered invoice asset:', error);
+    return false;
+  }
+}
+
+function readRememberedAsset(): string | null {
+  if (typeof window === 'undefined') return null;
+
+  let raw: string | null;
+  try {
+    raw = window.localStorage.getItem(rememberedAssetStorageKey);
+  } catch (error) {
+    console.warn('Could not read remembered invoice asset:', error);
+    return null;
+  }
+  if (!raw) return null;
+
+  try {
+    const stored = JSON.parse(raw) as Partial<RememberedInvoiceAsset> | null;
+    const asset =
+      stored && typeof stored.assetCode === 'string'
+        ? getAssetByCode(stored.assetCode)
+        : undefined;
+    const issuerIsValid = asset?.issuer
+      ? typeof stored?.assetIssuer === 'string' &&
+        StrKey.isValidEd25519PublicKey(stored.assetIssuer) &&
+        stored.assetIssuer === asset.issuer
+      : stored?.assetIssuer == null;
+
+    if (!asset || !issuerIsValid) {
+      discardRememberedAsset();
+      return null;
+    }
+
+    return asset.code;
+  } catch (error) {
+    console.warn('Discarding invalid remembered invoice asset:', error);
+    discardRememberedAsset();
+    return null;
+  }
+}
+
 const memoCounterId = 'memo-counter';
 const memoErrorId = 'memo-error';
 const MAX_LINE_ITEMS = 20;
@@ -65,6 +118,7 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
   const submittingRef = useRef(false);
   const [amount, setAmount] = useState('');
   const [draftReadyFor, setDraftReadyFor] = useState<string | null>(null);
+  const [rememberedAssetCode, setRememberedAssetCode] = useState<string | null>(null);
   const [lineItems, setLineItems] = useState<InvoiceLineInput[]>([
     { label: '', quantity: '1', unitPrice: '' },
   ]);
@@ -84,6 +138,12 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
   const [walletNetwork, setWalletNetwork] = useState<WalletNetwork>('UNKNOWN');
   const [networkMismatch, setNetworkMismatch] = useState(false);
   const configuredNetwork = getConfiguredNetwork();
+
+  useEffect(() => {
+    const storedAssetCode = readRememberedAsset();
+    setAssetCode(storedAssetCode ?? 'XLM');
+    setRememberedAssetCode(storedAssetCode);
+  }, []);
 
   const selectedAsset = getAssetByCode(assetCode);
   const memoBytes = getUtf8ByteLength(memo);
@@ -118,7 +178,6 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
     setDraftReadyFor(null);
     if (!userWallet || typeof window === 'undefined') {
       setAmount('');
-      setAssetCode('XLM');
       setDescription('');
       setCustomerName('');
       return;
@@ -130,22 +189,15 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
       if (rawDraft) {
         const draft = JSON.parse(rawDraft) as Partial<InvoiceDraft>;
         setAmount(typeof draft.amount === 'string' ? draft.amount : '');
-        setAssetCode(
-          typeof draft.assetCode === 'string' && getAssetByCode(draft.assetCode)
-            ? draft.assetCode
-            : 'XLM'
-        );
         setDescription(typeof draft.description === 'string' ? draft.description : '');
         setCustomerName(typeof draft.customerName === 'string' ? draft.customerName : '');
       } else {
         setAmount('');
-        setAssetCode('XLM');
         setDescription('');
         setCustomerName('');
       }
     } catch {
       setAmount('');
-      setAssetCode('XLM');
       setDescription('');
       setCustomerName('');
     }
@@ -154,13 +206,13 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
 
   useEffect(() => {
     if (!userWallet || draftReadyFor !== userWallet || typeof window === 'undefined') return;
-    const draft: InvoiceDraft = { amount, assetCode, description, customerName };
+    const draft: InvoiceDraft = { amount, description, customerName };
     try {
       window.localStorage.setItem(`${draftStoragePrefix}${userWallet}`, JSON.stringify(draft));
     } catch {
       // Draft persistence is best effort and must never block invoice creation.
     }
-  }, [amount, assetCode, description, customerName, draftReadyFor, userWallet]);
+  }, [amount, description, customerName, draftReadyFor, userWallet]);
 
   useEffect(() => {
     let cancelled = false;
@@ -293,6 +345,12 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
     }
     setMuxedAddressError('');
 
+    const chosenAsset = getAssetByCode(assetCode);
+    if (!chosenAsset) {
+      setSubmitError('Select a supported asset');
+      return;
+    }
+
     const amountNum = parseFloat(amount);
     if (!amount || amountNum <= 0 || !Number.isFinite(amountNum)) {
       setAmountError('Enter a valid amount');
@@ -312,7 +370,6 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
     setLoading(true);
     const idempotencyKey = newIdempotencyKey();
     try {
-      const selectedAsset = getAssetByCode(assetCode);
       const submittedLineItems = lineItems.map((line) => ({
         label: line.label.trim() || description.trim() || 'Item',
         quantity: Number(line.quantity),
@@ -332,6 +389,20 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
         customerEmail: customerEmail.trim() || undefined,
       }, { idempotencyKey });
 
+      try {
+        window.localStorage.setItem(
+          rememberedAssetStorageKey,
+          JSON.stringify({
+            assetCode: selectedAsset.code,
+            assetIssuer: selectedAsset.issuer ?? null,
+          }),
+        );
+        setRememberedAssetCode(selectedAsset.code);
+      } catch (error) {
+        console.warn('Could not remember invoice asset:', error);
+        toast.warning('Invoice created, but this asset could not be remembered in this browser');
+      }
+
       toast.success('Invoice created');
       onSuccess?.(result.data);
       try {
@@ -343,7 +414,6 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
       }
       setAmount('');
       setLineItems([{ label: '', quantity: '1', unitPrice: '' }]);
-      setAssetCode('XLM');
       setDescription('');
       setMemo('');
       setCustomerName('');
@@ -362,6 +432,15 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
       submittingRef.current = false;
       setLoading(false);
     }
+  };
+
+  const clearRememberedAsset = () => {
+    if (!discardRememberedAsset()) {
+      toast.error('Could not clear the remembered asset from this browser');
+      return;
+    }
+    setRememberedAssetCode(null);
+    setAssetCode('XLM');
   };
 
   return (
@@ -401,6 +480,15 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
             <div className="absolute left-3 bottom-3 pointer-events-none">
               <AssetLogo code={assetCode} size={24} showName={false} />
             </div>
+            {rememberedAssetCode && (
+              <button
+                type="button"
+                onClick={clearRememberedAsset}
+                className="mt-1 block text-xs text-cyan-700 underline underline-offset-2"
+              >
+                Clear remembered asset
+              </button>
+            )}
           </div>
         </div>
         {amountError && (
