@@ -69,6 +69,9 @@ export default function PaymentPage() {
   const [verifying, setVerifying] = useState(false);
   const [verifyError, setVerifyError] = useState<string | null>(null);
   const timeRemaining = useCountdown(invoice?.status === 'PENDING' ? invoice.expiresAt : null);
+  // Only payments that matched this invoice are recorded on it, and each one
+  // is identified by its full 64-character Stellar transaction hash.
+  const matchedPayments: any[] = invoice?.payments ?? [];
   const receivedAmount = invoice?.receivedAmount ?? '0';
   const remainingAmount = invoice?.remainingAmount ?? invoice?.amount?.toString();
 
@@ -733,6 +736,32 @@ export default function PaymentPage() {
                     </dl>
                   </div>
                 )}
+                <div className="card">
+                  <h3 className="text-lg font-semibold mb-3">Matched payments</h3>
+                  {matchedPayments.length > 0 ? (
+                    <>
+                      <p className="text-sm text-gray-600 mb-3">
+                        These transactions already count towards this invoice.
+                      </p>
+                      <ul
+                        className="space-y-2"
+                        aria-label="Matched payment transaction hashes"
+                      >
+                        {matchedPayments.map((payment: any) => (
+                          <li key={payment.txHash}>
+                            <code className="block text-xs font-mono bg-gray-50 border border-gray-200 rounded p-2 break-all">
+                              {payment.txHash}
+                            </code>
+                          </li>
+                        ))}
+                      </ul>
+                    </>
+                  ) : (
+                    <p className="text-sm text-gray-600">
+                      No payments have matched this invoice yet.
+                    </p>
+                  )}
+                </div>
                 <div className="card">
                   <h3 className="text-lg font-semibold text-center mb-4">Scan QR Code</h3>
                   {paymentInfoLoading ? (
