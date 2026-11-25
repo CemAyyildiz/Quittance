@@ -3,18 +3,17 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-// Network configuration
-export const STELLAR_NETWORK = process.env.STELLAR_NETWORK || 'TESTNET';
-export const STELLAR_HORIZON_URL = 
-  process.env.STELLAR_HORIZON_URL || 
-  (STELLAR_NETWORK === 'TESTNET' 
-    ? 'https://horizon-testnet.stellar.org' 
-    : 'https://horizon.stellar.org');
+// Unknown network values remain visible to health reporting and must never
+// silently select the public network.
+export const STELLAR_NETWORK = process.env.STELLAR_NETWORK?.trim().toUpperCase() || 'TESTNET';
+export const STELLAR_HORIZON_URL =
+  process.env.STELLAR_HORIZON_URL?.trim() ||
+  (STELLAR_NETWORK === 'PUBLIC'
+    ? 'https://horizon.stellar.org'
+    : 'https://horizon-testnet.stellar.org');
 
-export const NETWORK_PASSPHRASE = 
-  STELLAR_NETWORK === 'TESTNET' 
-    ? StellarSdk.Networks.TESTNET 
-    : StellarSdk.Networks.PUBLIC;
+export const NETWORK_PASSPHRASE =
+  STELLAR_NETWORK === 'PUBLIC' ? StellarSdk.Networks.PUBLIC : StellarSdk.Networks.TESTNET;
 
 // Stellar server instance
 export const server = new StellarSdk.Horizon.Server(STELLAR_HORIZON_URL);

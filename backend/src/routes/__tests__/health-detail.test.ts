@@ -114,6 +114,8 @@ describe('GET /health/detail', () => {
     const { body } = await request();
 
     expect(body.network).toBe('PUBLIC');
+    expect(body.networkStatus).toBe('configured');
+    expect(body.horizonStatus).toBe('configured');
   });
 
   it('defaults network to TESTNET when STELLAR_NETWORK is unset', async () => {
@@ -123,6 +125,20 @@ describe('GET /health/detail', () => {
 
     // Empty string is falsy, so the route falls back to TESTNET
     expect(body.network).toBe('TESTNET');
+  });
+
+  it('reports an unknown network as invalid without probing Horizon', async () => {
+    vi.stubEnv('STELLAR_NETWORK', 'LOCALNET');
+    vi.stubEnv('STELLAR_HORIZON_URL', '');
+
+    const { status, body } = await request();
+
+    expect(status).toBe(503);
+    expect(body.status).toBe('error');
+    expect(body.network).toBe('INVALID');
+    expect(body.networkStatus).toBe('invalid');
+    expect(body.horizonStatus).toBe('not configured');
+    expect(checkHorizonHealth).not.toHaveBeenCalled();
   });
 
   it('exposes NODE_ENV via the environment field', async () => {

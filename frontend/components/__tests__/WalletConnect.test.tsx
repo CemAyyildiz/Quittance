@@ -205,6 +205,15 @@ describe('WalletConnect connected-state button names', () => {
     expect(monitoring).toHaveAttribute('aria-label', MONITORING_ON);
   });
 
+  it('reports an already-connected wallet to its caller', async () => {
+    const onConnect = vi.fn();
+    render(<WalletConnect onConnect={onConnect} />);
+
+    await waitFor(() => {
+      expect(onConnect).toHaveBeenCalledWith(PUBLIC_KEY);
+    });
+  });
+
   it('renames the monitoring button to Start monitoring once monitoring is paused', async () => {
     render(<WalletConnect />);
 

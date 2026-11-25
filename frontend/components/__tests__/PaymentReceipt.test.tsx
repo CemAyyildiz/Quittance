@@ -102,14 +102,56 @@ describe('PaymentReceipt', () => {
     expect(withEmail).toContain('Email Proof');
   });
 
+  it('disables Email Proof unless the seller wallet is connected', () => {
+    render(
+      <PaymentReceipt
+        invoice={{ ...baseInvoice, customerEmail: 'client@example.com' }}
+      />,
+    );
+
+    expect(screen.getByRole('button', { name: 'Email Proof' })).toBeDisabled();
+  });
+
   it('shows the Download Proof action with and without a customer email', () => {
-    const withoutEmail = renderToStaticMarkup(<PaymentReceipt invoice={baseInvoice} />);
+    const withoutEmail = renderToStaticMarkup(
+      <PaymentReceipt invoice={baseInvoice} userWallet={baseInvoice.sellerPublicKey} />,
+    );
     expect(withoutEmail).toContain('Download Proof');
 
     const withEmail = renderToStaticMarkup(
-      <PaymentReceipt invoice={{ ...baseInvoice, customerEmail: 'client@example.com' }} />,
+      <PaymentReceipt
+        invoice={{ ...baseInvoice, customerEmail: 'client@example.com' }}
+        userWallet={baseInvoice.sellerPublicKey}
+      />,
     );
     expect(withEmail).toContain('Download Proof');
+  });
+
+  it('disables proof downloads until the seller wallet is connected', () => {
+    render(<PaymentReceipt invoice={baseInvoice} />);
+
+    expect(screen.getByRole('button', { name: 'Download Proof' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Download TXT receipt' })).toBeDisabled();
+    expect(screen.getByText(/connect the seller wallet with freighter/i)).toBeInTheDocument();
+  });
+
+  it('explains when a different wallet is connected', () => {
+    render(<PaymentReceipt invoice={baseInvoice} userWallet="GOTHERWALLET" />);
+
+    expect(screen.getByRole('button', { name: 'Download Proof' })).toBeDisabled();
+    expect(screen.getByText(/belongs to another wallet/i)).toBeInTheDocument();
+  });
+
+  it('enables proof downloads for the seller wallet regardless of address casing', () => {
+    render(
+      <PaymentReceipt
+        invoice={baseInvoice}
+        userWallet={baseInvoice.sellerPublicKey.toLowerCase()}
+      />,
+    );
+
+    expect(screen.getByRole('button', { name: 'Download Proof' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Download TXT receipt' })).toBeEnabled();
   });
 
   it('does not offer Download Proof for an unpaid invoice', () => {

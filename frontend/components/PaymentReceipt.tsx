@@ -10,20 +10,27 @@ import CopyButton from './CopyButton';
 
 interface PaymentReceiptProps {
   invoice: any;
+  userWallet?: string | null;
 }
 
-export default function PaymentReceipt({ invoice }: PaymentReceiptProps) {
+export default function PaymentReceipt({ invoice, userWallet }: PaymentReceiptProps) {
   const paymentHash = invoice.paymentTxHash;
   if (invoice.status !== 'PAID' || typeof paymentHash !== 'string' || !/^[0-9a-fA-F]{64}$/.test(paymentHash)) {
     return null;
   }
 
+  const isSellerWallet =
+    typeof userWallet === 'string' &&
+    userWallet.toLowerCase() === String(invoice.sellerPublicKey ?? '').toLowerCase();
+
   const handleDownloadPDF = () => {
+    if (!isSellerWallet) return;
     openInvoicePDF(invoice as any);
     toast.success('Opening payment proof');
   };
 
   const handleEmailProof = () => {
+    if (!isSellerWallet) return;
     if (!invoice.customerEmail) {
       toast.error('No client email on this invoice');
       return;
@@ -32,6 +39,7 @@ export default function PaymentReceipt({ invoice }: PaymentReceiptProps) {
   };
 
   const handleDownload = () => {
+    if (!isSellerWallet) return;
     const receiptText = `
 ═══════════════════════════════════════
           PAYMENT RECEIPT
@@ -190,6 +198,7 @@ Stellar Blockchain Payment System
         {invoice.status === 'PAID' && (
           <button
             onClick={handleDownloadPDF}
+            disabled={!isSellerWallet}
             className="btn btn-primary w-full flex items-center justify-center gap-2"
           >
             <FileText aria-hidden="true" className="w-5 h-5" />
@@ -197,9 +206,18 @@ Stellar Blockchain Payment System
           </button>
         )}
 
+        {!isSellerWallet && (
+          <p role="status" className="text-sm text-gray-600">
+            {userWallet
+              ? 'This proof belongs to another wallet. Connect the seller wallet with Freighter to download it.'
+              : 'Connect the seller wallet with Freighter to download the proof. Install Freighter if it is not available.'}
+          </p>
+        )}
+
         {invoice.status === 'PAID' && invoice.customerEmail && (
           <button
             onClick={handleEmailProof}
+            disabled={!isSellerWallet}
             className="btn btn-secondary w-full flex items-center justify-center gap-2"
           >
             <Mail aria-hidden="true" className="w-5 h-5" />
@@ -219,6 +237,7 @@ Stellar Blockchain Payment System
 
         <button
           onClick={handleDownload}
+          disabled={!isSellerWallet}
           className="btn btn-outline w-full flex items-center justify-center gap-2 text-sm"
         >
           <Download aria-hidden="true" className="w-4 h-4" />

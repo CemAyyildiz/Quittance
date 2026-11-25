@@ -38,6 +38,11 @@ describe('verifyInvoicePayment', () => {
     expect(verifyInvoicePayment(validInput())).toEqual({ ok: true });
   });
 
+  it('does not use the invoice client name as a payment-matching field', () => {
+    const inputWithClientName = Object.assign(validInput(), { customerName: 'Alice Example' });
+    expect(verifyInvoicePayment(inputWithClientName)).toEqual({ ok: true });
+  });
+
   describe('memo mismatch', () => {
     it('flags differing memos', () => {
       const result = verifyInvoicePayment({

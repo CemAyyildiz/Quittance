@@ -20,13 +20,19 @@ router.get('/health/detail', async (_req: Request, res: Response) => {
   const now: Date = new Date();
   const uptimeSeconds: number = Math.floor((now.getTime() - startTime.getTime()) / 1000);
 
-  const network: string = process.env.STELLAR_NETWORK || 'TESTNET';
+  const configuredNetwork = process.env.STELLAR_NETWORK?.trim() || 'TESTNET';
+  const normalizedNetwork = configuredNetwork.toUpperCase();
+  const networkIsValid = normalizedNetwork === 'TESTNET' || normalizedNetwork === 'PUBLIC';
+  const horizonUrlConfigured =
+    Boolean(process.env.STELLAR_HORIZON_URL?.trim()) || networkIsValid;
   const nodeEnv: string = process.env.NODE_ENV || 'development';
 
   const base = {
     service: 'Quittance API',
     version: '1.0.0',
-    network,
+    network: networkIsValid ? normalizedNetwork : 'INVALID',
+    networkStatus: networkIsValid ? 'configured' : 'invalid',
+    horizonStatus: horizonUrlConfigured ? 'configured' : 'not configured',
     environment: nodeEnv,
     uptime: {
       seconds: uptimeSeconds,
@@ -38,6 +44,17 @@ router.get('/health/detail', async (_req: Request, res: Response) => {
       detail: '/api/health/detail',
     },
   };
+
+  if (!networkIsValid || !horizonUrlConfigured) {
+    res.status(503).json({
+      status: 'error',
+      message: !networkIsValid
+        ? 'Invalid Stellar network configuration'
+        : 'Horizon URL not configured',
+      ...base,
+    });
+    return;
+  }
 
   const horizon = await stellarService.checkHorizonHealth();
 

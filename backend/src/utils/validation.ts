@@ -93,7 +93,7 @@ export const createInvoiceSchema = z.object({
   assetCode: z.string().default('XLM').optional(),
   assetIssuer: stellarPublicKeySchema.optional(),
   description: z.string().max(500).optional(),
-  customerName: z.string().max(255).optional(),
+  customerName: z.string().trim().max(80).optional().transform((name) => name || undefined),
   customerEmail: z.string().email().optional(),
   sellerName: z.string().trim().max(80).optional().transform((name) => name || undefined),
   sellerEmail: z.string().email().optional(),

@@ -631,7 +631,10 @@ export default function PaymentPage() {
                   <div>
                     <p className="text-xs text-gray-600 mb-1">Asset issuer</p>
                     <div className="flex items-center gap-2">
-                      <code className="flex-1 text-xs bg-white p-2 rounded border truncate">
+                      <code
+                        className="flex-1 text-xs bg-white p-2 rounded border truncate"
+                        title={invoice.assetIssuer}
+                      >
                         {invoice.assetIssuer}
                       </code>
                       <button
@@ -690,7 +693,7 @@ export default function PaymentPage() {
 
           <div className="space-y-6">
             {invoice.status === 'PAID' && (
-              <PaymentReceipt invoice={invoice} />
+              <PaymentReceipt invoice={invoice} userWallet={userWallet} />
             )}
 
             {invoice.status === 'EXPIRED' && (
