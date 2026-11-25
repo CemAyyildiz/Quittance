@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { invoiceApi } from '@/lib/api';
 import PaymentButton from '@/components/PaymentButton';
 import PaymentQrCodes from '@/components/PaymentQrCodes';
+import PaymentMemo from '@/components/PaymentMemo';
 import { buildStellarPaymentUri } from '@/lib/stellar-payment-uri';
 import WalletConnect from '@/components/WalletConnect';
 import UserProfile from '@/components/UserProfile';
@@ -565,21 +566,7 @@ export default function PaymentPage() {
                   </div>
                 </div>
 
-                <div>
-                  <p className="text-xs text-gray-600 mb-1">Memo (Required)</p>
-                  <div className="flex items-center gap-2">
-                    <code className="flex-1 text-xs bg-white p-2 rounded border font-semibold">
-                      {invoice.memo}
-                    </code>
-                    <button
-                      onClick={() => copyInfo(invoice.memo, 'Memo')}
-                      className="p-2 hover:bg-gray-200 rounded transition"
-                      aria-label="Copy memo"
-                    >
-                      <Copy className="w-4 h-4" aria-hidden="true" />
-                    </button>
-                  </div>
-                </div>
+                <PaymentMemo memo={invoice.memo} />
 
                 <div>
                   <p className="text-xs text-gray-600 mb-1">Amount</p>

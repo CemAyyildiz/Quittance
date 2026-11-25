@@ -24,6 +24,7 @@ import { toast } from 'sonner';
 import { downloadAllInvoicesCSV, downloadPaidInvoiceCSV } from '@/lib/export';
 import { invoiceStatusLabel } from '@/lib/invoiceStatusLabel';
 import { getInvoiceReminder } from '@/lib/mailtoProof';
+import InvoiceBackupExport from '@/components/InvoiceBackupExport';
 
 const PAGE_SIZE = 50;
 
@@ -48,6 +49,12 @@ export default function DashboardPage() {
   const [pageIndex, setPageIndex] = useState(0);
   const [nextCursor, setNextCursor] = useState<string | undefined>(undefined);
   const [paymentOrigin, setPaymentOrigin] = useState('');
+  const [exporting, setExporting] = useState<'paid' | 'all' | 'json' | null>(null);
+  const [importing, setImporting] = useState(false);
+  const importInput = useRef<HTMLInputElement>(null);
+  // The wallet whose invoices the dashboard is currently allowed to show.
+  // In-flight responses for a previous Freighter account are dropped.
+  const activeSeller = useRef<string | null>(publicKey ?? null);
 
   useEffect(() => {
     setPaymentOrigin(window.location.origin);
@@ -55,6 +62,7 @@ export default function DashboardPage() {
 
   const loadPage = useCallback(async (cursor?: string) => {
     if (!publicKey) return;
+    const sellerPublicKey = publicKey;
     const requestId = ++loadRequestId.current;
     try {
       setLoading(true);
@@ -72,13 +80,23 @@ export default function DashboardPage() {
         }),
         invoiceApi.getStats(publicKey),
       ]);
-      if (requestId === loadRequestId.current) {
-        setInvoices(invoicesResult.data);
+      if (
+        requestId === loadRequestId.current &&
+        sellerPublicKey === activeSeller.current
+      ) {
+        setInvoices(
+          invoicesResult.data.filter(
+            (invoice: any) => invoice?.sellerPublicKey === sellerPublicKey,
+          ),
+        );
         setStats(statsResult.data[0] || {});
         setNextCursor(invoicesResult.pagination?.nextCursor);
       }
     } catch (error) {
-      if (requestId === loadRequestId.current) {
+      if (
+        requestId === loadRequestId.current &&
+        sellerPublicKey === activeSeller.current
+      ) {
         setLoadError(true);
         toast.error('Failed to load data');
       }
@@ -90,6 +108,8 @@ export default function DashboardPage() {
   }, [assetCode, createdFrom, createdTo, filter, publicKey, searchQuery]);
 
   useEffect(() => {
+    activeSeller.current = publicKey;
+
     if (!connected || !publicKey) {
       loadRequestId.current += 1;
       setInvoices([]);
@@ -101,9 +121,17 @@ export default function DashboardPage() {
       setNextCursor(undefined);
       return;
     }
+    // Switching Freighter accounts must not leave the previous wallet's
+    // invoices on screen: drop them and any in-flight response, then reload.
+    loadRequestId.current += 1;
+    setInvoices([]);
+    setStats(null);
+    setLoading(true);
+    setLoadError(false);
     // A new seller, status filter or search always starts from the first page.
     setCursorStack([undefined]);
     setPageIndex(0);
+    setNextCursor(undefined);
     loadPage(undefined);
   }, [connected, publicKey, filter, loadPage]);
 
@@ -177,7 +205,7 @@ export default function DashboardPage() {
   };
 
   const handleExportCSV = async (type: 'paid' | 'all') => {
-    if (!publicKey || exporting) return;
+    if (!publicKey || exporting !== null) return;
 
     setExporting(type);
     try {
@@ -199,6 +227,10 @@ export default function DashboardPage() {
       setExporting(null);
     }
   };
+
+  // Search and status filtering happen on the server, so the page's rows are
+  // already the filtered set.
+  const filteredInvoices = invoices;
 
   const hasActiveFilters =
     filter !== 'all' ||

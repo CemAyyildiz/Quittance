@@ -117,6 +117,7 @@ describe('InvoiceForm seller display name', () => {
     fireEvent.click(screen.getByRole('button', { name: /create invoice/i }));
     await waitFor(() => expect(invoiceApi.create).toHaveBeenCalledWith(
       expect.objectContaining({ sellerName: 'Studio & Co', sellerPublicKey: 'GABC1234567890' }),
+      expect.anything(),
     ));
     await waitFor(() => expect((label as HTMLInputElement).value).toBe(''));
   });

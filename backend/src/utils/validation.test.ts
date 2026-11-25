@@ -192,6 +192,43 @@ describe('createInvoiceSchema', () => {
     ).toBe(true);
   });
 
+  it('rejects an expiry that is already in the past', () => {
+    const result = createInvoiceSchema.safeParse({
+      amount: 10,
+      expiresAt: new Date(Date.now() - 60_000).toISOString(),
+      sellerPublicKey: validSellerPublicKey,
+    });
+
+    expect(result.success).toBe(false);
+    if (result.success) {
+      throw new Error('Expected a past expiry to fail validation');
+    }
+    expect(
+      result.error.issues.some((issue) => issue.path.includes('expiresAt')),
+    ).toBe(true);
+  });
+
+  it('accepts an expiry one hour in the future', () => {
+    const result = createInvoiceSchema.safeParse({
+      amount: 10,
+      expiresAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+      sellerPublicKey: validSellerPublicKey,
+    });
+
+    expect(result.success).toBe(true);
+  });
+
+  it('keeps the default expiry when none is supplied', () => {
+    const result = createInvoiceSchema.safeParse({
+      amount: 10,
+      sellerPublicKey: validSellerPublicKey,
+    });
+
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(result.data.expiresAt).toBeUndefined();
+  });
+
   it('rejects expiresInDays of 0', () => {
     const result = createInvoiceSchema.safeParse({
       amount: 10,
@@ -257,6 +294,53 @@ describe('createInvoiceSchema', () => {
     expect(
       result.error.issues.some((issue) => issue.path.includes('amount')),
     ).toBe(true);
+  });
+
+  it('rejects an amount with more than seven decimal places', () => {
+    const result = createInvoiceSchema.safeParse({
+      amount: 1.12345678,
+      sellerPublicKey: validSellerPublicKey,
+    });
+
+    expect(result.success).toBe(false);
+    if (result.success) {
+      throw new Error('Expected an eight-decimal amount to fail validation');
+    }
+    expect(result.error.issues.some((issue) => issue.path.includes('amount'))).toBe(true);
+  });
+
+  it('accepts an amount with exactly seven decimal places', () => {
+    const result = createInvoiceSchema.safeParse({
+      amount: 1.1234567,
+      sellerPublicKey: validSellerPublicKey,
+    });
+
+    expect(result.success).toBe(true);
+  });
+
+  it('rejects trailing zeros beyond seven decimal places instead of rounding', () => {
+    const result = createInvoiceSchema.safeParse({
+      amount: '1.10000000',
+      sellerPublicKey: validSellerPublicKey,
+    });
+
+    expect(result.success).toBe(false);
+  });
+
+  it('counts decimals after a comma separator', () => {
+    expect(
+      createInvoiceSchema.safeParse({
+        amount: '1,1234567',
+        sellerPublicKey: validSellerPublicKey,
+      }).success,
+    ).toBe(true);
+
+    expect(
+      createInvoiceSchema.safeParse({
+        amount: '1,12345678',
+        sellerPublicKey: validSellerPublicKey,
+      }).success,
+    ).toBe(false);
   });
 
   it('accepts amount at max ceiling (1000000000)', () => {

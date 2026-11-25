@@ -76,8 +76,12 @@ class InvoiceMemoryService {
       memo = await this.generateFreeMemo();
     }
 
-    const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + (input.expiresInDays || 7));
+    const expiresAt = input.expiresAt
+      ? new Date(input.expiresAt)
+      : new Date();
+    if (!input.expiresAt) {
+      expiresAt.setDate(expiresAt.getDate() + (input.expiresInDays || 7));
+    }
 
     const storage = await getStorage();
     const sellerMuxedAddress = StrKey.isValidMed25519PublicKey(input.sellerPublicKey)
@@ -90,7 +94,6 @@ class InvoiceMemoryService {
       lineItems: input.lineItems,
       assetCode: input.assetCode || 'XLM',
       assetIssuer: input.assetIssuer,
-      lineItems: input.lineItems,
       memo,
       description: input.description,
       customerName: input.customerName,
@@ -228,7 +231,7 @@ class InvoiceMemoryService {
       assetCode?: string;
       createdFrom?: Date;
       createdTo?: Date;
-    } = {}
+    } = {},
     search?: string
   ): Promise<{ invoices: any[]; nextCursor?: string; limit: number }> {
     const pageLimit = Number.isFinite(limit)

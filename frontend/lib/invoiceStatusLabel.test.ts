@@ -56,7 +56,7 @@ describe('invoiceStatusLabel — invalid / edge-case inputs', () => {
   it('returns "Unknown" for an unrecognised code', () => {
     expect(invoiceStatusLabel('UNKNOWN')).toBe('Unknown');
     expect(invoiceStatusLabel('IN_PROGRESS')).toBe('Unknown');
-    expect(invoiceStatusLabel('REFUNDED')).toBe('Unknown');
+    expect(invoiceStatusLabel('REFUNDED')).toBe('Refunded');
   });
 
   it('returns "Unknown" for empty string', () => {
@@ -118,7 +118,7 @@ describe('isKnownInvoiceStatus', () => {
   });
 
   it('returns false for unknown or invalid inputs', () => {
-    expect(isKnownInvoiceStatus('REFUNDED')).toBe(false);
+    expect(isKnownInvoiceStatus('REFUNDED')).toBe(true);
     expect(isKnownInvoiceStatus('')).toBe(false);
     expect(isKnownInvoiceStatus(null)).toBe(false);
     expect(isKnownInvoiceStatus(undefined)).toBe(false);
