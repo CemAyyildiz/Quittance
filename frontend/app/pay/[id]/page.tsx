@@ -12,7 +12,7 @@ import UserProfile from '@/components/UserProfile';
 import PaymentReceipt from '@/components/PaymentReceipt';
 import PaymentStatus from '@/components/PaymentStatus';
 import AssetLogo from '@/components/AssetLogo';
-import { formatAmount, formatDate, copyToClipboard } from '@/lib/utils';
+import { formatAmount, formatDate, formatDecimalAmount, copyToClipboard } from '@/lib/utils';
 import { useCountdown } from '@/lib/useCountdown';
 import { Copy, ExternalLink, Loader2, Check, FileText, Mail, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
@@ -71,6 +71,13 @@ export default function PaymentPage() {
   const timeRemaining = useCountdown(invoice?.status === 'PENDING' ? invoice.expiresAt : null);
   const receivedAmount = invoice?.receivedAmount ?? '0';
   const remainingAmount = invoice?.remainingAmount ?? invoice?.amount?.toString();
+  // What the payer still owes while the invoice is open. A fully unpaid
+  // invoice has received nothing, so this is the full amount; a remainder can
+  // never be negative, even if the API ever reported inconsistent totals.
+  const payableAmount =
+    invoice?.status === 'PENDING' && Number(remainingAmount) < 0
+      ? '0'
+      : remainingAmount;
 
   useEffect(() => {
     void loadInvoice();
@@ -367,7 +374,10 @@ export default function PaymentPage() {
                   </div>
                   <div>
                     <p className="text-4xl sm:text-6xl font-bold bg-gradient-to-r from-cyan-600 to-blue-600 bg-clip-text text-transparent break-all">
-                      {formatAmount(invoice.amount, 7)}
+                      {formatAmount(
+                        invoice.status === 'PENDING' ? payableAmount : invoice.amount,
+                        7,
+                      )}
                     </p>
                     <p className="text-xl font-bold text-cyan-600 mt-2">
                       {invoice.assetCode}
@@ -377,6 +387,12 @@ export default function PaymentPage() {
                         </span>
                       )}
                     </p>
+                    {invoice.status === 'PENDING' && Number(receivedAmount) > 0 && (
+                      <p className="mt-2 text-sm font-medium text-gray-600">
+                        {formatDecimalAmount(invoice.amount)} {invoice.assetCode} total ·{' '}
+                        {formatDecimalAmount(receivedAmount)} {invoice.assetCode} already paid
+                      </p>
+                    )}
                   </div>
                 </div>
               </div>

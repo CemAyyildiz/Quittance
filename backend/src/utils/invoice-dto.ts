@@ -1,5 +1,5 @@
 import { createHash } from 'crypto';
-import { subtractDecimalAmounts } from './amount-compare';
+import { remainingInvoiceAmount } from './verify-invoice-payment';
 
 import type { StatusEvent, StatusEventStatus } from '../storage/memory-storage';
 
@@ -181,7 +181,7 @@ export function toInvoiceDTO(
       paidAt: payment.paidAt.toISOString(),
     })),
     receivedAmount: invoice.receivedAmount ?? '0',
-    remainingAmount: subtractDecimalAmounts(String(invoice.amount), invoice.receivedAmount ?? '0'),
+    remainingAmount: remainingInvoiceAmount(invoice.amount, invoice.receivedAmount),
   };
 
   // The label belongs to this invoice; it must never become payment identity.

@@ -17,7 +17,7 @@ import {
 } from './middleware/rate-limit-stub';
 import healthDetailRouter from './routes/health-detail';
 import { toInvoiceDTO as mapInvoiceDTO } from './utils/invoice-dto';
-import { addDecimalAmounts, compareDecimals, subtractDecimalAmounts } from './utils/amount-compare';
+import { addDecimalAmounts, compareDecimals } from './utils/amount-compare';
 import { VerifyErrorCode, VerifyErrorMessages } from './utils/verify-errors';
 import {
   assertInvoiceSettleable,
@@ -29,6 +29,7 @@ import {
   isSelfPayment,
   paymentDestinationMatchesInvoice,
   paymentAssetMatchesInvoice,
+  remainingInvoiceAmount,
 } from './utils/verify-invoice-payment';
 import { parsePaginationQuery } from './utils/parse-pagination';
 import { isSmtpConfigured, sendEmail, generateInvoiceEmail } from './utils/smtp';
@@ -1276,7 +1277,7 @@ app.post('/api/invoices/:id/verify', invoiceVerifyRateLimit(), async (req: Reque
     }
 
     const receivedAmount = String(invoice.receivedAmount ?? '0');
-    const remainingAmount = subtractDecimalAmounts(String(invoice.amount), receivedAmount);
+    const remainingAmount = remainingInvoiceAmount(invoice.amount, receivedAmount);
     if (
       compareDecimals(paymentOp.amount, '0') <= 0 ||
       compareDecimals(paymentOp.amount, remainingAmount) > 0
