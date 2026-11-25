@@ -79,4 +79,18 @@ describe('AmountDisplay', () => {
     expect(html).toContain('-1.5');
     expect(html).toContain('aria-label="-1.5 XLM"');
   });
+
+  it('marks a credit asset as not native XLM', () => {
+    const html = renderToStaticMarkup(
+      <AmountDisplay amount={25} assetCode="USDC" />
+    );
+    expect(html).toContain('Not native XLM');
+  });
+
+  it('does not mark the native asset as a credit asset', () => {
+    const html = renderToStaticMarkup(
+      <AmountDisplay amount={25} assetCode="XLM" />
+    );
+    expect(html).not.toContain('Not native XLM');
+  });
 });

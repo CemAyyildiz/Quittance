@@ -261,3 +261,29 @@ describe('PaymentPage manual payment', () => {
     expect(await screen.findByTestId('freighter-pay')).toBeInTheDocument();
   });
 });
+
+describe('PaymentPage amount and asset labeling', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('shows the stored credit asset code beside the amount and marks it as not native XLM', async () => {
+    mockInvoice({ assetCode: 'USDC', assetIssuer: USDC_ISSUER });
+    render(<PaymentPage />);
+
+    const amount = await screen.findByLabelText('12.5 USDC');
+    expect(amount).toHaveTextContent('12.5');
+    expect(amount).toHaveTextContent('USDC');
+    expect(amount).not.toHaveTextContent('XLM');
+    expect(screen.getByText('Not native XLM')).toBeInTheDocument();
+  });
+
+  it('labels the native asset as XLM without a credit-asset note', async () => {
+    mockInvoice({});
+    render(<PaymentPage />);
+
+    const amount = await screen.findByLabelText('12.5 XLM');
+    expect(amount).toHaveTextContent('XLM');
+    expect(screen.queryByText('Not native XLM')).not.toBeInTheDocument();
+  });
+});

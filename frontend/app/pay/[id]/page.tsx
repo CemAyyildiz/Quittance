@@ -12,6 +12,7 @@ import UserProfile from '@/components/UserProfile';
 import PaymentReceipt from '@/components/PaymentReceipt';
 import PaymentStatus from '@/components/PaymentStatus';
 import AssetLogo from '@/components/AssetLogo';
+import AmountDisplay from '@/components/AmountDisplay';
 import { formatAmount, formatDate, copyToClipboard } from '@/lib/utils';
 import { useCountdown } from '@/lib/useCountdown';
 import { Copy, ExternalLink, Loader2, Check, FileText, Mail, RefreshCw } from 'lucide-react';
@@ -365,18 +366,19 @@ export default function PaymentPage() {
                     <div className="absolute inset-0 bg-gradient-to-r from-cyan-400 to-blue-500 rounded-full blur-lg opacity-40"></div>
                     <AssetLogo code={invoice.assetCode} size={50} showName={false} priority={true} />
                   </div>
-                  <div>
-                    <p className="text-4xl sm:text-6xl font-bold bg-gradient-to-r from-cyan-600 to-blue-600 bg-clip-text text-transparent break-all">
-                      {formatAmount(invoice.amount, 7)}
-                    </p>
-                    <p className="text-xl font-bold text-cyan-600 mt-2">
-                      {invoice.assetCode}
-                      {issuerDomain && (
-                        <span className="ml-2 text-sm font-medium text-gray-600">
-                          {issuerDomain}
-                        </span>
-                      )}
-                    </p>
+                  <div className="min-w-0">
+                    <AmountDisplay
+                      amount={invoice.amount}
+                      assetCode={invoice.assetCode}
+                      decimals={7}
+                      size="xl"
+                      amountClassName="bg-gradient-to-r from-cyan-600 to-blue-600 bg-clip-text text-transparent break-all"
+                    />
+                    {issuerDomain && (
+                      <p className="mt-2 text-sm font-medium text-gray-600">
+                        {issuerDomain}
+                      </p>
+                    )}
                   </div>
                 </div>
               </div>
