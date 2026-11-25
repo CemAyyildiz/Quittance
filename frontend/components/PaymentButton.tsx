@@ -8,6 +8,11 @@ import {
   getWalletNetwork,
   getConfiguredNetwork,
   getNetworkMismatch,
+  getUserPublicKey,
+  getAccountBalance,
+  isTestnetNetwork,
+  hasEnoughXlmForFee,
+  requestFriendbotFunding,
   type WalletNetwork,
 } from '@/lib/stellar';
 import { toast } from 'sonner';
@@ -48,6 +53,11 @@ export default function PaymentButton({
   onError,
 }: PaymentButtonProps) {
   const [loading, setLoading] = useState(false);
+  const [offerFunding, setOfferFunding] = useState(false);
+  const [funding, setFunding] = useState(false);
+  const [fundingError, setFundingError] = useState<string | null>(null);
+  const [feeBumpEnabled, setFeeBumpEnabled] = useState(false);
+  const [feeSource, setFeeSource] = useState('');
   const [walletNetwork, setWalletNetwork] = useState<WalletNetwork>('UNKNOWN');
   const [networkMismatch, setNetworkMismatch] = useState(false);
   const configuredNetwork = getConfiguredNetwork();
@@ -143,6 +153,7 @@ export default function PaymentButton({
         assetCode,
         issuer,
         bounds?.ok ? bounds.maxTime : undefined,
+        { feeSource: feeBumpEnabled ? feeSource : undefined },
       );
 
       if (invoiceId) {
