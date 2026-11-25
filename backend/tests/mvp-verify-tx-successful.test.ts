@@ -57,9 +57,11 @@ function horizonTx(
     transaction: {
       successful,
       memo,
+      memo_type: 'text',
       source_account: PAYER,
       ledger_sequence: 12345,
       created_at: new Date().toISOString(),
+      valid_before: new Date(Date.now() + 5 * 60 * 1000).toISOString(),
     },
     operations: [
       {

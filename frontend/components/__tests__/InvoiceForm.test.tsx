@@ -22,6 +22,7 @@ vi.mock('@/lib/stellar', () => ({
 afterEach(() => {
   cleanup();
   vi.clearAllMocks();
+  window.localStorage.clear();
 });
 
 /**
@@ -250,5 +251,44 @@ describe('InvoiceForm idempotent submit', () => {
 
     const calls = vi.mocked(invoiceApi.create).mock.calls as any[][];
     expect(calls[0][1].idempotencyKey).not.toBe(calls[1][1].idempotencyKey);
+  });
+});
+
+describe('InvoiceForm wallet-scoped draft', () => {
+  it('restores the saved amount after a remount and never stores the client email', async () => {
+    const wallet = 'GDRAFTWALLET1234567890';
+    const { unmount } = render(<InvoiceForm userWallet={wallet} />);
+
+    fireEvent.change(screen.getByPlaceholderText('10.00'), { target: { value: '42.5' } });
+    fireEvent.change(screen.getByLabelText('Client name (optional)'), {
+      target: { value: 'Ada Lovelace' },
+    });
+    fireEvent.change(
+      screen.getByPlaceholderText('client@example.com — for sending the invoice'),
+      { target: { value: 'ada@example.com' } },
+    );
+
+    await waitFor(() => {
+      const raw = window.localStorage.getItem(`quittance:invoice-draft:${wallet}`);
+      expect(raw).not.toBeNull();
+      expect(JSON.parse(raw as string).amount).toBe('42.5');
+    });
+
+    unmount();
+    render(<InvoiceForm userWallet={wallet} />);
+
+    await waitFor(() =>
+      expect((screen.getByPlaceholderText('10.00') as HTMLInputElement).value).toBe('42.5'),
+    );
+    expect((screen.getByLabelText('Client name (optional)') as HTMLInputElement).value).toBe(
+      'Ada Lovelace',
+    );
+    expect(
+      (screen.getByPlaceholderText('client@example.com — for sending the invoice') as HTMLInputElement)
+        .value,
+    ).toBe('');
+    expect(
+      window.localStorage.getItem(`quittance:invoice-draft:${wallet}`) ?? '',
+    ).not.toContain('ada@example.com');
   });
 });
