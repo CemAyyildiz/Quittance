@@ -13,6 +13,7 @@ import UserProfile from '@/components/UserProfile';
 import PaymentReceipt from '@/components/PaymentReceipt';
 import PaymentStatus from '@/components/PaymentStatus';
 import AssetLogo from '@/components/AssetLogo';
+import AmountDisplay from '@/components/AmountDisplay';
 import { formatAmount, formatDate, copyToClipboard } from '@/lib/utils';
 import { useCountdown } from '@/lib/useCountdown';
 import { Copy, ExternalLink, Loader2, Check, FileText, Mail, RefreshCw } from 'lucide-react';
@@ -70,6 +71,9 @@ export default function PaymentPage() {
   const [verifying, setVerifying] = useState(false);
   const [verifyError, setVerifyError] = useState<string | null>(null);
   const timeRemaining = useCountdown(invoice?.status === 'PENDING' ? invoice.expiresAt : null);
+  // Only payments that matched this invoice are recorded on it, and each one
+  // is identified by its full 64-character Stellar transaction hash.
+  const matchedPayments: any[] = invoice?.payments ?? [];
   const receivedAmount = invoice?.receivedAmount ?? '0';
   const remainingAmount = invoice?.remainingAmount ?? invoice?.amount?.toString();
 
@@ -316,6 +320,7 @@ export default function PaymentPage() {
       invoice.memo,
       invoice.assetIssuer
     );
+  const sellerWalletConnected = userWallet === invoice.sellerPublicKey;
 
   const horizonUrl =
     process.env.NEXT_PUBLIC_STELLAR_NETWORK === 'TESTNET'
@@ -367,17 +372,18 @@ export default function PaymentPage() {
                     <AssetLogo code={invoice.assetCode} size={50} showName={false} priority={true} />
                   </div>
                   <div>
-                    <p className="text-4xl sm:text-6xl font-bold bg-gradient-to-r from-cyan-600 to-blue-600 bg-clip-text text-transparent break-all">
-                      {formatAmount(invoice.amount, 7)}
-                    </p>
-                    <p className="text-xl font-bold text-cyan-600 mt-2">
-                      {invoice.assetCode}
-                      {issuerDomain && (
-                        <span className="ml-2 text-sm font-medium text-gray-600">
-                          {issuerDomain}
-                        </span>
-                      )}
-                    </p>
+                    <AmountDisplay
+                      amount={invoice.amount}
+                      assetCode={invoice.assetCode}
+                      decimals={7}
+                      size="xl"
+                      showAssetKind
+                    />
+                    {issuerDomain && (
+                      <p className="mt-2 text-sm font-medium text-gray-600">
+                        {issuerDomain}
+                      </p>
+                    )}
                   </div>
                 </div>
               </div>
@@ -510,7 +516,7 @@ export default function PaymentPage() {
               )}
             </div>
 
-            {invoice.status === 'PAID' && (
+            {invoice.status === 'PAID' && sellerWalletConnected && (
               <div className="border-t pt-5 flex gap-2">
                 <button
                   onClick={handleDownloadPDF}
@@ -677,7 +683,10 @@ export default function PaymentPage() {
 
           <div className="space-y-6">
             {invoice.status === 'PAID' && (
-              <PaymentReceipt invoice={invoice} />
+              <PaymentReceipt
+                invoice={invoice}
+                showProofActions={sellerWalletConnected}
+              />
             )}
 
             {invoice.status === 'EXPIRED' && (
@@ -720,6 +729,32 @@ export default function PaymentPage() {
                     </dl>
                   </div>
                 )}
+                <div className="card">
+                  <h3 className="text-lg font-semibold mb-3">Matched payments</h3>
+                  {matchedPayments.length > 0 ? (
+                    <>
+                      <p className="text-sm text-gray-600 mb-3">
+                        These transactions already count towards this invoice.
+                      </p>
+                      <ul
+                        className="space-y-2"
+                        aria-label="Matched payment transaction hashes"
+                      >
+                        {matchedPayments.map((payment: any) => (
+                          <li key={payment.txHash}>
+                            <code className="block text-xs font-mono bg-gray-50 border border-gray-200 rounded p-2 break-all">
+                              {payment.txHash}
+                            </code>
+                          </li>
+                        ))}
+                      </ul>
+                    </>
+                  ) : (
+                    <p className="text-sm text-gray-600">
+                      No payments have matched this invoice yet.
+                    </p>
+                  )}
+                </div>
                 <div className="card">
                   <h3 className="text-lg font-semibold text-center mb-4">Scan QR Code</h3>
                   {paymentInfoLoading ? (

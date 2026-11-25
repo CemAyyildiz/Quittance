@@ -114,8 +114,11 @@ export function sumLineItems(lineItems: InvoiceLineItem[]): number {
 
 // Invoice creation schema
 export const createInvoiceSchema = z.object({
-  amount: amountSchema,
-  lineItems: z.array(lineItemSchema).max(MAX_LINE_ITEMS).optional(),
+  amount: z.number().finite().positive().max(1000000000),
+  lineItems: z
+    .array(lineItemSchema)
+    .max(MAX_LINE_ITEMS, `Line items list is too long (maximum ${MAX_LINE_ITEMS} items)`)
+    .optional(),
   assetCode: z.string().default('XLM').optional(),
   assetIssuer: stellarPublicKeySchema.optional(),
   description: z.string().max(500).optional(),
@@ -153,6 +156,17 @@ export const createInvoiceSchema = z.object({
         code: 'custom',
         path: ['assetIssuer'],
         message: 'Credit assets require a valid Stellar issuer public key',
+      });
+    }
+  }
+  if (invoice.lineItems && invoice.lineItems.length > 0) {
+    const lineTotal = sumLineItems(invoice.lineItems);
+    const invoiceAmount = roundStellarAmount(invoice.amount);
+    if (lineTotal !== invoiceAmount) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['lineItems'],
+        message: `Line items total (${lineTotal}) must equal invoice amount (${invoiceAmount})`,
       });
     }
   }

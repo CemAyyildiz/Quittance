@@ -8,12 +8,12 @@ import {
   getWalletNetwork,
   getConfiguredNetwork,
   getNetworkMismatch,
-  getAccountBalance,
   getUserPublicKey,
-  hasEnoughXlmForFee,
+  getAccountBalance,
+  requestFriendbotFunding,
   isTestnetNetwork,
   isValidPublicKey,
-  requestFriendbotFunding,
+  hasEnoughXlmForFee,
   type WalletNetwork,
 } from '@/lib/stellar';
 import { toast } from 'sonner';
@@ -118,8 +118,8 @@ export default function PaymentButton({
       return;
     }
 
-    const trimmedFeeSource = feeSource.trim();
-    if (feeBumpEnabled && !isValidPublicKey(trimmedFeeSource)) {
+    const feeSourceAccount = feeSource.trim();
+    if (feeBumpEnabled && !isValidPublicKey(feeSourceAccount)) {
       toast.error('Enter a valid fee source account');
       return;
     }
@@ -153,17 +153,26 @@ export default function PaymentButton({
       }
 
       toast.loading('Confirm in wallet...', { id: PAY_TOAST_ID });
-      const expiry = bounds?.ok ? bounds.maxTime : undefined;
-      const txHash = await sendPayment(
-        destination,
-        amount,
-        memo,
-        assetCode,
-        issuer,
-        feeBumpEnabled
-          ? { feeSource: trimmedFeeSource, ...(expiry ? { maxTime: expiry } : {}) }
-          : expiry,
-      );
+      const maxTime = bounds?.ok ? bounds.maxTime : undefined;
+      const txHash =
+        maxTime !== undefined && feeBumpEnabled
+          ? await sendPayment(
+              destination,
+              amount,
+              memo,
+              assetCode,
+              issuer,
+              maxTime,
+              { feeSource: feeSourceAccount },
+            )
+          : await sendPayment(
+              destination,
+              amount,
+              memo,
+              assetCode,
+              issuer,
+              feeBumpEnabled ? { feeSource: feeSourceAccount } : maxTime,
+            );
 
       if (invoiceId) {
         toast.loading('Verifying payment...', { id: PAY_TOAST_ID });

@@ -77,6 +77,7 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
   // click could start two requests; this ref blocks re-entry synchronously.
   const submittingRef = useRef(false);
   const [amount, setAmount] = useState('');
+  const [draftReadyFor, setDraftReadyFor] = useState<string | null>(null);
   const [lineItems, setLineItems] = useState<InvoiceLineInput[]>([
     { label: '', quantity: '1', unitPrice: '' },
   ]);
@@ -86,6 +87,8 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
   const [customerName, setCustomerName] = useState('');
   const [customerEmail, setCustomerEmail] = useState('');
   const [sellerName, setSellerName] = useState('');
+  const [muxedAddress, setMuxedAddress] = useState('');
+  const [muxedAddressError, setMuxedAddressError] = useState('');
   const [trustlineWarning, setTrustlineWarning] = useState<string | null>(null);
   const [serverWarning, setServerWarning] = useState<string | null>(null);
   const [acknowledgedWarning, setAcknowledgedWarning] = useState(false);
@@ -306,6 +309,19 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
       return;
     }
 
+    const enteredMuxedAddress = muxedAddress.trim();
+    if (enteredMuxedAddress) {
+      if (!StrKey.isValidMed25519PublicKey(enteredMuxedAddress)) {
+        setMuxedAddressError('Enter a valid Stellar muxed address');
+        return;
+      }
+      if (extractBaseAddress(enteredMuxedAddress) !== userWallet) {
+        setMuxedAddressError('The muxed address must belong to your connected wallet');
+        return;
+      }
+    }
+    setMuxedAddressError('');
+
     const amountNum = parseFloat(amount);
     if (!amount || amountNum <= 0 || !Number.isFinite(amountNum)) {
       setAmountError('Enter a valid amount');
@@ -368,10 +384,7 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
         assetCode: assetCode,
         assetIssuer: selectedAsset?.issuer,
         expiresInDays: 7,
-        ...(expiryMs !== undefined && expiryValue
-          ? { expiresAt: new Date(expiryMs).toISOString() }
-          : {}),
-        sellerPublicKey: muxedDestination || userWallet,
+        sellerPublicKey: enteredMuxedAddress || userWallet,
         sellerName: sellerName.trim() || undefined,
         description: description || undefined,
         memo: memo || undefined,
@@ -398,7 +411,7 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
       setCustomerEmail('');
       setSellerName('');
       setMuxedAddress('');
-      setExpiresAt('');
+      setMuxedAddressError('');
       setAmountError('');
       setEmailError('');
       setMuxedAddressError('');

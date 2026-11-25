@@ -23,12 +23,12 @@ export interface InvoiceDTO {
   sellerPublicKey: string;
   sellerName?: string;
   amount: number;
+  sellerMuxedAddress?: string;
   lineItems?: Array<{ label: string; quantity: number; unitPrice: number }>;
   assetCode: string;
   assetIssuer?: string;
   memo: string;
   description?: string;
-  lineItems?: unknown[];
   customerName?: string;
   customerEmail?: string;
   status: 'PENDING' | 'PAID' | 'REFUNDED' | 'EXPIRED' | 'CANCELLED';
@@ -52,12 +52,10 @@ export interface InvoiceDTO {
   proofCanonical?: string;
 }
 
-export function toInvoiceDTO(invoice: {
-  id: string;
-  sellerPublicKey: string;
-  sellerMuxedAddress?: string;
-  amount: number;
-  lineItems?: Array<{ label: string; quantity: number; unitPrice: number }>;
+export interface ProofDigestFields {
+  network: string;
+  invoiceId: string;
+  amount: number | string;
   assetCode: string;
   /** Empty string for native XLM — never the word "null". */
   assetIssuer: string;
@@ -118,6 +116,7 @@ export function toInvoiceDTO(
   invoice: {
     id: string;
     sellerPublicKey: string;
+    sellerMuxedAddress?: string;
     sellerName?: string;
     amount: number;
     assetCode: string;
@@ -161,7 +160,6 @@ export function toInvoiceDTO(
     assetIssuer: invoice.assetIssuer,
     memo: invoice.memo,
     description: invoice.description,
-    lineItems: invoice.lineItems,
     customerName: invoice.customerName,
     customerEmail: invoice.customerEmail,
     status: invoice.status,
