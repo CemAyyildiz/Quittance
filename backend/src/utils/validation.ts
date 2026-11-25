@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { StrKey } from '@stellar/stellar-sdk';
 import { MAX_MEMO_BYTES, getMemoByteLength } from './memo';
 import { isFutureExpiry } from './invoice-expiry';
+import { normalizeAssetCode, NATIVE_ASSET_CODE } from './asset-helpers';
 
 export interface ParsedAmount { decimal: string; stroops: bigint; }
 export function parseAmount(input: string | number): ParsedAmount | undefined {
@@ -119,7 +120,11 @@ export const createInvoiceSchema = z.object({
     .array(lineItemSchema)
     .max(MAX_LINE_ITEMS, `Line items list is too long (maximum ${MAX_LINE_ITEMS} items)`)
     .optional(),
-  assetCode: z.string().default('XLM').optional(),
+  assetCode: z.string()
+    .trim()
+    .transform(normalizeAssetCode)
+    .pipe(z.string().max(12, 'Asset code must be at most 12 characters'))
+    .default(NATIVE_ASSET_CODE),
   assetIssuer: stellarPublicKeySchema.optional(),
   description: z.string().max(500).optional(),
   customerName: z.string().max(255).optional(),
@@ -139,19 +144,14 @@ export const createInvoiceSchema = z.object({
     });
   }
 
-  if (invoice.lineItems && invoice.lineItems.length > 0) {
-    const total = sumLineItems(invoice.lineItems);
-    if (Math.abs(total - invoice.amount) > 1e-9) {
+  if (invoice.assetCode !== NATIVE_ASSET_CODE) {
+    if (!invoice.assetIssuer) {
       ctx.addIssue({
         code: 'custom',
-        path: ['amount'],
-        message: 'Amount must match the line item total',
+        path: ['assetIssuer'],
+        message: `${invoice.assetCode} requires an asset issuer`,
       });
-    }
-  }
-
-  if (invoice.assetCode && invoice.assetCode !== 'XLM') {
-    if (!invoice.assetIssuer || !/^G[A-Z2-7]{55}$/.test(invoice.assetIssuer)) {
+    } else if (!/^G[A-Z2-7]{55}$/.test(invoice.assetIssuer)) {
       ctx.addIssue({
         code: 'custom',
         path: ['assetIssuer'],

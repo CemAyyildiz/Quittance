@@ -144,6 +144,63 @@ describe('createInvoiceSchema', () => {
     });
 
     expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.assetCode).toBe('USDC');
+    }
+  });
+
+  it('uppercases a lowercase asset code and stores no issuer rewrite', () => {
+    const result = createInvoiceSchema.safeParse({
+      amount: 25.5,
+      assetCode: 'usdc',
+      assetIssuer: 'GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5',
+      sellerPublicKey: validSellerPublicKey,
+    });
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.assetCode).toBe('USDC');
+      expect(result.data.assetIssuer).toBe('GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5');
+    }
+  });
+
+  it('rejects a credit asset without an issuer and names the asset', () => {
+    const result = createInvoiceSchema.safeParse({
+      amount: 25.5,
+      assetCode: 'usdc',
+      sellerPublicKey: validSellerPublicKey,
+    });
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues.some((issue) =>
+        issue.path.includes('assetIssuer') && issue.message.includes('USDC'),
+      )).toBe(true);
+    }
+  });
+
+  it('accepts XLM without an issuer', () => {
+    expect(createInvoiceSchema.safeParse({
+      amount: 25.5,
+      assetCode: 'XLM',
+      sellerPublicKey: validSellerPublicKey,
+    }).success).toBe(true);
+  });
+
+  it('rejects asset codes longer than 12 characters and accepts 12', () => {
+    expect(createInvoiceSchema.safeParse({
+      amount: 25.5,
+      assetCode: 'ABCDEFGHIJKLM',
+      assetIssuer: validSellerPublicKey,
+      sellerPublicKey: validSellerPublicKey,
+    }).success).toBe(false);
+
+    expect(createInvoiceSchema.safeParse({
+      amount: 25.5,
+      assetCode: 'ABCDEFGHIJKL',
+      assetIssuer: validSellerPublicKey,
+      sellerPublicKey: validSellerPublicKey,
+    }).success).toBe(true);
   });
 
   it('rejects a USDC invoice with a malformed issuer', () => {

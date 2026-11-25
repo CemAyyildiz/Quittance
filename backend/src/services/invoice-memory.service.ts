@@ -11,6 +11,7 @@ import { getStorage } from '../storage/storage-factory';
 import type { InvoiceStore } from '../storage/storage-factory';
 import type { StatusEvent, StatusEventStatus } from '../storage/memory-storage';
 import { DEFAULT_PAGE_LIMIT, MAX_PAGE_LIMIT } from '../utils/parse-pagination';
+import { normalizeAssetCode } from '../utils/asset-helpers';
 import { extractBaseAddress, StrKey } from '@stellar/stellar-sdk';
 
 class InvoiceMemoryService {
@@ -92,7 +93,7 @@ class InvoiceMemoryService {
       sellerName: input.sellerName,
       amount: input.amount,
       lineItems: input.lineItems,
-      assetCode: input.assetCode || 'XLM',
+      assetCode: normalizeAssetCode(input.assetCode),
       assetIssuer: input.assetIssuer,
       memo,
       description: input.description,
