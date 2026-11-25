@@ -12,7 +12,9 @@ import UserProfile from '@/components/UserProfile';
 import PaymentReceipt from '@/components/PaymentReceipt';
 import StatusHistory, { type StatusHistoryRow } from '@/components/StatusHistory';
 import AssetLogo from '@/components/AssetLogo';
+import PaymentLinkCopy from '@/components/PaymentLinkCopy';
 import { formatAmount, formatDate, copyToClipboard } from '@/lib/utils';
+import { paymentUrlBuilder } from '@/lib/paymentUrlBuilder';
 import { openInvoicePDF } from '@/lib/export';
 import { submitAnchorTransaction } from '@/lib/anchor';
 import { useCountdown } from '@/lib/useCountdown';
@@ -66,7 +68,8 @@ export default function InvoiceDetailPage() {
     }
   };
 
-  const getPaymentShareUrl = () => `${window.location.origin}/pay/${invoice.id}`;
+  const getPaymentShareUrl = () =>
+    paymentUrlBuilder(process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000', invoice.id);
 
   const handleShare = async () => {
     const url = getPaymentShareUrl();
@@ -434,6 +437,10 @@ export default function InvoiceDetailPage() {
             </div>
 
             <div className="space-y-6">
+              {invoice.status === 'PENDING' && (
+                <PaymentLinkCopy url={getPaymentShareUrl()} />
+              )}
+
               {invoice.status !== 'PAID' && (
                 <PaymentStatus status={invoice.status} txHash={invoice.status === 'REFUNDED' ? invoice.refundTxHash : invoice.paymentTxHash} />
               )}
