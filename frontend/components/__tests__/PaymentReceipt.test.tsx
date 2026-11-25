@@ -112,6 +112,18 @@ describe('PaymentReceipt', () => {
     expect(withEmail).toContain('Download Proof');
   });
 
+  it('hides proof actions when seller access is unavailable', () => {
+    const html = renderToStaticMarkup(
+      <PaymentReceipt
+        invoice={{ ...baseInvoice, customerEmail: 'client@example.com' }}
+        showProofActions={false}
+      />,
+    );
+    expect(html).not.toContain('Download Proof');
+    expect(html).not.toContain('Email Proof');
+    expect(html).toContain('Payment Receipt');
+  });
+
   it('does not offer Download Proof for an unpaid invoice', () => {
     const html = renderToStaticMarkup(
       <PaymentReceipt invoice={{ ...baseInvoice, status: 'PENDING' }} />,

@@ -25,7 +25,17 @@ vi.mock('@/lib/export', () => ({
   shareInvoiceByEmail: vi.fn(),
 }));
 
-vi.mock('@/components/WalletConnect', () => ({ default: () => null }));
+vi.mock('@/components/WalletConnect', () => ({
+  default: ({ onConnect }: { onConnect?: (publicKey: string) => void }) => (
+    <button
+      type="button"
+      aria-label="connect-wallet"
+      onClick={() => onConnect?.(DESTINATION)}
+    >
+      connect-wallet
+    </button>
+  ),
+}));
 vi.mock('@/components/UserProfile', () => ({ default: () => null }));
 vi.mock('@/components/PaymentButton', () => ({
   default: () => <div data-testid="freighter-pay" />,
@@ -78,14 +88,33 @@ describe('PaymentPage SEP-7 handoff', () => {
   it('keeps an unavailable email action out of the accessibility tree and tab order', async () => {
     mockInvoice({ status: 'PAID', paidAt: '2026-11-23T12:00:00Z' });
     render(<PaymentPage />);
-    await screen.findByRole('button', { name: 'Download Proof' });
     expect(screen.queryByRole('button', { name: /email payment proof/i })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Download Proof' })).toBeNull();
+    fireEvent.click(await screen.findByRole('button', { name: 'connect-wallet' }));
+    expect(await screen.findByRole('button', { name: 'Download Proof' })).toBeEnabled();
   });
 
   it('gives the available email proof action an accessible name', async () => {
-    mockInvoice({ status: 'PAID', paidAt: '2026-11-23T12:00:00Z', customerEmail: 'client@example.com' });
+    mockInvoice({
+      status: 'PAID',
+      paidAt: '2026-11-23T12:00:00Z',
+      customerEmail: 'client@example.com',
+    });
     render(<PaymentPage />);
-    expect(await screen.findByRole('button', { name: /email payment proof/i })).toBeEnabled();
+    expect(screen.queryByRole('button', { name: /email payment proof/i })).toBeNull();
+    fireEvent.click(await screen.findByRole('button', { name: 'connect-wallet' }));
+    expect(
+      await screen.findByRole('button', { name: /email payment proof/i }),
+    ).toBeEnabled();
+  });
+
+  it('shows paid status and removes the payment action for a paid invoice', async () => {
+    mockInvoice({ status: 'PAID', paidAt: '2026-11-23T12:00:00Z' });
+    render(<PaymentPage />);
+
+    expect(await screen.findByText('Payment Completed')).toBeInTheDocument();
+    expect(screen.queryByTestId('freighter-pay')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Verify payment' })).not.toBeInTheDocument();
   });
 
   it('shows an XLM SEP-7 URI with destination, amount, memo and memo type only', async () => {
@@ -259,5 +288,21 @@ describe('PaymentPage manual payment', () => {
     render(<PaymentPage />);
 
     expect(await screen.findByTestId('freighter-pay')).toBeInTheDocument();
+  });
+
+  it('keeps the Freighter pay control available when verification fails', async () => {
+    mockInvoice({});
+    vi.mocked(invoiceApi.verify).mockRejectedValue(new Error('Verification unavailable'));
+    render(<PaymentPage />);
+
+    fireEvent.change(await screen.findByLabelText('Transaction hash'), {
+      target: { value: TX_HASH },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Verify payment' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      /could not verify this transaction/i,
+    );
+    expect(screen.getByTestId('freighter-pay')).toBeInTheDocument();
   });
 });
