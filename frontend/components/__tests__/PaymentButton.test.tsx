@@ -207,7 +207,8 @@ describe('PaymentButton', () => {
       id: 'payment-flow',
     });
     expect(onSuccess).toHaveBeenCalledWith(TX_HASH);
-    expect(screen.getByRole('button', { name: PAY_IDLE_LABEL })).toBeEnabled();
+    // A verified payment has settled the invoice; the control must stay off.
+    expect(screen.getByRole('button', { name: PAY_IDLE_LABEL })).toBeDisabled();
   });
 
   it('wraps the payment when a fee source is entered', async () => {

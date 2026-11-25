@@ -8,6 +8,11 @@ import {
   getWalletNetwork,
   getConfiguredNetwork,
   getNetworkMismatch,
+  getUserPublicKey,
+  getAccountBalance,
+  isTestnetNetwork,
+  hasEnoughXlmForFee,
+  requestFriendbotFunding,
   type WalletNetwork,
 } from '@/lib/stellar';
 import { toast } from 'sonner';
@@ -28,6 +33,11 @@ interface PaymentButtonProps {
   expiresAt?: string | Date;
   payerName?: string;
   payerEmail?: string;
+  /**
+   * Parent-owned busy state (for example an in-flight manual verification).
+   * While true the pay control is not clickable.
+   */
+  disabled?: boolean;
   onSuccess?: (txHash: string) => void;
   onError?: (error: unknown) => void;
 }
@@ -44,10 +54,19 @@ export default function PaymentButton({
   expiresAt,
   payerName,
   payerEmail,
+  disabled = false,
   onSuccess,
   onError,
 }: PaymentButtonProps) {
   const [loading, setLoading] = useState(false);
+  const [verifying, setVerifying] = useState(false);
+  // A verified payment has settled the invoice; paying again would duplicate it.
+  const [settled, setSettled] = useState(false);
+  const [feeBumpEnabled, setFeeBumpEnabled] = useState(false);
+  const [feeSource, setFeeSource] = useState('');
+  const [offerFunding, setOfferFunding] = useState(false);
+  const [funding, setFunding] = useState(false);
+  const [fundingError, setFundingError] = useState<string | null>(null);
   const [walletNetwork, setWalletNetwork] = useState<WalletNetwork>('UNKNOWN');
   const [networkMismatch, setNetworkMismatch] = useState(false);
   const configuredNetwork = getConfiguredNetwork();
@@ -147,11 +166,16 @@ export default function PaymentButton({
 
       if (invoiceId) {
         toast.loading('Verifying payment...', { id: PAY_TOAST_ID });
+        // Hold the pay control from the moment verification starts until it
+        // finishes, so a slow response cannot allow a second submission.
+        setVerifying(true);
         try {
           await invoiceApi.verify(invoiceId, txHash, {
             payerName,
             payerEmail,
           });
+          // Verified: the invoice is settled, so the control stays disabled.
+          setSettled(true);
           toast.success('Payment verified', {
             id: PAY_TOAST_ID,
             description: `TX: ${txHash.slice(0, 8)}...${txHash.slice(-8)}`,
@@ -162,6 +186,9 @@ export default function PaymentButton({
             id: PAY_TOAST_ID,
             description: 'Refresh the page or wait for status to update',
           });
+        } finally {
+          // A failed verification (caught above) re-enables the control.
+          setVerifying(false);
         }
       } else {
         toast.success('Payment successful', {
@@ -303,7 +330,13 @@ export default function PaymentButton({
       <button
         type="button"
         onClick={handlePayment}
-        disabled={loading || (timeBounds !== undefined && !timeBounds.ok)}
+        disabled={
+          loading ||
+          verifying ||
+          settled ||
+          disabled ||
+          (timeBounds !== undefined && !timeBounds.ok)
+        }
         aria-busy={loading}
         className="btn btn-primary w-full flex items-center justify-center gap-2 text-lg py-4"
       >
