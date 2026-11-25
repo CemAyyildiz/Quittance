@@ -83,13 +83,15 @@ class InvoiceMemoryService {
     const sellerMuxedAddress = StrKey.isValidMed25519PublicKey(input.sellerPublicKey)
       ? input.sellerPublicKey
       : undefined;
+    const assetCode = input.assetCode || 'XLM';
     const invoice = await storage.createInvoice({
       sellerPublicKey: input.sellerPublicKey, // Dynamic wallet of the caller.
       sellerName: input.sellerName,
       amount: input.amount,
       lineItems: input.lineItems,
-      assetCode: input.assetCode || 'XLM',
-      assetIssuer: input.assetIssuer,
+      assetCode,
+      // Native XLM has no issuer; never persist one even if a caller sends it.
+      assetIssuer: assetCode === 'XLM' ? undefined : input.assetIssuer,
       lineItems: input.lineItems,
       memo,
       description: input.description,
@@ -228,7 +230,7 @@ class InvoiceMemoryService {
       assetCode?: string;
       createdFrom?: Date;
       createdTo?: Date;
-    } = {}
+    } = {},
     search?: string
   ): Promise<{ invoices: any[]; nextCursor?: string; limit: number }> {
     const pageLimit = Number.isFinite(limit)

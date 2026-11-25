@@ -97,14 +97,64 @@ describe('createInvoiceSchema', () => {
   });
 
   it('accepts a valid USDC invoice with a Stellar issuer', () => {
+    const issuer = 'GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5';
     const result = createInvoiceSchema.safeParse({
       amount: 25.5,
       assetCode: 'USDC',
+      assetIssuer: issuer,
+      sellerPublicKey: validSellerPublicKey,
+    });
+
+    expect(result.success).toBe(true);
+    if (!result.success) {
+      throw new Error('Expected a valid USDC invoice to pass validation');
+    }
+    expect(result.data.assetIssuer).toBe(issuer);
+  });
+
+  it('drops an explicit issuer when the asset is native XLM', () => {
+    const result = createInvoiceSchema.safeParse({
+      amount: 10,
+      assetCode: 'XLM',
       assetIssuer: 'GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5',
       sellerPublicKey: validSellerPublicKey,
     });
 
     expect(result.success).toBe(true);
+    if (!result.success) {
+      throw new Error('Expected a native XLM invoice to pass validation');
+    }
+    expect(result.data.assetCode).toBe('XLM');
+    expect(result.data.assetIssuer).toBeUndefined();
+  });
+
+  it('ignores an issuer for a native XLM invoice even when it is malformed', () => {
+    const result = createInvoiceSchema.safeParse({
+      amount: 10,
+      assetCode: 'XLM',
+      assetIssuer: 'not-a-stellar-issuer',
+      sellerPublicKey: validSellerPublicKey,
+    });
+
+    expect(result.success).toBe(true);
+    if (!result.success) {
+      throw new Error('Expected an ignored malformed XLM issuer to pass validation');
+    }
+    expect(result.data.assetIssuer).toBeUndefined();
+  });
+
+  it('drops an explicit issuer when the asset code is omitted (native XLM default)', () => {
+    const result = createInvoiceSchema.safeParse({
+      amount: 10,
+      assetIssuer: 'GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5',
+      sellerPublicKey: validSellerPublicKey,
+    });
+
+    expect(result.success).toBe(true);
+    if (!result.success) {
+      throw new Error('Expected a default XLM invoice to pass validation');
+    }
+    expect(result.data.assetIssuer).toBeUndefined();
   });
 
   it('rejects a USDC invoice with a malformed issuer', () => {

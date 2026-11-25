@@ -87,8 +87,7 @@ export function sumLineItems(lineItems: InvoiceLineItem[]): number {
   );
 }
 
-// Invoice creation schema
-export const createInvoiceSchema = z.object({
+const createInvoiceObjectSchema = z.object({
   amount: z.number().finite().positive().max(1000000000),
   assetCode: z.string().default('XLM').optional(),
   assetIssuer: stellarPublicKeySchema.optional(),
@@ -100,6 +99,7 @@ export const createInvoiceSchema = z.object({
   expiresInDays: z.number().min(1).max(365).default(7).optional(),
   sellerPublicKey: sellerAddressSchema,
   memo: memoByteLengthSchema.optional(),
+  lineItems: z.array(lineItemSchema).min(1).max(MAX_LINE_ITEMS).optional(),
 }).superRefine((invoice, ctx) => {
   if (invoice.assetCode && invoice.assetCode !== 'XLM') {
     if (!invoice.assetIssuer || !/^G[A-Z2-7]{55}$/.test(invoice.assetIssuer)) {
@@ -110,7 +110,29 @@ export const createInvoiceSchema = z.object({
       });
     }
   }
+  if (!invoice.lineItems) return;
+  const lineTotal = sumLineItems(invoice.lineItems);
+  const submittedTotal = roundStellarAmount(invoice.amount);
+  if (lineTotal !== submittedTotal) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['amount'],
+      message: `Amount must equal the sum of line items (${lineTotal})`,
+    });
+  }
 });
+
+// Native XLM has no issuer. Drop any issuer before field validation so an
+// explicit issuer sent with XLM is ignored instead of rejected or stored.
+export const createInvoiceSchema = z.preprocess((value) => {
+  if (value && typeof value === 'object' && !Array.isArray(value)) {
+    const input = value as Record<string, unknown>;
+    if (!input.assetCode || input.assetCode === 'XLM') {
+      return { ...input, assetIssuer: undefined };
+    }
+  }
+  return value;
+}, createInvoiceObjectSchema);
 
 // Payment verification schema
 export const paymentSchema = z.object({
