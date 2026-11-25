@@ -36,8 +36,12 @@ class InvoiceService {
   async createInvoice(input: CreateInvoiceInput, userId?: string): Promise<Invoice> {
     const id = uuidv4();
     const memo = generateInvoiceMemo();
-    const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + (input.expiresInDays || 7));
+    const expiresAt = input.expiresAt
+      ? new Date(input.expiresAt)
+      : new Date();
+    if (!input.expiresAt) {
+      expiresAt.setDate(expiresAt.getDate() + (input.expiresInDays || 7));
+    }
     const sellerMuxedAddress = StrKey.isValidMed25519PublicKey(input.sellerPublicKey)
       ? input.sellerPublicKey
       : undefined;

@@ -25,6 +25,19 @@ interface InvoiceFormProps {
 const amountErrorId = 'amount-error';
 const draftStoragePrefix = 'quittance:invoice-draft:';
 
+/** Whether a raw amount string carries more than seven decimal places. */
+function hasTooManyDecimals(value: string): boolean {
+  const normalized = value.trim().replace(',', '.');
+  const fraction = normalized.split('.')[1] ?? '';
+  return fraction.length > 7;
+}
+
+/** Whether the value resolves to an absolute instant after now. */
+function isFutureExpiry(value: string): boolean {
+  const ms = Date.parse(value);
+  return Number.isFinite(ms) && ms > Date.now();
+}
+
 interface InvoiceDraft {
   amount: string;
   assetCode: string;
@@ -78,6 +91,11 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
   const [acknowledgedWarning, setAcknowledgedWarning] = useState(false);
   const [amountError, setAmountError] = useState('');
   const [emailError, setEmailError] = useState('');
+  const [muxedAddress, setMuxedAddress] = useState('');
+  const [muxedAddressError, setMuxedAddressError] = useState('');
+  const [expiresAt, setExpiresAt] = useState('');
+  const [expiryError, setExpiryError] = useState('');
+  const [draftReadyFor, setDraftReadyFor] = useState<string | null>(null);
   const [walletNetwork, setWalletNetwork] = useState<WalletNetwork>('UNKNOWN');
   const [networkMismatch, setNetworkMismatch] = useState(false);
   const configuredNetwork = getConfiguredNetwork();
@@ -215,10 +233,21 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
         index === 0 ? { ...line, unitPrice: value } : line,
       ),
     );
-    if (value && (isNaN(parseFloat(value)) || parseFloat(value) <= 0)) {
+    if (hasTooManyDecimals(value)) {
+      setAmountError('Amount can have at most 7 decimal places');
+    } else if (value && (isNaN(parseFloat(value)) || parseFloat(value) <= 0)) {
       setAmountError('Amount must be greater than 0');
     } else {
       setAmountError('');
+    }
+  };
+
+  const handleExpiryChange = (value: string) => {
+    setExpiresAt(value);
+    if (value && !isFutureExpiry(value)) {
+      setExpiryError('Expiry must be in the future');
+    } else {
+      setExpiryError('');
     }
   };
 
@@ -283,7 +312,20 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
       amountInput.current?.focus();
       return;
     }
+    if (hasTooManyDecimals(amount)) {
+      setAmountError('Amount can have at most 7 decimal places');
+      amountInput.current?.focus();
+      return;
+    }
     setAmountError('');
+
+    const expiryValue = expiresAt.trim();
+    const expiryMs = expiryValue ? Date.parse(expiryValue) : undefined;
+    if (expiryValue && (expiryMs === undefined || !isFutureExpiry(expiryValue))) {
+      setExpiryError('Expiry must be in the future');
+      return;
+    }
+    setExpiryError('');
 
     if (memoTooLong) {
       setMemoSubmitted(true);
@@ -291,6 +333,24 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
       toast.error(`Memo must be at most ${MAX_MEMO_BYTES} bytes`);
       return;
     }
+
+    if (customerEmail.trim() && !isValidEmail(customerEmail.trim())) {
+      setEmailError('Enter a valid client email');
+      emailInput.current?.focus();
+      return;
+    }
+    setEmailError('');
+
+    const muxedDestination = muxedAddress.trim();
+    if (
+      muxedDestination &&
+      (!StrKey.isValidMed25519PublicKey(muxedDestination) ||
+        extractBaseAddress(muxedDestination) !== userWallet)
+    ) {
+      setMuxedAddressError('Enter a valid M address for your connected wallet');
+      return;
+    }
+    setMuxedAddressError('');
 
     submittingRef.current = true;
     setLoading(true);
@@ -308,12 +368,16 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
         assetCode: assetCode,
         assetIssuer: selectedAsset?.issuer,
         expiresInDays: 7,
-        sellerPublicKey: userWallet,
+        ...(expiryMs !== undefined && expiryValue
+          ? { expiresAt: new Date(expiryMs).toISOString() }
+          : {}),
+        sellerPublicKey: muxedDestination || userWallet,
         sellerName: sellerName.trim() || undefined,
         description: description || undefined,
         memo: memo || undefined,
         customerName: customerName.trim() || undefined,
         customerEmail: customerEmail.trim() || undefined,
+        ...(acknowledgedWarning ? { acknowledgeNoTrustline: true } : {}),
       }, { idempotencyKey });
 
       toast.success('Invoice created');
@@ -333,13 +397,23 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
       setCustomerName('');
       setCustomerEmail('');
       setSellerName('');
+      setMuxedAddress('');
+      setExpiresAt('');
       setAmountError('');
       setEmailError('');
+      setMuxedAddressError('');
+      setExpiryError('');
       setMemoSubmitted(false);
     } catch (error: any) {
-      const message = error.response?.data?.error || 'Failed to create invoice';
-      setSubmitError(message);
-      toast.error(message);
+      const data = error.response?.data;
+      if (data?.code === 'SELLER_TRUSTLINE_WARNING' && typeof data.warning === 'string') {
+        // The seller can acknowledge the missing trustline and retry.
+        setServerWarning(data.warning);
+      } else {
+        const message = data?.error || 'Failed to create invoice';
+        setSubmitError(message);
+        toast.error(message);
+      }
     } finally {
       submittingRef.current = false;
       setLoading(false);
@@ -487,6 +561,45 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
           <p id={memoErrorId} role={memoSubmitted ? 'alert' : undefined} className="text-sm text-red-600 mt-1">
             Memo is {memoBytes} bytes. Stellar allows at most {MAX_MEMO_BYTES} bytes, and
             non-ASCII characters use more than one byte each.
+          </p>
+        )}
+      </div>
+
+      <div>
+        <label className="label" htmlFor="invoice-seller-name">
+          Your display name (optional)
+        </label>
+        <input
+          id="invoice-seller-name"
+          type="text"
+          className="input text-sm"
+          placeholder="Your name or business"
+          value={sellerName}
+          onChange={(e) => setSellerName(e.target.value)}
+          maxLength={80}
+        />
+      </div>
+
+      <div>
+        <label className="label" htmlFor="invoice-expiry">
+          Expiry (optional)
+        </label>
+        <input
+          id="invoice-expiry"
+          type="datetime-local"
+          className={`input text-sm ${expiryError ? 'border-red-500' : ''}`}
+          value={expiresAt}
+          onChange={(e) => handleExpiryChange(e.target.value)}
+          aria-invalid={Boolean(expiryError)}
+          aria-describedby={expiryError ? 'expiry-error' : 'expiry-hint'}
+        />
+        {expiryError ? (
+          <p id="expiry-error" role="alert" className="text-sm text-red-600 mt-1">
+            {expiryError}
+          </p>
+        ) : (
+          <p id="expiry-hint" className="text-xs text-gray-500 mt-1">
+            Must be in the future. Leave empty to use the seven-day default.
           </p>
         )}
       </div>

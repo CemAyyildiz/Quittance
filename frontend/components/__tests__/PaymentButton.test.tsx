@@ -53,6 +53,10 @@ vi.mock('@/lib/stellar', async (importOriginal) => {
     sendPayment: mockSendPayment,
     checkWalletConnection: mockCheckWalletConnection,
     requestWalletAccess: mockRequestWalletAccess,
+    getWalletNetwork: mockGetWalletNetwork,
+    getConfiguredNetwork: () => 'TESTNET',
+    getNetworkMismatch: (wallet: string, configured: string) =>
+      wallet !== 'UNKNOWN' && wallet !== configured,
     getUserPublicKey: mockGetUserPublicKey,
     getAccountBalance: mockGetAccountBalance,
     requestFriendbotFunding: mockRequestFriendbotFunding,
@@ -107,6 +111,8 @@ beforeEach(() => {
   mockCheckWalletConnection.mockResolvedValue(true);
   mockRequestWalletAccess.mockResolvedValue(true);
   mockGetWalletNetwork.mockResolvedValue('TESTNET');
+  mockGetUserPublicKey.mockResolvedValue(PAYER_PUBLIC_KEY);
+  mockIsValidPublicKey.mockReturnValue(true);
   mockSendPayment.mockResolvedValue(TX_HASH);
   mockVerify.mockResolvedValue({ verified: true });
 });

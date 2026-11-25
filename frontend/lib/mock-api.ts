@@ -244,6 +244,21 @@ export const mockInvoiceApi = {
     };
   },
 
+  markUncollectible: async (id: string, sellerPublicKey: string) => {
+    await delay(500);
+    const invoice = mockInvoices.find(inv => inv.id === id);
+
+    if (!invoice || invoice.sellerPublicKey !== sellerPublicKey) {
+      throw new Error('Only the owning seller can mark this invoice uncollectible');
+    }
+    if (invoice.status !== 'PENDING') {
+      throw new Error('Only a pending invoice can be marked uncollectible');
+    }
+
+    invoice.status = 'UNCOLLECTIBLE';
+    return { success: true, data: invoice };
+  },
+
   refund: async (id: string, data: { sellerPublicKey: string; refundTxHash: string }) => {
     await delay(500);
     const invoice = mockInvoices.find(inv => inv.id === id);
