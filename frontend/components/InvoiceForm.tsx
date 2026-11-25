@@ -10,11 +10,14 @@ import {
   getConfiguredNetwork,
   getNetworkMismatch,
   getWalletNetwork,
+  isFreighterInstalled,
+  getUserPublicKey,
   type WalletNetwork,
 } from '@/lib/stellar';
 import { MAX_MEMO_BYTES, getUtf8ByteLength, isValidEmail } from '@/lib/utils';
 import { extractBaseAddress, StrKey } from '@stellar/stellar-sdk';
 import AssetLogo from './AssetLogo';
+import FreighterStatusNotice, { type FreighterIssue } from './FreighterStatusNotice';
 import { parseAmount } from '@/lib/amountParse';
 
 interface InvoiceFormProps {
@@ -58,6 +61,7 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
   const emailInput = useRef<HTMLInputElement>(null);
   const memoInput = useRef<HTMLInputElement>(null);
   const [submitError, setSubmitError] = useState('');
+  const [freighterIssue, setFreighterIssue] = useState<FreighterIssue | null>(null);
   const [memoSubmitted, setMemoSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
   // `loading` only disables the button after a re-render, so a fast double
@@ -73,6 +77,9 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
   const [customerName, setCustomerName] = useState('');
   const [customerEmail, setCustomerEmail] = useState('');
   const [sellerName, setSellerName] = useState('');
+  const [draftReadyFor, setDraftReadyFor] = useState<string | null>(null);
+  const [muxedAddress, setMuxedAddress] = useState('');
+  const [muxedAddressError, setMuxedAddressError] = useState('');
   const [trustlineWarning, setTrustlineWarning] = useState<string | null>(null);
   const [serverWarning, setServerWarning] = useState<string | null>(null);
   const [acknowledgedWarning, setAcknowledgedWarning] = useState(false);
@@ -270,76 +277,88 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
     if (submittingRef.current) {
       return;
     }
-
-    if (!userWallet) {
-      setSubmitError('Connect your wallet first');
-      toast.error('Connect your wallet first');
-      return;
-    }
-
-    const amountNum = parseFloat(amount);
-    if (!amount || amountNum <= 0 || !Number.isFinite(amountNum)) {
-      setAmountError('Enter a valid amount');
-      amountInput.current?.focus();
-      return;
-    }
-    setAmountError('');
-
-    if (memoTooLong) {
-      setMemoSubmitted(true);
-      memoInput.current?.focus();
-      toast.error(`Memo must be at most ${MAX_MEMO_BYTES} bytes`);
-      return;
-    }
-
     submittingRef.current = true;
-    setLoading(true);
-    const idempotencyKey = newIdempotencyKey();
-    try {
-      const selectedAsset = getAssetByCode(assetCode);
-      const submittedLineItems = lineItems.map((line) => ({
-        label: line.label.trim() || description.trim() || 'Item',
-        quantity: Number(line.quantity),
-        unitPrice: Number(line.unitPrice),
-      }));
-      const result = await invoiceApi.create({
-        amount: amountNum,
-        lineItems: submittedLineItems,
-        assetCode: assetCode,
-        assetIssuer: selectedAsset?.issuer,
-        expiresInDays: 7,
-        sellerPublicKey: userWallet,
-        sellerName: sellerName.trim() || undefined,
-        description: description || undefined,
-        memo: memo || undefined,
-        customerName: customerName.trim() || undefined,
-        customerEmail: customerEmail.trim() || undefined,
-      }, { idempotencyKey });
 
-      toast.success('Invoice created');
-      onSuccess?.(result.data);
-      try {
-        if (typeof window !== 'undefined' && userWallet) {
-          window.localStorage.removeItem(`${draftStoragePrefix}${userWallet}`);
-        }
-      } catch {
-        // Draft cleanup is best effort after a successful create.
+    try {
+      if (!(await isFreighterInstalled())) {
+        setFreighterIssue('missing');
+        return;
       }
-      setAmount('');
-      setLineItems([{ label: '', quantity: '1', unitPrice: '' }]);
-      setAssetCode('XLM');
-      setDescription('');
-      setMemo('');
-      setCustomerName('');
-      setCustomerEmail('');
-      setSellerName('');
+      setFreighterIssue(null);
+
+      if (!userWallet) {
+        setSubmitError('Connect your Freighter wallet first');
+        toast.error('Connect your Freighter wallet first');
+        return;
+      }
+      if (!(await getUserPublicKey())) {
+        setFreighterIssue('locked');
+        return;
+      }
+
+      const amountNum = parseFloat(amount);
+      if (!amount || amountNum <= 0 || !Number.isFinite(amountNum)) {
+        setAmountError('Enter a valid amount');
+        amountInput.current?.focus();
+        return;
+      }
       setAmountError('');
-      setEmailError('');
-      setMemoSubmitted(false);
-    } catch (error: any) {
-      const message = error.response?.data?.error || 'Failed to create invoice';
-      setSubmitError(message);
-      toast.error(message);
+
+      if (memoTooLong) {
+        setMemoSubmitted(true);
+        memoInput.current?.focus();
+        toast.error(`Memo must be at most ${MAX_MEMO_BYTES} bytes`);
+        return;
+      }
+
+      setLoading(true);
+      const idempotencyKey = newIdempotencyKey();
+      try {
+        const selectedAsset = getAssetByCode(assetCode);
+        const submittedLineItems = lineItems.map((line) => ({
+          label: line.label.trim() || description.trim() || 'Item',
+          quantity: Number(line.quantity),
+          unitPrice: Number(line.unitPrice),
+        }));
+        const result = await invoiceApi.create({
+          amount: amountNum,
+          lineItems: submittedLineItems,
+          assetCode: assetCode,
+          assetIssuer: selectedAsset?.issuer,
+          expiresInDays: 7,
+          sellerPublicKey: userWallet,
+          sellerName: sellerName.trim() || undefined,
+          description: description || undefined,
+          memo: memo || undefined,
+          customerName: customerName.trim() || undefined,
+          customerEmail: customerEmail.trim() || undefined,
+        }, { idempotencyKey });
+
+        toast.success('Invoice created');
+        onSuccess?.(result.data);
+        try {
+          if (typeof window !== 'undefined' && userWallet) {
+            window.localStorage.removeItem(`${draftStoragePrefix}${userWallet}`);
+          }
+        } catch {
+          // Draft cleanup is best effort after a successful create.
+        }
+        setAmount('');
+        setLineItems([{ label: '', quantity: '1', unitPrice: '' }]);
+        setAssetCode('XLM');
+        setDescription('');
+        setMemo('');
+        setCustomerName('');
+        setCustomerEmail('');
+        setSellerName('');
+        setAmountError('');
+        setEmailError('');
+        setMemoSubmitted(false);
+      } catch (error: any) {
+        const message = error.response?.data?.error || 'Failed to create invoice';
+        setSubmitError(message);
+        toast.error(message);
+      }
     } finally {
       submittingRef.current = false;
       setLoading(false);
@@ -348,6 +367,7 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
 
   return (
     <form noValidate onSubmit={handleSubmit} className="space-y-4">
+      {freighterIssue && <FreighterStatusNotice issue={freighterIssue} />}
       {submitError && <p role="alert" className="text-sm text-red-600">{submitError}</p>}
       <div>
         <label className="label" htmlFor="invoice-amount">Invoice Amount *</label>

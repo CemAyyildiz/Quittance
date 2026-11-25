@@ -7,6 +7,7 @@ import '@testing-library/jest-dom/vitest';
 const FREIGHTER_INSTALL_URL = 'https://www.freighter.app/';
 
 vi.mock('@/lib/stellar', () => ({
+  isFreighterInstalled: vi.fn().mockResolvedValue(true),
   checkWalletConnection: vi.fn().mockResolvedValue(false),
   requestWalletAccess: vi.fn().mockRejectedValue(new Error('Freighter not available')),
   getUserPublicKey: vi.fn().mockResolvedValue(null),
@@ -64,7 +65,7 @@ vi.mock('@/lib/explorerUrl', () => ({
 }));
 
 import WalletConnect from '../WalletConnect';
-import { requestWalletAccess } from '@/lib/stellar';
+import { isFreighterInstalled, requestWalletAccess } from '@/lib/stellar';
 import { useWalletStore } from '@/lib/store';
 import { paymentMonitor } from '@/lib/payment-monitor';
 import { toast } from 'sonner';
@@ -90,6 +91,7 @@ function FreighterGuard() {
 describe('WalletConnect', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(isFreighterInstalled).mockResolvedValue(true);
   });
 
   it('renders Connect Wallet button when not connected', () => {
@@ -113,6 +115,7 @@ describe('WalletConnect', () => {
   });
 
   it('renders install link with FREIGHTER_INSTALL_URL when Freighter is unavailable', async () => {
+    vi.mocked(isFreighterInstalled).mockResolvedValue(false);
     render(<FreighterGuard />);
 
     screen.getByRole('button', { name: /connect wallet/i }).click();
@@ -134,6 +137,17 @@ describe('WalletConnect', () => {
         expect.stringContaining('Freighter')
       );
     });
+  });
+
+  it('distinguishes a missing extension and shows the install link', async () => {
+    vi.mocked(isFreighterInstalled).mockResolvedValue(false);
+    render(<WalletConnect />);
+
+    screen.getByRole('button', { name: /connect wallet/i }).click();
+
+    const link = await screen.findByRole('link', { name: /install freighter/i });
+    expect(link).toHaveAttribute('href', FREIGHTER_INSTALL_URL);
+    expect(screen.getByRole('alert')).toHaveTextContent('Freighter is required');
   });
 });
 

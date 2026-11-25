@@ -13,6 +13,7 @@ const {
   mockIsValidPublicKey,
   mockVerify,
   mockGetWalletNetwork,
+  mockIsFreighterInstalled,
   mockToast,
 } = vi.hoisted(() => ({
   mockSendPayment: vi.fn(),
@@ -24,6 +25,7 @@ const {
   mockIsValidPublicKey: vi.fn(),
   mockVerify: vi.fn(),
   mockGetWalletNetwork: vi.fn(),
+  mockIsFreighterInstalled: vi.fn(),
   mockToast: {
     error: vi.fn(),
     loading: vi.fn(),
@@ -34,16 +36,6 @@ const {
 
 // The payment flow must never touch the real Horizon/Freighter SDK or the
 // real invoice backend while testing, so both are replaced with mocks.
-vi.mock('@/lib/stellar', () => ({
-  sendPayment: mockSendPayment,
-  checkWalletConnection: mockCheckWalletConnection,
-  requestWalletAccess: mockRequestWalletAccess,
-  getWalletNetwork: mockGetWalletNetwork,
-  getConfiguredNetwork: () => 'TESTNET',
-  getNetworkMismatch: (wallet: string, configured: string) =>
-    wallet !== 'UNKNOWN' && wallet !== configured,
-}));
-
 // Network calls are mocked, but the pure testnet/fee helpers stay real so the
 // fee threshold and the network gate are exercised, not stubbed.
 vi.mock('@/lib/stellar', async (importOriginal) => {
@@ -57,6 +49,11 @@ vi.mock('@/lib/stellar', async (importOriginal) => {
     getAccountBalance: mockGetAccountBalance,
     requestFriendbotFunding: mockRequestFriendbotFunding,
     isValidPublicKey: mockIsValidPublicKey,
+    isFreighterInstalled: mockIsFreighterInstalled,
+    getWalletNetwork: mockGetWalletNetwork,
+    getConfiguredNetwork: () => 'TESTNET',
+    getNetworkMismatch: (wallet: string, configured: string) =>
+      wallet !== 'UNKNOWN' && wallet !== configured,
   };
 });
 
@@ -107,6 +104,10 @@ beforeEach(() => {
   mockCheckWalletConnection.mockResolvedValue(true);
   mockRequestWalletAccess.mockResolvedValue(true);
   mockGetWalletNetwork.mockResolvedValue('TESTNET');
+  mockGetUserPublicKey.mockResolvedValue(PAYER_PUBLIC_KEY);
+  mockGetAccountBalance.mockResolvedValue([{ assetCode: 'XLM', balance: '10' }]);
+  mockIsFreighterInstalled.mockResolvedValue(true);
+  mockIsValidPublicKey.mockReturnValue(true);
   mockSendPayment.mockResolvedValue(TX_HASH);
   mockVerify.mockResolvedValue({ verified: true });
 });
@@ -117,6 +118,32 @@ afterEach(() => {
 });
 
 describe('PaymentButton', () => {
+  it('shows the Freighter install link without sending a transaction when Freighter is missing', async () => {
+    mockIsFreighterInstalled.mockResolvedValue(false);
+    renderButton();
+
+    fireEvent.click(screen.getByRole('button', { name: PAY_IDLE_LABEL }));
+
+    const installLink = await screen.findByRole('link', { name: 'Install Freighter' });
+    expect(installLink).toHaveAttribute('href', 'https://www.freighter.app/');
+    expect(screen.getByRole('alert')).toHaveTextContent('Freighter is required');
+    expect(mockSendPayment).not.toHaveBeenCalled();
+  });
+
+  it('shows an unlock message instead of install guidance when Freighter is installed but locked', async () => {
+    mockCheckWalletConnection.mockResolvedValue(false);
+    mockRequestWalletAccess.mockResolvedValue(false);
+    renderButton();
+
+    fireEvent.click(screen.getByRole('button', { name: PAY_IDLE_LABEL }));
+
+    expect(
+      await screen.findByText(/Freighter is installed but locked or access was denied/i),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Install Freighter' })).not.toBeInTheDocument();
+    expect(mockSendPayment).not.toHaveBeenCalled();
+  });
+
   it('renders an enabled "Pay with Freighter" button with no spinner while idle', () => {
     renderButton();
 
@@ -184,7 +211,9 @@ describe('PaymentButton', () => {
     await waitFor(() => expect(mockRequestWalletAccess).toHaveBeenCalled());
 
     expect(mockSendPayment).not.toHaveBeenCalled();
-    expect(mockToast.error).toHaveBeenCalledWith('Access denied');
+    expect(mockToast.error).toHaveBeenCalledWith(
+      'Freighter is installed but locked or access was denied. Unlock it and try again.',
+    );
     expect(screen.getByRole('button', { name: PAY_IDLE_LABEL })).toBeEnabled();
   });
 

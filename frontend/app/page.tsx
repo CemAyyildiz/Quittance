@@ -13,53 +13,33 @@ import { useWalletStore } from '@/lib/store';
 import { Mail } from 'lucide-react';
 import { toast } from 'sonner';
 import { shareInvoiceByEmail } from '@/lib/export';
-import { checkWalletConnection } from '@/lib/stellar';
-import {
-  FREIGHTER_INSTALL_URL,
-  shouldShowFreighterInstallGuidance,
-} from '@/lib/freighterGuidance';
-
-function FreighterInstallGuidance() {
-  return (
-    <p role="alert" className="text-sm leading-relaxed text-[var(--muted)]">
-      Freighter is unavailable or access failed.{' '}
-      <a
-        href={FREIGHTER_INSTALL_URL}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="font-medium text-[var(--teal)] underline underline-offset-4 hover:text-[var(--ink)]"
-      >
-        Install Freighter
-      </a>
-      , unlock it, then try connecting again.
-    </p>
-  );
-}
+import { isFreighterInstalled } from '@/lib/stellar';
+import { shouldShowFreighterInstallGuidance } from '@/lib/freighterGuidance';
+import FreighterStatusNotice, { type FreighterIssue } from '@/components/FreighterStatusNotice';
 
 export default function HomePage() {
   const [createdInvoice, setCreatedInvoice] = useState<any>(null);
-  const [freighterUnavailable, setFreighterUnavailable] = useState(false);
+  const [freighterIssue, setFreighterIssue] = useState<FreighterIssue | null>(null);
   const { publicKey, connected } = useWalletStore();
-  const showFreighterGuidance = shouldShowFreighterInstallGuidance(
-    connected,
-    freighterUnavailable,
-  );
+  const showFreighterGuidance =
+    shouldShowFreighterInstallGuidance(connected, freighterIssue === 'missing') ||
+    (!connected && freighterIssue === 'locked');
 
   const handleInvoiceCreated = (result: any) => setCreatedInvoice(result);
   const handleWalletDisconnected = () => setCreatedInvoice(null);
-  const handleWalletConnected = () => setFreighterUnavailable(false);
-  const handleWalletConnectionFailure = () => setFreighterUnavailable(true);
+  const handleWalletConnected = () => setFreighterIssue(null);
+  const handleWalletConnectionFailure = (issue: FreighterIssue) => setFreighterIssue(issue);
 
   useEffect(() => {
     if (connected) {
-      setFreighterUnavailable(false);
+      setFreighterIssue(null);
       return;
     }
 
     let active = true;
-    checkWalletConnection().then((available) => {
-      if (active && !available) {
-        setFreighterUnavailable(true);
+    isFreighterInstalled().then((installed) => {
+      if (active) {
+        setFreighterIssue(installed ? null : 'missing');
       }
     });
 
@@ -151,7 +131,7 @@ export default function HomePage() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.3 }}
             >
-              <FreighterInstallGuidance />
+              {freighterIssue && <FreighterStatusNotice issue={freighterIssue} />}
             </motion.div>
           )}
         </div>
@@ -232,7 +212,7 @@ export default function HomePage() {
                   </div>
                   {showFreighterGuidance && (
                     <div className="mt-5 max-w-sm mx-auto">
-                      <FreighterInstallGuidance />
+                      {freighterIssue && <FreighterStatusNotice issue={freighterIssue} />}
                     </div>
                   )}
                 </div>

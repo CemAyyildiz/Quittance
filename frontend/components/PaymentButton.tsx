@@ -8,6 +8,13 @@ import {
   getWalletNetwork,
   getConfiguredNetwork,
   getNetworkMismatch,
+  isFreighterInstalled,
+  getUserPublicKey,
+  getAccountBalance,
+  hasEnoughXlmForFee,
+  isTestnetNetwork,
+  isValidPublicKey,
+  requestFriendbotFunding,
   type WalletNetwork,
 } from '@/lib/stellar';
 import { toast } from 'sonner';
@@ -16,6 +23,7 @@ import { invoiceApi } from '@/lib/api';
 import { getAssetByCode } from '@/lib/assets';
 import { horizonStatus } from '@/lib/horizonStatus';
 import { getInvoiceTimeBounds } from '@/lib/invoiceTimeBounds';
+import FreighterStatusNotice, { type FreighterIssue } from './FreighterStatusNotice';
 
 interface PaymentButtonProps {
   destination: string;
@@ -48,6 +56,12 @@ export default function PaymentButton({
   onError,
 }: PaymentButtonProps) {
   const [loading, setLoading] = useState(false);
+  const [freighterIssue, setFreighterIssue] = useState<FreighterIssue | null>(null);
+  const [offerFunding, setOfferFunding] = useState(false);
+  const [funding, setFunding] = useState(false);
+  const [fundingError, setFundingError] = useState<string | null>(null);
+  const [feeBumpEnabled, setFeeBumpEnabled] = useState(false);
+  const [feeSource, setFeeSource] = useState('');
   const [walletNetwork, setWalletNetwork] = useState<WalletNetwork>('UNKNOWN');
   const [networkMismatch, setNetworkMismatch] = useState(false);
   const configuredNetwork = getConfiguredNetwork();
@@ -107,6 +121,12 @@ export default function PaymentButton({
       return;
     }
 
+    if (!(await isFreighterInstalled())) {
+      setFreighterIssue('missing');
+      return;
+    }
+    setFreighterIssue(null);
+
     setLoading(true);
     setOfferFunding(false);
     setFundingError(null);
@@ -125,9 +145,17 @@ export default function PaymentButton({
       if (!connected) {
         const allowed = await requestWalletAccess();
         if (!allowed) {
-          toast.error('Access denied');
+          setFreighterIssue('locked');
+          toast.error('Freighter is installed but locked or access was denied. Unlock it and try again.');
           return;
         }
+      }
+
+      const publicKey = await getUserPublicKey();
+      if (!publicKey) {
+        setFreighterIssue('locked');
+        toast.error('Freighter is installed but locked. Unlock it and try again.');
+        return;
       }
 
       if (checkFeeBalance && !feeBumpEnabled && (await needsTestnetFunding())) {
@@ -136,14 +164,15 @@ export default function PaymentButton({
       }
 
       toast.loading('Confirm in wallet...', { id: PAY_TOAST_ID });
-      const txHash = await sendPayment(
-        destination,
-        amount,
-        memo,
-        assetCode,
-        issuer,
-        bounds?.ok ? bounds.maxTime : undefined,
-      );
+      const options = feeBumpEnabled ? { feeSource: feeSource.trim() } : undefined;
+      const txHash =
+        options && bounds?.ok
+          ? await sendPayment(destination, amount, memo, assetCode, issuer, options, bounds.maxTime)
+          : options
+            ? await sendPayment(destination, amount, memo, assetCode, issuer, options)
+            : bounds?.ok
+              ? await sendPayment(destination, amount, memo, assetCode, issuer, bounds.maxTime)
+              : await sendPayment(destination, amount, memo, assetCode, issuer);
 
       if (invoiceId) {
         toast.loading('Verifying payment...', { id: PAY_TOAST_ID });
@@ -186,6 +215,10 @@ export default function PaymentButton({
   };
 
   const handlePayment = () => {
+    if (feeBumpEnabled && !isValidPublicKey(feeSource.trim())) {
+      toast.error('Enter a valid fee source account');
+      return;
+    }
     void pay(true);
   };
 
@@ -212,6 +245,11 @@ export default function PaymentButton({
 
   return (
     <div>
+      {freighterIssue && (
+        <div className="mb-4">
+          <FreighterStatusNotice issue={freighterIssue} />
+        </div>
+      )}
       {networkMismatch && (
         <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 mb-4 text-sm text-red-800">
           Network mismatch: Freighter is on {walletNetwork}, but the API is configured for {configuredNetwork}.
