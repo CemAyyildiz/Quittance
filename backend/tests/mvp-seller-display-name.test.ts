@@ -49,14 +49,30 @@ describe('invoice seller labels', () => {
     const created = await create(PAYER);
     const invoice = created.body.data.invoice;
     getTransaction.mockResolvedValue({
-      transaction: { memo: invoice.memo, ledger_sequence: 123, source_account: PAYER },
+      transaction: {
+        memo: invoice.memo,
+        memo_type: 'text',
+        ledger_sequence: 123,
+        source_account: PAYER,
+        successful: true,
+        created_at: new Date().toISOString(),
+        valid_before: new Date(Date.now() + 5 * 60 * 1000).toISOString(),
+      },
       operations: [{ type: 'payment', from: PAYER, to: PAYER, amount: '1.5', asset_type: 'native' }],
     });
     const wrong = await request(app).post(`/api/invoices/${invoice.id}/verify`).send({ txHash: 'a'.repeat(64) });
     expect(wrong.status).toBe(400);
     expect(wrong.body.code).toBe('DESTINATION_MISMATCH');
     getTransaction.mockResolvedValue({
-      transaction: { memo: invoice.memo, ledger_sequence: 123, source_account: PAYER },
+      transaction: {
+        memo: invoice.memo,
+        memo_type: 'text',
+        ledger_sequence: 123,
+        source_account: PAYER,
+        successful: true,
+        created_at: new Date().toISOString(),
+        valid_before: new Date(Date.now() + 5 * 60 * 1000).toISOString(),
+      },
       operations: [{ type: 'payment', from: PAYER, to: SELLER, amount: '1.5', asset_type: 'native' }],
     });
     const paid = await request(app).post(`/api/invoices/${invoice.id}/verify`).send({ txHash: 'b'.repeat(64) });

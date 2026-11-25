@@ -13,8 +13,9 @@ interface Invoice {
   description?: string;
   customerName?: string;
   customerEmail?: string;
-  status: 'PENDING' | 'PAID' | 'REFUNDED' | 'EXPIRED' | 'CANCELLED';
+  status: 'PENDING' | 'PAID' | 'REFUNDED' | 'EXPIRED' | 'CANCELLED' | 'UNCOLLECTIBLE';
   paymentTxHash?: string;
+  anchoringTxHash?: string;
   payerPublicKey?: string;
   ledger?: number;
   createdAt: Date;

@@ -1,4 +1,4 @@
-export type InvoiceStatus = 'PENDING' | 'PAID' | 'REFUNDED' | 'EXPIRED' | 'CANCELLED';
+export type InvoiceStatus = 'PENDING' | 'PAID' | 'REFUNDED' | 'EXPIRED' | 'CANCELLED' | 'UNCOLLECTIBLE';
 
 export function canCancel(status: InvoiceStatus): boolean {
   return status === 'PENDING';

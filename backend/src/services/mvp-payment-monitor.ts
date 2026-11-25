@@ -1,5 +1,6 @@
 import { assertInvoiceSettleable, runExpirySweep } from '../utils/invoice-expiry';
 import { verifyInvoicePayment } from '../utils/verify-invoice-payment';
+import { amountsMatch } from '../utils/amount-compare';
 import type { PaymentRecord } from './stellar.service';
 
 export interface MvpPaymentStore {
@@ -55,6 +56,7 @@ export async function runMvpPaymentMonitorPass(
         if (invoice.status !== 'PENDING') continue;
         if (!assertInvoiceSettleable(invoice, now).ok) continue;
         if (await store.getInvoiceByTxHash(payment.txHash)) continue;
+        if (!amountsMatch(payment.amount, invoice.amount)) continue;
 
         const result = verifyInvoicePayment({
           txMemo: payment.memo,

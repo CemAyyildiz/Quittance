@@ -210,7 +210,7 @@ describe('POST /api/invoices/:id/partial-payment', () => {
   it('does not record a full payment as partial', async () => {
     const invoice = seedInvoice(1.5);
     getTransaction.mockResolvedValueOnce({
-      transaction: { memo: invoice.memo, source_account: PAYER },
+      transaction: { memo: invoice.memo, memo_type: 'text', source_account: PAYER },
       operations: [
         {
           type: 'payment',
@@ -236,7 +236,7 @@ describe('POST /api/invoices/:id/partial-payment', () => {
   it('records a confirmed partial payment for the owning seller', async () => {
     const invoice = seedInvoice(1.5);
     getTransaction.mockResolvedValueOnce({
-      transaction: { memo: invoice.memo, source_account: PAYER },
+      transaction: { memo: invoice.memo, memo_type: 'text', source_account: PAYER },
       operations: [
         {
           type: 'payment',

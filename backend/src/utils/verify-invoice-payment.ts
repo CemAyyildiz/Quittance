@@ -13,7 +13,7 @@
  * without spinning up Express, Stellar Horizon, or the in-memory store.
  */
 
-import { compareDecimals } from './amount-compare';
+import { amountToStroops } from './amount-compare';
 import { textMemoMatchesInvoice } from './memo-normalize';
 import { NATIVE_ASSET_CODE } from './asset-helpers';
 import { VerifyErrorCode } from './verify-errors';
@@ -343,10 +343,15 @@ export function verifyInvoicePayment(
     return { ok: false, code: VerifyErrorCode.DESTINATION_MISMATCH };
   }
 
-  if (
-    compareDecimals(input.paymentAmount, '0') <= 0 ||
-    compareDecimals(input.paymentAmount, String(input.invoiceAmount)) > 0
-  ) {
+  let paymentAmount: bigint;
+  let invoiceAmount: bigint;
+  try {
+    paymentAmount = amountToStroops(input.paymentAmount);
+    invoiceAmount = amountToStroops(input.invoiceAmount);
+  } catch {
+    return { ok: false, code: VerifyErrorCode.AMOUNT_MISMATCH };
+  }
+  if (paymentAmount <= 0n || paymentAmount > invoiceAmount) {
     return { ok: false, code: VerifyErrorCode.AMOUNT_MISMATCH };
   }
 
