@@ -706,12 +706,13 @@ export default function PaymentPage() {
             )}
 
             {invoice.status === 'CANCELLED' && (
-              <div className="card text-center py-8">
+              <div className="card text-center py-8" role="status" data-testid="voided-invoice-notice">
                 <h3 className="text-2xl font-bold text-gray-800 mb-2">
                   Invoice Voided
                 </h3>
                 <p className="text-gray-600">
-                  This invoice is no longer accepting payments.
+                  The seller voided this invoice, so it cannot be paid. Do not send a
+                  payment for it. Contact the seller if you still owe them.
                 </p>
               </div>
             )}
