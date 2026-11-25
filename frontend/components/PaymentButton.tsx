@@ -8,6 +8,12 @@ import {
   getWalletNetwork,
   getConfiguredNetwork,
   getNetworkMismatch,
+  getUserPublicKey,
+  getAccountBalance,
+  requestFriendbotFunding,
+  isTestnetNetwork,
+  isValidPublicKey,
+  hasEnoughXlmForFee,
   type WalletNetwork,
 } from '@/lib/stellar';
 import { toast } from 'sonner';
@@ -50,6 +56,11 @@ export default function PaymentButton({
   const [loading, setLoading] = useState(false);
   const [walletNetwork, setWalletNetwork] = useState<WalletNetwork>('UNKNOWN');
   const [networkMismatch, setNetworkMismatch] = useState(false);
+  const [offerFunding, setOfferFunding] = useState(false);
+  const [funding, setFunding] = useState(false);
+  const [fundingError, setFundingError] = useState<string | null>(null);
+  const [feeBumpEnabled, setFeeBumpEnabled] = useState(false);
+  const [feeSource, setFeeSource] = useState('');
   const configuredNetwork = getConfiguredNetwork();
 
   useEffect(() => {
@@ -107,6 +118,12 @@ export default function PaymentButton({
       return;
     }
 
+    const feeSourceAccount = feeSource.trim();
+    if (feeBumpEnabled && !isValidPublicKey(feeSourceAccount)) {
+      toast.error('Enter a valid fee source account');
+      return;
+    }
+
     setLoading(true);
     setOfferFunding(false);
     setFundingError(null);
@@ -136,14 +153,26 @@ export default function PaymentButton({
       }
 
       toast.loading('Confirm in wallet...', { id: PAY_TOAST_ID });
-      const txHash = await sendPayment(
-        destination,
-        amount,
-        memo,
-        assetCode,
-        issuer,
-        bounds?.ok ? bounds.maxTime : undefined,
-      );
+      const maxTime = bounds?.ok ? bounds.maxTime : undefined;
+      const txHash =
+        maxTime !== undefined && feeBumpEnabled
+          ? await sendPayment(
+              destination,
+              amount,
+              memo,
+              assetCode,
+              issuer,
+              maxTime,
+              { feeSource: feeSourceAccount },
+            )
+          : await sendPayment(
+              destination,
+              amount,
+              memo,
+              assetCode,
+              issuer,
+              feeBumpEnabled ? { feeSource: feeSourceAccount } : maxTime,
+            );
 
       if (invoiceId) {
         toast.loading('Verifying payment...', { id: PAY_TOAST_ID });

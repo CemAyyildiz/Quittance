@@ -33,6 +33,29 @@ export const getConfiguredNetwork = (): 'TESTNET' | 'PUBLIC' =>
     ? 'PUBLIC'
     : 'TESTNET';
 
+export const isTestnetNetwork = (): boolean => getConfiguredNetwork() === 'TESTNET';
+
+export const hasEnoughXlmForFee = (balance?: string): boolean => {
+  const amount = Number(balance);
+  return Number.isFinite(amount) && amount >= Number(StellarSdk.BASE_FEE) / 10_000_000;
+};
+
+export const requestFriendbotFunding = async (publicKey: string): Promise<void> => {
+  if (!isTestnetNetwork()) {
+    throw new Error('Friendbot funding is only available on testnet');
+  }
+  if (!isValidPublicKey(publicKey)) {
+    throw new Error('Invalid Stellar public key');
+  }
+
+  const url = new URL('https://friendbot.stellar.org/');
+  url.searchParams.set('addr', publicKey);
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(`Friendbot request failed with status ${response.status}`);
+  }
+};
+
 export const getWalletNetwork = async (): Promise<WalletNetwork> => {
   try {
     const details = await getNetworkDetails();
@@ -246,9 +269,17 @@ export const sendPayment = async (
   memo: string,
   assetCode: string = 'XLM',
   assetIssuer?: string,
-  maxTime?: number
+  maxTimeOrOptions?: number | SendPaymentOptions,
+  options?: SendPaymentOptions
 ): Promise<string> => {
   try {
+    const maxTime =
+      typeof maxTimeOrOptions === 'number' ? maxTimeOrOptions : undefined;
+    const feeSourceOption =
+      typeof maxTimeOrOptions === 'object' && maxTimeOrOptions !== null
+        ? maxTimeOrOptions
+        : options;
+
     // Check wallet connection
     const connected = await checkWalletConnection();
     if (!connected) {
@@ -300,7 +331,7 @@ export const sendPayment = async (
 
     // The fee source pays the fee but is not the payer: sign the inner
     // payment with the payer first, then wrap and sign with the fee source.
-    const feeSource = options.feeSource?.trim();
+    const feeSource = feeSourceOption?.feeSource?.trim();
     const signedTxXdr = await signTransaction(transaction.toXDR(), {
       networkPassphrase: NETWORK_PASSPHRASE,
       ...(feeSource ? { accountToSign: userPublicKey } : {}),
