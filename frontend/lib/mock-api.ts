@@ -244,6 +244,59 @@ export const mockInvoiceApi = {
     };
   },
 
+  duplicate: async (
+    id: string,
+    data: { sellerPublicKey: string; copyCustomerEmail?: boolean },
+  ) => {
+    await delay(500);
+    const invoice = mockInvoices.find((inv) => inv.id === id);
+    if (!invoice || invoice.sellerPublicKey !== data.sellerPublicKey) {
+      throw new Error('Only the owning seller can duplicate this invoice');
+    }
+
+    const duplicate: MockInvoice = {
+      ...invoice,
+      id: Math.random().toString(36).slice(2, 11),
+      status: 'PENDING',
+      memo: `INV-${Date.now().toString(36).toUpperCase()}`,
+      customerEmail: data.copyCustomerEmail ? invoice.customerEmail : undefined,
+      createdAt: new Date().toISOString(),
+      paidAt: undefined,
+      paymentTxHash: undefined,
+      payerPublicKey: undefined,
+      refundTxHash: undefined,
+      refundedAt: undefined,
+    };
+    mockInvoices.unshift(duplicate);
+
+    const paymentUrl = `${window.location.origin}/pay/${duplicate.id}`;
+    const stellarPaymentUri = buildStellarPaymentUri(
+      duplicate.sellerPublicKey,
+      duplicate.amount.toString(),
+      duplicate.assetCode,
+      duplicate.memo,
+      duplicate.assetIssuer,
+    );
+    return {
+      success: true,
+      data: { invoice: duplicate, paymentUrl, stellarPaymentUri },
+    };
+  },
+
+  markUncollectible: async (id: string, sellerPublicKey: string) => {
+    await delay(500);
+    const invoice = mockInvoices.find((inv) => inv.id === id);
+    if (!invoice || invoice.sellerPublicKey !== sellerPublicKey) {
+      throw new Error('Only the owning seller can mark this invoice uncollectible');
+    }
+    if (invoice.status !== 'PENDING' && invoice.status !== 'UNCOLLECTIBLE') {
+      throw new Error('Only a pending invoice can be marked uncollectible');
+    }
+
+    invoice.status = 'UNCOLLECTIBLE';
+    return { success: true, data: invoice };
+  },
+
   refund: async (id: string, data: { sellerPublicKey: string; refundTxHash: string }) => {
     await delay(500);
     const invoice = mockInvoices.find(inv => inv.id === id);

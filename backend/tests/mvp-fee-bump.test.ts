@@ -88,9 +88,13 @@ function feeBumpReceipt(options: {
   return {
     transaction: {
       memo,
+      memo_type: 'text',
       source_account: payer,
       fee_account: feeSource,
       ledger_sequence: 1,
+      successful: true,
+      created_at: new Date().toISOString(),
+      valid_before: new Date(Date.now() + 5 * 60 * 1000).toISOString(),
       inner_transaction: innerTransaction,
     },
     operations,

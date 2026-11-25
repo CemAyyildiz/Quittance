@@ -41,7 +41,7 @@ function seedInvoice(expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000))
 
 function matchingHorizonTx(memo: string) {
   return {
-    transaction: { memo, source_account: PAYER },
+    transaction: { memo, memo_type: 'text', source_account: PAYER },
     operations: [
       {
         type: 'payment',

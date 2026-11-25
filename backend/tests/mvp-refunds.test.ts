@@ -30,7 +30,7 @@ function seedInvoice(status: 'PENDING' | 'PAID' = 'PAID') {
 
 function refundReceipt(memo: string, destination = PAYER) {
   return {
-    transaction: { memo, ledger_sequence: 101, created_at: '2026-11-24T14:00:00.000Z' },
+    transaction: { memo, memo_type: 'text', ledger_sequence: 101, created_at: '2026-11-24T14:00:00.000Z' },
     operations: [{ type: 'payment', from: SELLER, to: destination, amount: '12.5000000', asset_type: 'native' }],
   };
 }

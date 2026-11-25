@@ -33,6 +33,28 @@ export const getConfiguredNetwork = (): 'TESTNET' | 'PUBLIC' =>
     ? 'PUBLIC'
     : 'TESTNET';
 
+export const isTestnetNetwork = (): boolean => getConfiguredNetwork() === 'TESTNET';
+
+const MINIMUM_XLM_FEE_BALANCE = 0.01;
+
+export const hasEnoughXlmForFee = (balance: string | undefined): boolean => {
+  const amount = Number(balance);
+  return Number.isFinite(amount) && amount >= MINIMUM_XLM_FEE_BALANCE;
+};
+
+export const requestFriendbotFunding = async (publicKey: string): Promise<void> => {
+  if (!isTestnetNetwork()) {
+    throw new Error('Friendbot is available only on Stellar testnet');
+  }
+
+  const response = await fetch(
+    `${HORIZON_URL}/friendbot?addr=${encodeURIComponent(publicKey)}`,
+  );
+  if (!response.ok) {
+    throw new Error(`Friendbot request failed with status ${response.status}`);
+  }
+};
+
 export const getWalletNetwork = async (): Promise<WalletNetwork> => {
   try {
     const details = await getNetworkDetails();
@@ -246,7 +268,8 @@ export const sendPayment = async (
   memo: string,
   assetCode: string = 'XLM',
   assetIssuer?: string,
-  maxTime?: number
+  maxTime?: number,
+  options: SendPaymentOptions = {},
 ): Promise<string> => {
   try {
     // Check wallet connection

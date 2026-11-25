@@ -1,10 +1,26 @@
 import { z } from 'zod';
 import { StrKey } from '@stellar/stellar-sdk';
 import { MAX_MEMO_BYTES, getMemoByteLength } from './memo';
+import { amountsMatch } from './amount-compare';
 
 export interface ParsedAmount { decimal: string; stroops: bigint; }
+/**
+ * Plain decimal form of a JS number. `String(1e-7)` is `"1e-7"`, which the
+ * decimal regex would reject, so small numbers are expanded exactly from their
+ * shortest round-trip representation.
+ */
+function numberToDecimalString(value: number): string | undefined {
+  if (!Number.isFinite(value)) return undefined;
+  const text = String(value);
+  const match = /^(\d+)(?:\.(\d+))?e-(\d+)$/.exec(text);
+  if (!match) return text;
+  const fractionDigits = (match[2] ?? '').length + Number(match[3]);
+  return value.toFixed(Math.min(fractionDigits, 100));
+}
+
 export function parseAmount(input: string | number): ParsedAmount | undefined {
-  const raw = typeof input === 'number' ? String(input) : input.trim();
+  const raw = typeof input === 'number' ? numberToDecimalString(input) : input.trim();
+  if (raw === undefined) return undefined;
   if (!/^\d+(?:[.,]\d+)?$/.test(raw) || (raw.match(/[.,]/g) ?? []).length > 1) return undefined;
   const decimal = raw.replace(',', '.');
   const [whole, fraction = ''] = decimal.split('.');
@@ -17,7 +33,9 @@ const amountSchema = z.preprocess((value) => {
   if (typeof value !== 'string' && typeof value !== 'number') return value;
   const parsed = parseAmount(value);
   return parsed ? Number(parsed.decimal) : value;
-}, z.number().positive().max(1000000000));
+}, z.number().positive().max(1000000000).refine((amount) => parseAmount(amount) !== undefined, {
+  message: 'Amount must be a whole number of stroops (at most 7 decimal places)',
+}));
 
 // Stellar public key validation
 export const stellarPublicKeySchema = z.string()
@@ -89,7 +107,11 @@ export function sumLineItems(lineItems: InvoiceLineItem[]): number {
 
 // Invoice creation schema
 export const createInvoiceSchema = z.object({
-  amount: z.number().finite().positive().max(1000000000),
+  // The pay page shows the stroop total next to the decimal amount, so an
+  // amount that is not a whole number of stroops is rejected here (via
+  // amountSchema) instead of being rounded or shown as zero later.
+  amount: amountSchema,
+  lineItems: z.array(lineItemSchema).min(1).max(MAX_LINE_ITEMS).optional(),
   assetCode: z.string().default('XLM').optional(),
   assetIssuer: stellarPublicKeySchema.optional(),
   description: z.string().max(500).optional(),
@@ -101,6 +123,16 @@ export const createInvoiceSchema = z.object({
   sellerPublicKey: sellerAddressSchema,
   memo: memoByteLengthSchema.optional(),
 }).superRefine((invoice, ctx) => {
+  if (
+    invoice.lineItems &&
+    amountsMatch(sumLineItems(invoice.lineItems), invoice.amount) === false
+  ) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['lineItems'],
+      message: 'Line item total must match invoice amount',
+    });
+  }
   if (invoice.assetCode && invoice.assetCode !== 'XLM') {
     if (!invoice.assetIssuer || !/^G[A-Z2-7]{55}$/.test(invoice.assetIssuer)) {
       ctx.addIssue({
