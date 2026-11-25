@@ -52,14 +52,11 @@ export interface InvoiceDTO {
   proofCanonical?: string;
 }
 
-export function toInvoiceDTO(invoice: {
-  id: string;
-  sellerPublicKey: string;
-  sellerMuxedAddress?: string;
+export interface ProofDigestFields {
+  network: string;
+  invoiceId: string;
   amount: number;
-  lineItems?: Array<{ label: string; quantity: number; unitPrice: number }>;
   assetCode: string;
-  /** Empty string for native XLM — never the word "null". */
   assetIssuer: string;
   memo: string;
   sellerPublicKey: string;
@@ -70,6 +67,8 @@ export function toInvoiceDTO(invoice: {
 export interface ToInvoiceDTOOptions {
   /** Stellar network label (e.g. TESTNET / PUBLIC). Defaults to STELLAR_NETWORK or TESTNET. */
   network?: string;
+  /** Exclude optional customer email when serializing an invoice for public access. */
+  includeCustomerEmail?: boolean;
 }
 
 /**
@@ -163,7 +162,7 @@ export function toInvoiceDTO(
     description: invoice.description,
     lineItems: invoice.lineItems,
     customerName: invoice.customerName,
-    customerEmail: invoice.customerEmail,
+    ...(options?.includeCustomerEmail === false ? {} : { customerEmail: invoice.customerEmail }),
     status: invoice.status,
     paymentTxHash: invoice.paymentTxHash,
     payerPublicKey: invoice.payerPublicKey,

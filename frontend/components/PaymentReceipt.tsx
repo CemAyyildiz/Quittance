@@ -10,25 +10,33 @@ import CopyButton from './CopyButton';
 
 interface PaymentReceiptProps {
   invoice: any;
+  showCustomerEmail?: boolean;
 }
 
-export default function PaymentReceipt({ invoice }: PaymentReceiptProps) {
+export default function PaymentReceipt({
+  invoice,
+  showCustomerEmail = false,
+}: PaymentReceiptProps) {
   const paymentHash = invoice.paymentTxHash;
   if (invoice.status !== 'PAID' || typeof paymentHash !== 'string' || !/^[0-9a-fA-F]{64}$/.test(paymentHash)) {
     return null;
   }
 
+  const receiptInvoice = showCustomerEmail
+    ? invoice
+    : { ...invoice, customerEmail: undefined };
+
   const handleDownloadPDF = () => {
-    openInvoicePDF(invoice as any);
+    openInvoicePDF(receiptInvoice as any);
     toast.success('Opening payment proof');
   };
 
   const handleEmailProof = () => {
-    if (!invoice.customerEmail) {
+    if (!receiptInvoice.customerEmail) {
       toast.error('No client email on this invoice');
       return;
     }
-    shareInvoiceByEmail(invoice as any);
+    shareInvoiceByEmail(receiptInvoice as any);
   };
 
   const handleDownload = () => {
@@ -48,7 +56,7 @@ PAYMENT DETAILS
 Amount Paid: ${formatAmount(invoice.amount, 7)} ${invoice.assetCode}
 ${invoice.description ? `Description: ${invoice.description}` : ''}
 ${invoice.customerName ? `Customer: ${invoice.customerName}` : ''}
-${invoice.customerEmail ? `Email: ${invoice.customerEmail}` : ''}
+${receiptInvoice.customerEmail ? `Email: ${receiptInvoice.customerEmail}` : ''}
 
 ───────────────────────────────────────
 TRANSACTION DETAILS
@@ -197,7 +205,7 @@ Stellar Blockchain Payment System
           </button>
         )}
 
-        {invoice.status === 'PAID' && invoice.customerEmail && (
+        {showCustomerEmail && invoice.status === 'PAID' && invoice.customerEmail && (
           <button
             onClick={handleEmailProof}
             className="btn btn-secondary w-full flex items-center justify-center gap-2"

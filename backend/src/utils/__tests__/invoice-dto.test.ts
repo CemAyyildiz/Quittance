@@ -50,10 +50,23 @@ describe('toInvoiceDTO', () => {
       payerPublicKey: undefined,
       createdAt: '2026-07-28T10:00:00.000Z',
       paidAt: undefined,
+      ledger: undefined,
+      refundTxHash: undefined,
+      refundedAt: undefined,
+      refundLedger: undefined,
       expiresAt: '2026-08-04T10:00:00.000Z',
       originalExpiresAt: '2026-08-04T10:00:00.000Z',
       expiryExtended: false,
+      payments: [],
+      receivedAmount: '0',
+      remainingAmount: '100',
     });
+  });
+
+  it('can omit customer email for public invoice responses', () => {
+    const result = toInvoiceDTO(makeInvoice(), { includeCustomerEmail: false });
+
+    expect(result).not.toHaveProperty('customerEmail');
   });
 
   it('serializes Date fields to ISO strings', () => {
@@ -130,9 +143,16 @@ describe('toInvoiceDTO', () => {
       payerPublicKey: undefined,
       createdAt: '2026-07-28T10:00:00.000Z',
       paidAt: undefined,
+      ledger: undefined,
+      refundTxHash: undefined,
+      refundedAt: undefined,
+      refundLedger: undefined,
       expiresAt: '2026-07-25T10:00:00.000Z',
       originalExpiresAt: '2026-07-25T10:00:00.000Z',
       expiryExtended: false,
+      payments: [],
+      receivedAmount: '0',
+      remainingAmount: '100',
     });
   });
 
@@ -158,9 +178,16 @@ describe('toInvoiceDTO', () => {
       payerPublicKey: undefined,
       createdAt: '2026-07-28T10:00:00.000Z',
       paidAt: undefined,
+      ledger: undefined,
+      refundTxHash: undefined,
+      refundedAt: undefined,
+      refundLedger: undefined,
       expiresAt: '2026-07-20T10:00:00.000Z',
       originalExpiresAt: '2026-07-20T10:00:00.000Z',
       expiryExtended: false,
+      payments: [],
+      receivedAmount: '0',
+      remainingAmount: '100',
     });
   });
 
@@ -199,9 +226,12 @@ describe('toInvoiceDTO', () => {
       'paidAt',
       'payerPublicKey',
       'paymentTxHash',
+      'payments',
+      'receivedAmount',
       'refundLedger',
       'refundTxHash',
       'refundedAt',
+      'remainingAmount',
       'sellerPublicKey',
       'status',
     ]);

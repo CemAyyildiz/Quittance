@@ -28,6 +28,10 @@ export default function InvoiceDetailPage() {
   const [paymentInfo, setPaymentInfo] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [voiding, setVoiding] = useState(false);
+  const [duplicateOpen, setDuplicateOpen] = useState(false);
+  const [copyCustomerEmail, setCopyCustomerEmail] = useState(false);
+  const [duplicating, setDuplicating] = useState(false);
+  const [anchoring, setAnchoring] = useState(false);
   const [userWallet, setUserWallet] = useState<string | null>(null);
   const [refundTxHash, setRefundTxHash] = useState('');
   const [refunding, setRefunding] = useState(false);
@@ -39,7 +43,7 @@ export default function InvoiceDetailPage() {
 
   useEffect(() => {
     loadInvoice();
-  }, [id]);
+  }, [id, userWallet]);
 
   useEffect(() => {
     if (!invoice || invoice.status !== 'PENDING') return;
@@ -47,12 +51,12 @@ export default function InvoiceDetailPage() {
       void loadInvoice();
     }, 3000);
     return () => clearInterval(intervalId);
-  }, [id, invoice?.status]);
+  }, [id, invoice?.status, userWallet]);
 
   const loadInvoice = async () => {
     try {
       const [invoiceResult, paymentResult] = await Promise.all([
-        invoiceApi.getById(id),
+        invoiceApi.getById(id, userWallet ?? undefined),
         invoiceApi.getPaymentInfo(id),
       ]);
 
@@ -92,6 +96,68 @@ export default function InvoiceDetailPage() {
   const handleDownloadProof = () => {
     openInvoicePDF(invoice);
     toast.success('Opening payment proof');
+  };
+
+  const handleVoidInvoice = async () => {
+    if (!userWallet || !isSeller) return;
+
+    setVoiding(true);
+    try {
+      const result = await invoiceApi.cancel(id, userWallet);
+      setInvoice(result.data);
+      toast.success('Invoice voided');
+    } catch (error: any) {
+      toast.error(error.response?.data?.error ?? 'Could not void invoice');
+    } finally {
+      setVoiding(false);
+    }
+  };
+
+  const handleDuplicate = async () => {
+    if (!userWallet || !isSeller) return;
+
+    setDuplicating(true);
+    try {
+      const result = await invoiceApi.duplicate(id, {
+        sellerPublicKey: userWallet,
+        copyCustomerEmail,
+      });
+      setDuplicateOpen(false);
+      toast.success('Invoice duplicated');
+      router.push(`/invoice/${result.data.invoice.id}`);
+    } catch (error: any) {
+      toast.error(error.response?.data?.error ?? 'Could not duplicate invoice');
+    } finally {
+      setDuplicating(false);
+    }
+  };
+
+  const handleAnchorProof = async () => {
+    if (!userWallet || !isSeller) return;
+
+    setAnchoring(true);
+    try {
+      const digestResult = await invoiceApi.getProofDigest(id, userWallet);
+      const digest = digestResult.data.digest;
+      const preparation = await invoiceApi.prepareAnchorProof(id, digest, userWallet);
+      const contractId = preparation.data.contractId;
+      if (!contractId) {
+        throw new Error('Receipt anchoring contract is not configured');
+      }
+
+      const txHash = await submitAnchorTransaction(contractId, id, digest);
+      const result = await invoiceApi.anchorProof(id, {
+        digest,
+        txHash,
+        sellerPublicKey: userWallet,
+      });
+      setInvoice(result.data);
+      toast.success('Proof anchored on chain');
+    } catch (error: any) {
+      toast.error(error.response?.data?.error ?? error.message ?? 'Could not anchor proof');
+    } finally {
+      setAnchoring(false);
+    }
   };
 
   const handleRefund = async () => {
@@ -351,7 +417,7 @@ export default function InvoiceDetailPage() {
                   </div>
                 )}
 
-                {invoice.customerEmail && (
+                {isSeller && invoice.customerEmail && (
                   <div className="border-b pb-4">
                     <p className="text-sm text-gray-600 mb-1">Client Email</p>
                     <p className="text-gray-900">{invoice.customerEmail}</p>
@@ -439,7 +505,7 @@ export default function InvoiceDetailPage() {
               )}
 
               {invoice.status === 'PAID' && (
-                <PaymentReceipt invoice={invoice} />
+                <PaymentReceipt invoice={invoice} showCustomerEmail={isSeller} />
               )}
 
               {invoice.status === 'PAID' && userWallet === invoice.sellerPublicKey && (

@@ -16,7 +16,10 @@ import {
   invoiceVerifyRateLimit,
 } from './middleware/rate-limit-stub';
 import healthDetailRouter from './routes/health-detail';
-import { toInvoiceDTO as mapInvoiceDTO } from './utils/invoice-dto';
+import {
+  toInvoiceDTO as mapInvoiceDTO,
+  type ToInvoiceDTOOptions,
+} from './utils/invoice-dto';
 import { addDecimalAmounts, compareDecimals, subtractDecimalAmounts } from './utils/amount-compare';
 import { VerifyErrorCode, VerifyErrorMessages } from './utils/verify-errors';
 import {
@@ -50,8 +53,9 @@ const ALLOW_SIMULATE = process.env.ALLOW_SIMULATE === 'true';
 /** Map invoices through the DTO helper with the configured Stellar network. */
 function toInvoiceDTO(
   invoice: Parameters<typeof mapInvoiceDTO>[0],
+  options?: Omit<ToInvoiceDTOOptions, 'network'>,
 ) {
-  return mapInvoiceDTO(invoice, { network: STELLAR_NETWORK });
+  return mapInvoiceDTO(invoice, { ...options, network: STELLAR_NETWORK });
 }
 
 // Middleware
@@ -308,9 +312,14 @@ app.get('/api/invoices/:id', async (req: Request, res: Response) => {
       });
     }
 
+    const requestedSellerPublicKey = req.query.sellerPublicKey;
+    const includeCustomerEmail =
+      typeof requestedSellerPublicKey === 'string' &&
+      requestedSellerPublicKey.toLowerCase() === invoice.sellerPublicKey.toLowerCase();
+
     res.json({
       success: true,
-      data: toInvoiceDTO(invoice),
+      data: toInvoiceDTO(invoice, { includeCustomerEmail }),
     });
   } catch (error: any) {
     console.error('Get invoice error:', error);
@@ -855,7 +864,7 @@ app.get('/api/invoices/:id/payment-info', async (req: Request, res: Response) =>
         qrCode: qrCodeDataUrl,
         stellarQrCode,
         stellarPaymentUri,
-        invoice: toInvoiceDTO(invoice),
+        invoice: toInvoiceDTO(invoice, { includeCustomerEmail: false }),
       },
     });
   } catch (error: any) {
@@ -1332,7 +1341,7 @@ app.post('/api/invoices/:id/verify', invoiceVerifyRateLimit(), async (req: Reque
 
     res.json({
       success: true,
-      data: toInvoiceDTO(updatedInvoice),
+      data: toInvoiceDTO(updatedInvoice, { includeCustomerEmail: false }),
       message: isPaid ? 'Payment verified on Stellar' : 'Partial payment recorded on Stellar',
     });
   } catch (error: any) {

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { importInvoiceBackup, invoiceApi } from '@/lib/api';
 import InvoiceCard from '@/components/InvoiceCard';
+import InvoiceBackupExport from '@/components/InvoiceBackupExport';
 import WalletConnect from '@/components/WalletConnect';
 import UserProfile from '@/components/UserProfile';
 import TransactionHistory from '@/components/TransactionHistory';
@@ -39,6 +40,10 @@ export default function DashboardPage() {
   const [searchInput, setSearchInput] = useState<string>('');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [viewMode, setViewMode] = useState<'invoices' | 'transactions'>('invoices');
+  const [exporting, setExporting] = useState<'paid' | 'all' | null>(null);
+  const [exportingBackup, setExportingBackup] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const importInput = useRef<HTMLInputElement>(null);
   const loadRequestId = useRef(0);
   const [cursorStack, setCursorStack] = useState<Array<string | undefined>>([undefined]);
   const [pageIndex, setPageIndex] = useState(0);
@@ -214,7 +219,7 @@ export default function DashboardPage() {
 
   const handleExportJSON = async () => {
     if (!publicKey) return;
-    setExporting(true);
+    setExportingBackup(true);
     try {
       const backup: any[] = [];
       let cursor: string | undefined;
@@ -235,7 +240,7 @@ export default function DashboardPage() {
     } catch {
       toast.error('Failed to export invoice backup');
     } finally {
-      setExporting(false);
+      setExportingBackup(false);
     }
   };
 
@@ -446,10 +451,10 @@ export default function DashboardPage() {
               <button
                 type="button"
                 onClick={handleExportJSON}
-                disabled={exporting}
+                disabled={exportingBackup}
                 className="btn btn-primary whitespace-nowrap"
               >
-                {exporting ? 'Exporting...' : 'Back up JSON'}
+                {exportingBackup ? 'Exporting...' : 'Back up JSON'}
               </button>
               <input
                 ref={importInput}
@@ -604,7 +609,7 @@ export default function DashboardPage() {
                   </div>
                 )}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {filteredInvoices.map((invoice) => {
+                  {invoices.map((invoice) => {
                     const reminder = getInvoiceReminder(
                       invoice,
                       paymentOrigin ? `${paymentOrigin}/pay/${invoice.id}` : '',
@@ -625,7 +630,7 @@ export default function DashboardPage() {
                               <a
                                 href={reminder.mailto}
                                 className="font-semibold underline underline-offset-2"
-                                aria-label={`Remind ${invoice.customerEmail} about invoice ${invoice.id}`}
+                                aria-label={`Remind about invoice ${invoice.id}`}
                               >
                                 Remind
                               </a>
