@@ -32,33 +32,26 @@ const {
   },
 }));
 
-// The payment flow must never touch the real Horizon/Freighter SDK or the
-// real invoice backend while testing, so both are replaced with mocks.
 vi.mock('@/lib/stellar', () => ({
   sendPayment: mockSendPayment,
   checkWalletConnection: mockCheckWalletConnection,
   requestWalletAccess: mockRequestWalletAccess,
+  getUserPublicKey: mockGetUserPublicKey,
+  getAccountBalance: mockGetAccountBalance,
+  requestFriendbotFunding: mockRequestFriendbotFunding,
+  isValidPublicKey: mockIsValidPublicKey,
   getWalletNetwork: mockGetWalletNetwork,
-  getConfiguredNetwork: () => 'TESTNET',
+  getConfiguredNetwork: () =>
+    process.env.NEXT_PUBLIC_STELLAR_NETWORK?.trim().toUpperCase() === 'PUBLIC'
+      ? 'PUBLIC'
+      : 'TESTNET',
+  isTestnetNetwork: () =>
+    process.env.NEXT_PUBLIC_STELLAR_NETWORK?.trim().toUpperCase() !== 'PUBLIC',
   getNetworkMismatch: (wallet: string, configured: string) =>
     wallet !== 'UNKNOWN' && wallet !== configured,
+  hasEnoughXlmForFee: (balance?: string) =>
+    Number.isFinite(Number(balance)) && Number(balance) >= 0.00001,
 }));
-
-// Network calls are mocked, but the pure testnet/fee helpers stay real so the
-// fee threshold and the network gate are exercised, not stubbed.
-vi.mock('@/lib/stellar', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@/lib/stellar')>();
-  return {
-    ...actual,
-    sendPayment: mockSendPayment,
-    checkWalletConnection: mockCheckWalletConnection,
-    requestWalletAccess: mockRequestWalletAccess,
-    getUserPublicKey: mockGetUserPublicKey,
-    getAccountBalance: mockGetAccountBalance,
-    requestFriendbotFunding: mockRequestFriendbotFunding,
-    isValidPublicKey: mockIsValidPublicKey,
-  };
-});
 
 vi.mock('@/lib/api', () => ({
   invoiceApi: {
@@ -107,6 +100,9 @@ beforeEach(() => {
   mockCheckWalletConnection.mockResolvedValue(true);
   mockRequestWalletAccess.mockResolvedValue(true);
   mockGetWalletNetwork.mockResolvedValue('TESTNET');
+  mockGetUserPublicKey.mockResolvedValue(PAYER_PUBLIC_KEY);
+  mockGetAccountBalance.mockResolvedValue([{ assetCode: 'XLM', balance: '1' }]);
+  mockIsValidPublicKey.mockReturnValue(true);
   mockSendPayment.mockResolvedValue(TX_HASH);
   mockVerify.mockResolvedValue({ verified: true });
 });
@@ -207,7 +203,8 @@ describe('PaymentButton', () => {
       id: 'payment-flow',
     });
     expect(onSuccess).toHaveBeenCalledWith(TX_HASH);
-    expect(screen.getByRole('button', { name: PAY_IDLE_LABEL })).toBeEnabled();
+    // A verified payment has settled the invoice; the control must stay off.
+    expect(screen.getByRole('button', { name: PAY_IDLE_LABEL })).toBeDisabled();
   });
 
   it('wraps the payment when a fee source is entered', async () => {
@@ -325,6 +322,7 @@ describe('PaymentButton testnet fee funding', () => {
 
   it('does not offer Friendbot off testnet even with no XLM', async () => {
     vi.stubEnv('NEXT_PUBLIC_STELLAR_NETWORK', 'PUBLIC');
+    mockGetWalletNetwork.mockResolvedValue('PUBLIC');
     mockGetAccountBalance.mockResolvedValue([{ assetCode: 'XLM', balance: '0.0000000' }]);
     renderButton();
 

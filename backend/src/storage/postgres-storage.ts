@@ -1,6 +1,7 @@
 // Postgres storage - Database-backed persistence
 import { v4 as uuidv4 } from 'uuid';
 import { pool } from '../config/database';
+import { normalizeAssetCode } from '../utils/asset-helpers';
 
 interface Invoice {
   id: string;
@@ -69,7 +70,7 @@ class PostgresStorage {
         data.sellerPublicKey,
         data.sellerMuxedAddress || null,
         data.amount,
-        data.assetCode || 'XLM',
+        normalizeAssetCode(data.assetCode),
         data.assetIssuer || null,
         data.memo,
         data.description || null,

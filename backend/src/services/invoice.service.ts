@@ -3,6 +3,7 @@ import { pool } from '../config/database';
 import { generateInvoiceMemo } from '../utils/memo';
 import { CreateInvoiceInput } from '../utils/validation';
 import { extractBaseAddress, StrKey } from '@stellar/stellar-sdk';
+import { normalizeAssetCode } from '../utils/asset-helpers';
 
 export interface Invoice {
   id: string;
@@ -36,8 +37,12 @@ class InvoiceService {
   async createInvoice(input: CreateInvoiceInput, userId?: string): Promise<Invoice> {
     const id = uuidv4();
     const memo = generateInvoiceMemo();
-    const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + (input.expiresInDays || 7));
+    const expiresAt = input.expiresAt
+      ? new Date(input.expiresAt)
+      : new Date();
+    if (!input.expiresAt) {
+      expiresAt.setDate(expiresAt.getDate() + (input.expiresInDays || 7));
+    }
     const sellerMuxedAddress = StrKey.isValidMed25519PublicKey(input.sellerPublicKey)
       ? input.sellerPublicKey
       : undefined;
@@ -56,7 +61,7 @@ class InvoiceService {
       sellerMuxedAddress ? extractBaseAddress(sellerMuxedAddress) : input.sellerPublicKey,
       sellerMuxedAddress || null,
       input.amount,
-      input.assetCode || 'XLM',
+      normalizeAssetCode(input.assetCode),
       input.assetIssuer || null,
       memo,
       input.description || null,

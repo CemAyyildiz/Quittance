@@ -1,6 +1,8 @@
 import { z } from 'zod';
 import { StrKey } from '@stellar/stellar-sdk';
 import { MAX_MEMO_BYTES, getMemoByteLength } from './memo';
+import { isFutureExpiry } from './invoice-expiry';
+import { normalizeAssetCode, NATIVE_ASSET_CODE } from './asset-helpers';
 
 export interface ParsedAmount { decimal: string; stroops: bigint; }
 export function parseAmount(input: string | number): ParsedAmount | undefined {
@@ -13,11 +15,35 @@ export function parseAmount(input: string | number): ParsedAmount | undefined {
   if (stroops <= 0n || stroops > 10_000_000_000_000_000n) return undefined;
   return { decimal, stroops };
 }
-const amountSchema = z.preprocess((value) => {
-  if (typeof value !== 'string' && typeof value !== 'number') return value;
-  const parsed = parseAmount(value);
-  return parsed ? Number(parsed.decimal) : value;
-}, z.number().positive().max(1000000000));
+/**
+ * Amount accepted as a string or a number, normalised to a number.
+ *
+ * Stellar amounts stop at seven decimal places, so a longer fraction is
+ * rejected rather than rounded. The check runs on the submitted text, which
+ * is why a string amount with trailing zeros (`1.10000000`) is refused too;
+ * a comma is read as the decimal mark before the fraction is counted.
+ */
+const amountSchema = z
+  .union([z.string(), z.number()])
+  .superRefine((value, ctx) => {
+    const raw = String(value).trim().replace(',', '.');
+    if (!/^\d+(?:\.\d+)?$/.test(raw)) {
+      ctx.addIssue({ code: 'custom', message: 'Amount must be a positive decimal' });
+      return;
+    }
+    const fraction = raw.split('.')[1] ?? '';
+    if (fraction.length > MAX_STELLAR_DECIMALS) {
+      ctx.addIssue({
+        code: 'custom',
+        message: `Amount must have no more than ${MAX_STELLAR_DECIMALS} decimal places`,
+      });
+    }
+    const numeric = Number(raw);
+    if (!(numeric > 0) || numeric > 1000000000) {
+      ctx.addIssue({ code: 'custom', message: 'Amount must be between 0 and 1000000000' });
+    }
+  })
+  .transform((value) => Number(String(value).trim().replace(',', '.')));
 
 // Stellar public key validation
 export const stellarPublicKeySchema = z.string()
@@ -89,7 +115,15 @@ export function sumLineItems(lineItems: InvoiceLineItem[]): number {
 
 const createInvoiceObjectSchema = z.object({
   amount: z.number().finite().positive().max(1000000000),
-  assetCode: z.string().default('XLM').optional(),
+  lineItems: z
+    .array(lineItemSchema)
+    .max(MAX_LINE_ITEMS, `Line items list is too long (maximum ${MAX_LINE_ITEMS} items)`)
+    .optional(),
+  assetCode: z.string()
+    .trim()
+    .transform(normalizeAssetCode)
+    .pipe(z.string().max(12, 'Asset code must be at most 12 characters'))
+    .default(NATIVE_ASSET_CODE),
   assetIssuer: stellarPublicKeySchema.optional(),
   description: z.string().max(500).optional(),
   customerName: z.string().max(255).optional(),
@@ -97,12 +131,27 @@ const createInvoiceObjectSchema = z.object({
   sellerName: z.string().trim().max(80).optional().transform((name) => name || undefined),
   sellerEmail: z.string().email().optional(),
   expiresInDays: z.number().min(1).max(365).default(7).optional(),
+  expiresAt: z.string().datetime({ offset: true }).optional(),
   sellerPublicKey: sellerAddressSchema,
   memo: memoByteLengthSchema.optional(),
   lineItems: z.array(lineItemSchema).min(1).max(MAX_LINE_ITEMS).optional(),
 }).superRefine((invoice, ctx) => {
-  if (invoice.assetCode && invoice.assetCode !== 'XLM') {
-    if (!invoice.assetIssuer || !/^G[A-Z2-7]{55}$/.test(invoice.assetIssuer)) {
+  if (invoice.expiresAt !== undefined && !isFutureExpiry(invoice.expiresAt)) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['expiresAt'],
+      message: 'Expiry must be in the future',
+    });
+  }
+
+  if (invoice.assetCode !== NATIVE_ASSET_CODE) {
+    if (!invoice.assetIssuer) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['assetIssuer'],
+        message: `${invoice.assetCode} requires an asset issuer`,
+      });
+    } else if (!/^G[A-Z2-7]{55}$/.test(invoice.assetIssuer)) {
       ctx.addIssue({
         code: 'custom',
         path: ['assetIssuer'],
@@ -119,6 +168,16 @@ const createInvoiceObjectSchema = z.object({
       path: ['amount'],
       message: `Amount must equal the sum of line items (${lineTotal})`,
     });
+  if (invoice.lineItems && invoice.lineItems.length > 0) {
+    const lineTotal = sumLineItems(invoice.lineItems);
+    const invoiceAmount = roundStellarAmount(invoice.amount);
+    if (lineTotal !== invoiceAmount) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['lineItems'],
+        message: `Line items total (${lineTotal}) must equal invoice amount (${invoiceAmount})`,
+      });
+    }
   }
 });
 
