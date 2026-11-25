@@ -33,6 +33,9 @@ interface InvoiceDraft {
 }
 const memoCounterId = 'memo-counter';
 const memoErrorId = 'memo-error';
+const descriptionCounterId = 'description-counter';
+const descriptionErrorId = 'description-error';
+const MAX_DESCRIPTION_LENGTH = 500;
 const MAX_LINE_ITEMS = 20;
 
 type InvoiceLineInput = {
@@ -57,6 +60,7 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
   const amountInput = useRef<HTMLInputElement>(null);
   const emailInput = useRef<HTMLInputElement>(null);
   const memoInput = useRef<HTMLInputElement>(null);
+  const descriptionInput = useRef<HTMLTextAreaElement>(null);
   const [submitError, setSubmitError] = useState('');
   const [memoSubmitted, setMemoSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -78,6 +82,9 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
   const [acknowledgedWarning, setAcknowledgedWarning] = useState(false);
   const [amountError, setAmountError] = useState('');
   const [emailError, setEmailError] = useState('');
+  const [draftReadyFor, setDraftReadyFor] = useState<string | null>(null);
+  const [muxedAddress, setMuxedAddress] = useState('');
+  const [muxedAddressError, setMuxedAddressError] = useState('');
   const [walletNetwork, setWalletNetwork] = useState<WalletNetwork>('UNKNOWN');
   const [networkMismatch, setNetworkMismatch] = useState(false);
   const configuredNetwork = getConfiguredNetwork();
@@ -85,6 +92,9 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
   const selectedAsset = getAssetByCode(assetCode);
   const memoBytes = getUtf8ByteLength(memo);
   const memoTooLong = memoBytes > MAX_MEMO_BYTES;
+  const descriptionLength = Array.from(description).length;
+  const descriptionRemaining = MAX_DESCRIPTION_LENGTH - descriptionLength;
+  const descriptionTooLong = descriptionLength > MAX_DESCRIPTION_LENGTH;
   const lineItemValues = lineItems.map((line) => {
     const quantity = Number(line.quantity);
     const unitPrice = Number(line.unitPrice);
@@ -292,6 +302,21 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
       return;
     }
 
+    if (descriptionTooLong) {
+      setSubmitError(`Description must be at most ${MAX_DESCRIPTION_LENGTH} characters`);
+      descriptionInput.current?.focus();
+      toast.error(`Description must be at most ${MAX_DESCRIPTION_LENGTH} characters`);
+      return;
+    }
+
+    if (customerEmail && !isValidEmail(customerEmail)) {
+      setEmailError('Enter a valid email address');
+      emailInput.current?.focus();
+      setSubmitError('Enter a valid client email');
+      toast.error('Enter a valid client email');
+      return;
+    }
+
     submittingRef.current = true;
     setLoading(true);
     const idempotencyKey = newIdempotencyKey();
@@ -310,7 +335,7 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
         expiresInDays: 7,
         sellerPublicKey: userWallet,
         sellerName: sellerName.trim() || undefined,
-        description: description || undefined,
+        description: description.trim() || undefined,
         memo: memo || undefined,
         customerName: customerName.trim() || undefined,
         customerEmail: customerEmail.trim() || undefined,
@@ -333,6 +358,7 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
       setCustomerName('');
       setCustomerEmail('');
       setSellerName('');
+      setMuxedAddress('');
       setAmountError('');
       setEmailError('');
       setMemoSubmitted(false);
@@ -423,6 +449,19 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
       </div>
 
       <div>
+        <label className="label" htmlFor="seller-display-name">Your display name (optional)</label>
+        <input
+          id="seller-display-name"
+          type="text"
+          className="input text-sm"
+          placeholder="Your name or business"
+          value={sellerName}
+          onChange={(e) => setSellerName(e.target.value)}
+          maxLength={80}
+        />
+      </div>
+
+      <div>
         <label className="label" htmlFor="seller-muxed-address">
           Muxed payment address (optional)
         </label>
@@ -453,12 +492,28 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
         <label className="label" htmlFor="invoice-description">Description</label>
         <textarea
           id="invoice-description"
+          ref={descriptionInput}
           className="input min-h-[80px] resize-none text-sm"
           placeholder="What is this invoice for?"
           value={description}
           onChange={(e) => setDescription(e.target.value)}
-          maxLength={500}
+          aria-invalid={descriptionTooLong}
+          aria-describedby={descriptionTooLong ? `${descriptionCounterId} ${descriptionErrorId}` : descriptionCounterId}
         />
+        <p
+          id={descriptionCounterId}
+          aria-live="polite"
+          className={`text-xs mt-1 ${descriptionTooLong ? 'text-red-600 font-semibold' : 'text-gray-500'}`}
+        >
+          {descriptionTooLong
+            ? `${descriptionLength - MAX_DESCRIPTION_LENGTH} ${descriptionLength - MAX_DESCRIPTION_LENGTH === 1 ? 'character' : 'characters'} over limit`
+            : `${descriptionRemaining} characters remaining`}
+        </p>
+        {descriptionTooLong && (
+          <p id={descriptionErrorId} role="alert" className="text-sm text-red-600 mt-1">
+            Description must be at most {MAX_DESCRIPTION_LENGTH} characters.
+          </p>
+        )}
       </div>
 
       <div>

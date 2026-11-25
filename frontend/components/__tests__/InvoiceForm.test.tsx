@@ -42,6 +42,61 @@ function changeEmailTo(input: HTMLElement, value: string) {
 
 const MEMO_PLACEHOLDER = 'Payment reference, e.g. INV-2026';
 
+describe('InvoiceForm description character limit', () => {
+  it('shows remaining characters and rejects a longer description', async () => {
+    const { invoiceApi } = await import('@/lib/api');
+    render(<InvoiceForm userWallet="GABC1234567890" />);
+
+    const description = screen.getByLabelText('Description');
+    expect(screen.getByText('500 characters remaining')).toBeTruthy();
+
+    fireEvent.change(description, { target: { value: 'a'.repeat(501) } });
+    expect(screen.getByText('1 character over limit')).toBeTruthy();
+    expect(description.getAttribute('aria-invalid')).toBe('true');
+
+    fireEvent.change(screen.getByPlaceholderText('10.00'), { target: { value: '5' } });
+    fireEvent.click(screen.getByRole('button', { name: /create invoice/i }));
+
+    expect(screen.getByText('Description must be at most 500 characters.')).toBeTruthy();
+    expect(invoiceApi.create).not.toHaveBeenCalled();
+  });
+
+  it('submits exactly 500 characters', async () => {
+    const { invoiceApi } = await import('@/lib/api');
+    render(<InvoiceForm userWallet="GABC1234567890" />);
+
+    fireEvent.change(screen.getByPlaceholderText('10.00'), { target: { value: '5' } });
+    fireEvent.change(screen.getByLabelText('Description'), {
+      target: { value: 'a'.repeat(500) },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /create invoice/i }));
+
+    await waitFor(() =>
+      expect(invoiceApi.create).toHaveBeenCalledWith(
+        expect.objectContaining({ description: 'a'.repeat(500) }),
+        expect.objectContaining({ idempotencyKey: expect.any(String) }),
+      ),
+    );
+
+  });
+
+  it('submits a whitespace-only description as absent', async () => {
+    const { invoiceApi } = await import('@/lib/api');
+    render(<InvoiceForm userWallet="GABC1234567890" />);
+
+    fireEvent.change(screen.getByPlaceholderText('10.00'), { target: { value: '5' } });
+    fireEvent.change(screen.getByLabelText('Description'), { target: { value: '   ' } });
+    fireEvent.click(screen.getByRole('button', { name: /create invoice/i }));
+
+    await waitFor(() =>
+      expect(invoiceApi.create).toHaveBeenCalledWith(
+        expect.objectContaining({ description: undefined }),
+        expect.objectContaining({ idempotencyKey: expect.any(String) }),
+      ),
+    );
+  });
+});
+
 describe('InvoiceForm seller display name', () => {
   it('submits a trimmed invoice label and keeps the connected wallet as identity', async () => {
     const { invoiceApi } = await import('@/lib/api');
@@ -53,6 +108,7 @@ describe('InvoiceForm seller display name', () => {
     fireEvent.click(screen.getByRole('button', { name: /create invoice/i }));
     await waitFor(() => expect(invoiceApi.create).toHaveBeenCalledWith(
       expect.objectContaining({ sellerName: 'Studio & Co', sellerPublicKey: 'GABC1234567890' }),
+      expect.objectContaining({ idempotencyKey: expect.any(String) }),
     ));
     await waitFor(() => expect((label as HTMLInputElement).value).toBe(''));
   });

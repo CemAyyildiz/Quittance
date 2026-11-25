@@ -90,9 +90,13 @@ export function sumLineItems(lineItems: InvoiceLineItem[]): number {
 // Invoice creation schema
 export const createInvoiceSchema = z.object({
   amount: z.number().finite().positive().max(1000000000),
+  lineItems: z.array(lineItemSchema).min(1).max(MAX_LINE_ITEMS).optional(),
   assetCode: z.string().default('XLM').optional(),
   assetIssuer: stellarPublicKeySchema.optional(),
-  description: z.string().max(500).optional(),
+  description: z.string()
+    .max(500)
+    .transform((value) => value.trim() || undefined)
+    .optional(),
   customerName: z.string().max(255).optional(),
   customerEmail: z.string().email().optional(),
   sellerName: z.string().trim().max(80).optional().transform((name) => name || undefined),
@@ -101,6 +105,16 @@ export const createInvoiceSchema = z.object({
   sellerPublicKey: sellerAddressSchema,
   memo: memoByteLengthSchema.optional(),
 }).superRefine((invoice, ctx) => {
+  if (
+    invoice.lineItems &&
+    sumLineItems(invoice.lineItems) !== roundStellarAmount(invoice.amount)
+  ) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['lineItems'],
+      message: 'Line item total must match invoice amount',
+    });
+  }
   if (invoice.assetCode && invoice.assetCode !== 'XLM') {
     if (!invoice.assetIssuer || !/^G[A-Z2-7]{55}$/.test(invoice.assetIssuer)) {
       ctx.addIssue({
