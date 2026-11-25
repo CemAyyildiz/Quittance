@@ -4,6 +4,7 @@ import dotenv from 'dotenv';
 import { requestId } from './middleware/request-id';
 import { createInvoiceSchema } from './utils/validation';
 import { MemoError } from './utils/memo';
+import { textMemoMatchesInvoice } from './utils/memo-normalize';
 import invoiceService from './services/invoice-memory.service';
 import { generatePaymentQR, generateStellarPaymentQR, buildStellarPaymentUri } from './utils/qrcode';
 import stellarService, {
@@ -583,7 +584,7 @@ app.post('/api/invoices/:id/partial-payment', async (req: Request, res: Response
       });
     }
 
-    if (!memosMatch(transaction.memo, invoice.memo)) {
+    if (!textMemoMatchesInvoice(transaction.memo, transaction.memo_type ?? 'none', invoice.memo)) {
       return res.status(400).json({
         success: false,
         code: VerifyErrorCode.MEMO_MISMATCH,
@@ -1252,8 +1253,13 @@ app.post('/api/invoices/:id/verify', invoiceVerifyRateLimit(), async (req: Reque
     const transactionMemo = isFeeBump
       ? transaction.memo ?? (transaction.inner_transaction as any)?.memo
       : transaction.memo;
+    const transactionMemoType = isFeeBump
+      ? transaction.memo_type ?? (transaction.inner_transaction as any)?.memo_type
+      : transaction.memo_type;
 
-    if (transactionMemo !== invoice.memo) {
+    // Only a text memo equal to the invoice memo settles it: a hash, id or
+    // missing memo leaves the invoice pending.
+    if (!textMemoMatchesInvoice(transactionMemo, transactionMemoType ?? 'none', invoice.memo)) {
       return res.status(400).json({
         success: false,
         code: VerifyErrorCode.MEMO_MISMATCH,

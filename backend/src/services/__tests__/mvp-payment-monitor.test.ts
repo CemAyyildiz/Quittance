@@ -51,6 +51,7 @@ function payment(overrides: Record<string, unknown> = {}) {
     amount: '1.5000000',
     assetCode: 'XLM',
     memo: 'INV-1',
+    memoType: 'text',
     ledger: 123,
     createdAt: new Date().toISOString(),
     ...overrides,
@@ -88,6 +89,34 @@ describe('MVP payment monitor', () => {
     const { map, store } = createHarness([expired]);
     const feed = { getRecentPayments: vi.fn(async () => [payment()]) };
     await runMvpPaymentMonitorPass(store, feed);
+    expect(map.get('invoice-1')?.status).toBe('PENDING');
+  });
+
+  it('leaves the invoice pending for a hash memo and marks it paid for the exact text memo', async () => {
+    const hashed = createHarness([invoice()]);
+    await runMvpPaymentMonitorPass(hashed.store, {
+      getRecentPayments: vi.fn(async () => [payment({ memoType: 'hash' })]),
+    });
+    expect(hashed.map.get('invoice-1')?.status).toBe('PENDING');
+
+    const text = createHarness([invoice()]);
+    await runMvpPaymentMonitorPass(text.store, {
+      getRecentPayments: vi.fn(async () => [payment({ memoType: 'text' })]),
+    });
+    expect(text.map.get('invoice-1')?.status).toBe('PAID');
+  });
+
+  it.each([
+    ['an id memo', { memoType: 'id', memo: 'INV-1' }],
+    ['a missing memo', { memoType: 'none', memo: undefined }],
+    ['a record without a memo type', { memoType: undefined }],
+    ['a text memo in another case', { memo: 'inv-1' }],
+    ['a text memo with surrounding spaces', { memo: ' INV-1 ' }],
+  ])('leaves the invoice pending for %s', async (_label, overrides) => {
+    const { map, store } = createHarness([invoice()]);
+    await runMvpPaymentMonitorPass(store, {
+      getRecentPayments: vi.fn(async () => [payment(overrides)]),
+    });
     expect(map.get('invoice-1')?.status).toBe('PENDING');
   });
 

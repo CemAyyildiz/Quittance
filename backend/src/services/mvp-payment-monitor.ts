@@ -58,6 +58,9 @@ export async function runMvpPaymentMonitorPass(
 
         const result = verifyInvoicePayment({
           txMemo: payment.memo,
+          // Horizon always reports a memo type; a record without one cannot
+          // prove its memo is text, so it is treated as no memo at all.
+          txMemoType: payment.memoType ?? 'none',
           invoiceMemo: invoice.memo,
           paymentTo: payment.to,
           invoiceSellerPublicKey: invoice.sellerPublicKey,

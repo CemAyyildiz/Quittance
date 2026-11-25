@@ -14,7 +14,7 @@
  */
 
 import { compareDecimals } from './amount-compare';
-import { memosMatch } from './memo-normalize';
+import { textMemoMatchesInvoice } from './memo-normalize';
 import { NATIVE_ASSET_CODE } from './asset-helpers';
 import { VerifyErrorCode } from './verify-errors';
 import { extractBaseAddress, MuxedAccount, StrKey } from '@stellar/stellar-sdk';
@@ -30,6 +30,11 @@ import { extractBaseAddress, MuxedAccount, StrKey } from '@stellar/stellar-sdk';
 export interface VerifyInvoicePaymentInput {
   /** Transaction memo (`transaction.memo`). */
   txMemo: string | null | undefined;
+  /**
+   * Horizon's `memo_type` for the transaction (`'text'`, `'hash'`, `'id'`,
+   * `'return'` or `'none'`). Only a `'text'` memo can settle an invoice.
+   */
+  txMemoType?: string | null;
   /** Invoice memo (`invoice.memo`). */
   invoiceMemo: string | null | undefined;
   /** Payment destination address (`paymentOp.to`). */
@@ -330,7 +335,7 @@ export function verifyInvoicePayment(
     return { ok: false, code: VerifyErrorCode.SELF_PAYMENT };
   }
 
-  if (!memosMatch(input.txMemo, input.invoiceMemo)) {
+  if (!textMemoMatchesInvoice(input.txMemo, input.txMemoType, input.invoiceMemo)) {
     return { ok: false, code: VerifyErrorCode.MEMO_MISMATCH };
   }
 
