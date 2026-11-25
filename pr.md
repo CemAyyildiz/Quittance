@@ -27,10 +27,11 @@ Passed:
 - `cd frontend && npx tsc --noEmit -p tsconfig.json`
 - `cd frontend && npm test -- app/__tests__/dashboard-export.test.tsx components/__tests__/PaymentReceipt.test.tsx components/__tests__/InvoiceCard.test.tsx` — 20 tests
 - `cd backend && npm run build`
+- `cd backend && npm test -- tests/mvp-webhook.test.ts` — 7 tests
 - Focused backend tests for amount validation, payment verification, proof anchoring, storage, status history, invoice DTOs, and uncollectible invoices — passed in separate runs
 - `git diff --check`
 
-The full backend suite is **not green**: the latest run reports 29 failures and 698 passes across 64 test files. Failures remain in invoice export, muxed-seller creation/payment fixtures, payment verification/webhook fixtures, and partial-payment endpoints. These need to be resolved before treating the backend test check as passing.
+The full backend suite is **not green**: the latest run reports 22 failures and 705 passes across 64 test files. Failures remain in invoice export, muxed-seller creation/payment fixtures, payment verification, and partial-payment endpoints. These need to be resolved before treating the backend test check as passing.
 
 The Vercel check shown on the PR requires authorization from a member of the project team; it is not resolved by a code change.
 

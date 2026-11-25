@@ -209,6 +209,7 @@ class InvoiceMemoryService {
     }
     const invoice = await storage.recordPayment(invoiceId, payment, receivedAmount, paid);
     if (!invoice) throw new Error('Invoice not found');
+    if (paid) queueInvoicePaidWebhook(invoice);
     return invoice;
   }
 
