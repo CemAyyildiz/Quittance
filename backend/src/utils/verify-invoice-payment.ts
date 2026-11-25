@@ -14,7 +14,7 @@
  */
 
 import { amountToStroops } from './amount-compare';
-import { textMemoMatchesInvoice } from './memo-normalize';
+import { memosMatch } from './memo-normalize';
 import { NATIVE_ASSET_CODE } from './asset-helpers';
 import { VerifyErrorCode } from './verify-errors';
 import { extractBaseAddress, MuxedAccount, StrKey } from '@stellar/stellar-sdk';
@@ -335,7 +335,7 @@ export function verifyInvoicePayment(
     return { ok: false, code: VerifyErrorCode.SELF_PAYMENT };
   }
 
-  if (!textMemoMatchesInvoice(input.txMemo, input.txMemoType, input.invoiceMemo)) {
+  if (!memosMatch(input.txMemo, input.invoiceMemo)) {
     return { ok: false, code: VerifyErrorCode.MEMO_MISMATCH };
   }
 
