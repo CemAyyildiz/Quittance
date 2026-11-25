@@ -7,6 +7,7 @@ import {
   createInvoiceSchema,
   memoByteLengthSchema,
   stellarPublicKeySchema,
+  verifyTxHashSchema,
 } from './utils/validation';
 import { MemoError } from './utils/memo';
 import invoiceService from './services/invoice-memory.service';
@@ -54,6 +55,7 @@ import { MAX_PAGE_LIMIT, parsePaginationQuery } from './utils/parse-pagination';
 import { memosMatch } from './utils/memo-normalize';
 import { isSmtpConfigured, sendEmail, generateInvoiceEmail } from './utils/smtp';
 import { STELLAR_NETWORK } from './config/stellar';
+import { createInvoiceBackup } from './utils/invoice-backup';
 import {
   AnchorError,
   AnchorErrorCode,
@@ -133,16 +135,17 @@ app.get('/api/health', (req: Request, res: Response) => {
 /** Builds the create-invoice response payload (shared by new creates and replays). */
 async function buildCreateInvoiceResponse(invoice: any) {
   const paymentUrl = `${FRONTEND_URL}/pay/${invoice.id}`;
+  const paymentDestination = invoice.sellerMuxedAddress || invoice.sellerPublicKey;
   const qrCodeDataUrl = await generatePaymentQR(paymentUrl);
   const stellarQrCode = await generateStellarPaymentQR(
-    invoice.sellerPublicKey,
+    paymentDestination,
     invoice.amount.toString(),
     invoice.assetCode,
     invoice.memo,
     invoice.assetIssuer
   );
   const stellarPaymentUri = buildStellarPaymentUri(
-    invoice.sellerPublicKey,
+    paymentDestination,
     invoice.amount.toString(),
     invoice.assetCode,
     invoice.memo,
@@ -323,7 +326,60 @@ app.get('/api/invoices/stats', async (req: Request, res: Response) => {
 
 // Register static export routes before `/api/invoices/:id` so their paths are
 // not treated as invoice IDs.
-app.get('/api/invoices/export', handleInvoiceCsvExport);
+app.get('/api/invoices/export', async (req: Request, res: Response) => {
+  try {
+    await runExpirySweep(invoiceService);
+
+    const sellerPublicKey = req.query.sellerPublicKey;
+    if (typeof sellerPublicKey !== 'string' || !sellerPublicKey) {
+      return res.status(400).json({
+        success: false,
+        error: 'sellerPublicKey query parameter is required',
+      });
+    }
+    const seller = stellarPublicKeySchema.safeParse(sellerPublicKey);
+    if (!seller.success) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid sellerPublicKey',
+      });
+    }
+
+    const includeCustomerEmail = req.query.includeCustomerEmail;
+    if (
+      includeCustomerEmail !== undefined &&
+      (typeof includeCustomerEmail !== 'string' ||
+        (includeCustomerEmail !== 'true' && includeCustomerEmail !== 'false'))
+    ) {
+      return res.status(400).json({
+        success: false,
+        error: 'includeCustomerEmail must be true or false',
+      });
+    }
+
+    const { invoices } = await invoiceService.getInvoicesBySeller(
+      seller.data,
+      undefined,
+      MAX_PAGE_LIMIT,
+    );
+    const backup = createInvoiceBackup(
+      invoices,
+      seller.data,
+      includeCustomerEmail === 'true',
+    );
+
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+    res.setHeader('Content-Disposition', 'attachment; filename="quittance-invoices.json"');
+    res.setHeader('Cache-Control', 'private, no-store');
+    return res.status(200).send(JSON.stringify(backup));
+  } catch (error: any) {
+    console.error('Invoice JSON export error:', error);
+    return res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to export invoice backup',
+    });
+  }
+});
 app.get('/api/invoices/export.csv', handleInvoiceCsvExport);
 app.get('/api/invoices/csv', handleInvoiceCsvExport);
 
@@ -576,6 +632,22 @@ app.post('/api/invoices/:id/partial-payment', async (req: Request, res: Response
         success: false,
         code: VerifyErrorCode.TX_HASH_REQUIRED,
         error: VerifyErrorMessages[VerifyErrorCode.TX_HASH_REQUIRED],
+      });
+    }
+    const verifyHashValidation = verifyTxHashSchema.safeParse(txHash);
+    if (!verifyHashValidation.success) {
+      return res.status(400).json({
+        success: false,
+        code: VerifyErrorCode.INVALID_TX_HASH,
+        error: VerifyErrorMessages[VerifyErrorCode.INVALID_TX_HASH],
+      });
+    }
+    const hashValidation = verifyTxHashSchema.safeParse(txHash);
+    if (!hashValidation.success) {
+      return res.status(400).json({
+        success: false,
+        code: VerifyErrorCode.INVALID_TX_HASH,
+        error: VerifyErrorMessages[VerifyErrorCode.INVALID_TX_HASH],
       });
     }
     if (!/^[0-9a-fA-F]{64}$/.test(txHash)) {
@@ -1121,7 +1193,6 @@ app.post('/api/invoices/:id/verify', invoiceVerifyRateLimit(), async (req: Reque
         error: VerifyErrorMessages[VerifyErrorCode.TX_HASH_REQUIRED],
       });
     }
-
     const reportedNetwork =
       typeof req.body.network === 'string'
         ? req.body.network.trim().toUpperCase()
@@ -1173,6 +1244,14 @@ app.post('/api/invoices/:id/verify', invoiceVerifyRateLimit(), async (req: Reque
         error: VerifyErrorMessages[VerifyErrorCode.INVOICE_NOT_PENDING],
       });
     }
+    const hashValidation = verifyTxHashSchema.safeParse(txHash);
+    if (!hashValidation.success) {
+      return res.status(400).json({
+        success: false,
+        code: VerifyErrorCode.INVALID_TX_HASH,
+        error: VerifyErrorMessages[VerifyErrorCode.INVALID_TX_HASH],
+      });
+    }
 
     // A hash that already settled another invoice cannot settle this one, no
     // matter that the memo and amount match. Checked after the already-paid
@@ -1205,11 +1284,11 @@ app.post('/api/invoices/:id/verify', invoiceVerifyRateLimit(), async (req: Reque
       txDetails = await stellarService.getTransaction(txHash);
     } catch (error: any) {
       const status = error?.response?.status ?? error?.status;
-      if (status === 404) {
-        return res.status(400).json({
+      if (status === 404 || error?.code === 'TX_NOT_FOUND') {
+        return res.status(404).json({
           success: false,
-          code: VerifyErrorCode.NETWORK_MISMATCH,
-          error: VerifyErrorMessages[VerifyErrorCode.NETWORK_MISMATCH],
+          code: VerifyErrorCode.TX_NOT_FOUND,
+          error: VerifyErrorMessages[VerifyErrorCode.TX_NOT_FOUND],
         });
       }
       throw error;
