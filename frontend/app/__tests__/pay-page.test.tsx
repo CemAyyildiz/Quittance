@@ -75,17 +75,18 @@ describe('PaymentPage SEP-7 handoff', () => {
     vi.clearAllMocks();
   });
 
-  it('keeps an unavailable email action out of the accessibility tree and tab order', async () => {
-    mockInvoice({ status: 'PAID', paidAt: '2026-11-23T12:00:00Z' });
+  it('does not expose invoice contact emails or email actions on the public pay page', async () => {
+    mockInvoice({
+      status: 'PAID',
+      paidAt: '2026-11-23T12:00:00Z',
+      sellerEmail: 'seller@example.com',
+      customerEmail: 'client@example.com',
+    });
     render(<PaymentPage />);
     await screen.findByRole('button', { name: 'Download Proof' });
     expect(screen.queryByRole('button', { name: /email payment proof/i })).toBeNull();
-  });
-
-  it('gives the available email proof action an accessible name', async () => {
-    mockInvoice({ status: 'PAID', paidAt: '2026-11-23T12:00:00Z', customerEmail: 'client@example.com' });
-    render(<PaymentPage />);
-    expect(await screen.findByRole('button', { name: /email payment proof/i })).toBeEnabled();
+    expect(screen.queryByText('seller@example.com')).toBeNull();
+    expect(screen.queryByText('client@example.com')).toBeNull();
   });
 
   it('shows an XLM SEP-7 URI with destination, amount, memo and memo type only', async () => {
@@ -142,7 +143,10 @@ describe('PaymentPage SEP-7 handoff', () => {
   });
 
   it('keeps the web payment link for payers without a wallet handler', async () => {
-    mockInvoice({});
+    mockInvoice({
+      customerEmail: 'client@example.com',
+      description: 'Please contact client@example.com',
+    });
     render(<PaymentPage />);
 
     const webLink = await screen.findByRole('link', {
@@ -151,7 +155,21 @@ describe('PaymentPage SEP-7 handoff', () => {
     expect(webLink).toHaveAttribute('href', PAYMENT_URL);
 
     // The payment URL is still handed to the QR section alongside the SEP-7 URI.
-    expect(await screen.findByTestId('qr-codes')).toHaveTextContent(PAYMENT_URL);
+    const qrCodes = await screen.findByTestId('qr-codes');
+    expect(qrCodes).toHaveTextContent(PAYMENT_URL);
+    expect(qrCodes).not.toHaveTextContent('client@example.com');
+    expect(webLink.getAttribute('href')).not.toContain('client@example.com');
+  });
+
+  it('shows the invoice number and falls back to the invoice id', async () => {
+    mockInvoice({ invoiceNumber: 'INV-2026-0842' });
+    const { unmount } = render(<PaymentPage />);
+    expect(await screen.findByText('INV-2026-0842')).toBeInTheDocument();
+    unmount();
+
+    mockInvoice({});
+    render(<PaymentPage />);
+    expect(await screen.findByText('inv_1')).toBeInTheDocument();
   });
 
   it('shows the expired state on the page itself', async () => {

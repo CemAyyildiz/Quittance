@@ -38,21 +38,21 @@ export default function InvoiceDetailPage() {
     userWallet!.toLowerCase() === String(invoice?.sellerPublicKey ?? '').toLowerCase();
 
   useEffect(() => {
-    loadInvoice();
-  }, [id]);
+    void loadInvoice(userWallet ?? undefined);
+  }, [id, userWallet]);
 
   useEffect(() => {
     if (!invoice || invoice.status !== 'PENDING') return;
     const intervalId = setInterval(() => {
-      void loadInvoice();
+      void loadInvoice(userWallet ?? undefined);
     }, 3000);
     return () => clearInterval(intervalId);
-  }, [id, invoice?.status]);
+  }, [id, invoice?.status, userWallet]);
 
-  const loadInvoice = async () => {
+  const loadInvoice = async (sellerPublicKey?: string) => {
     try {
       const [invoiceResult, paymentResult] = await Promise.all([
-        invoiceApi.getById(id),
+        invoiceApi.getById(id, sellerPublicKey),
         invoiceApi.getPaymentInfo(id),
       ]);
 
@@ -254,13 +254,14 @@ export default function InvoiceDetailPage() {
                 <div className="border-b pb-4">
                   <p className="text-sm text-gray-600 mb-1">Seller</p>
                   {invoice.sellerName && <p className="text-gray-900">{invoice.sellerName}</p>}
+                  {isSeller && invoice.sellerEmail && <p className="text-sm text-gray-700">{invoice.sellerEmail}</p>}
                   <p className="font-mono text-sm text-gray-900" title={invoice.sellerPublicKey}>
                     {invoice.sellerPublicKey.slice(0, 8)}…{invoice.sellerPublicKey.slice(-8)}
                   </p>
                 </div>
                 <div className="bg-gradient-to-br from-gray-50 to-slate-50 p-5 rounded-2xl border border-gray-200/50">
-                  <p className="text-xs text-gray-600 mb-2 font-semibold uppercase tracking-wide">Invoice ID</p>
-                  <p className="font-mono text-sm text-gray-900 break-all">{invoice.id}</p>
+                  <p className="text-xs text-gray-600 mb-2 font-semibold uppercase tracking-wide">Invoice Number</p>
+                  <p className="font-mono text-sm text-gray-900 break-all">{invoice.invoiceNumber?.trim() || invoice.id}</p>
                 </div>
 
                 <div className="bg-gradient-to-br from-cyan-50 to-blue-50 p-6 rounded-2xl border-2 border-cyan-200/50 shadow-lg">

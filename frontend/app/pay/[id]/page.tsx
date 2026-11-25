@@ -14,9 +14,9 @@ import PaymentStatus from '@/components/PaymentStatus';
 import AssetLogo from '@/components/AssetLogo';
 import { formatAmount, formatDate, copyToClipboard } from '@/lib/utils';
 import { useCountdown } from '@/lib/useCountdown';
-import { Copy, ExternalLink, Loader2, Check, FileText, Mail, RefreshCw } from 'lucide-react';
+import { Copy, ExternalLink, Loader2, Check, FileText, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
-import { openInvoicePDF, shareInvoiceByEmail } from '@/lib/export';
+import { openInvoicePDF } from '@/lib/export';
 import { extractHorizonCode, mapHorizonError } from '@/lib/horizonErrorMap';
 import { loadAssetIssuerDomain } from '@/lib/stellarToml';
 import { streamInvoicePayments } from '@/lib/payment-monitor';
@@ -263,15 +263,6 @@ export default function PaymentPage() {
     }
   };
 
-  const handleEmailShare = () => {
-    if (!invoice) return;
-    if (!invoice.customerEmail) {
-      toast.error('No client email on this invoice');
-      return;
-    }
-    shareInvoiceByEmail(invoice as any);
-  };
-
   if (loading) {
     return (
       <div className="min-h-screen bg-logo-pattern relative flex items-center justify-center">
@@ -387,6 +378,13 @@ export default function PaymentPage() {
                   <p className="text-gray-800 font-medium">{invoice.description}</p>
                 </div>
               )}
+
+              <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                <p className="text-sm text-gray-600 mb-1">Invoice Number</p>
+                <p className="font-mono text-sm text-gray-900 break-all">
+                  {invoice.invoiceNumber?.trim() || invoice.id}
+                </p>
+              </div>
 
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                 <p className="text-sm text-blue-600 font-semibold">Pay to</p>
@@ -519,16 +517,6 @@ export default function PaymentPage() {
                   <FileText className="w-4 h-4" aria-hidden="true" />
                   Download Proof
                 </button>
-                {invoice.customerEmail && (
-                  <button
-                    onClick={handleEmailShare}
-                    className="btn btn-outline flex items-center justify-center gap-2 px-4"
-                    title="Email Proof"
-                    aria-label="Email payment proof"
-                  >
-                    <Mail className="w-4 h-4" aria-hidden="true" />
-                  </button>
-                )}
               </div>
             )}
 
@@ -690,7 +678,7 @@ export default function PaymentPage() {
 
           <div className="space-y-6">
             {invoice.status === 'PAID' && (
-              <PaymentReceipt invoice={invoice} />
+              <PaymentReceipt invoice={invoice} showPrivateContacts={false} />
             )}
 
             {invoice.status === 'EXPIRED' && (

@@ -86,6 +86,7 @@ class InvoiceMemoryService {
     const invoice = await storage.createInvoice({
       sellerPublicKey: input.sellerPublicKey, // Dynamic wallet of the caller.
       sellerName: input.sellerName,
+      sellerEmail: input.sellerEmail,
       amount: input.amount,
       lineItems: input.lineItems,
       assetCode: input.assetCode || 'XLM',

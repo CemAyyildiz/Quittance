@@ -20,8 +20,10 @@ export function toStatusHistoryDTO(event: StatusEvent): StatusHistoryEntryDTO {
 
 export interface InvoiceDTO {
   id: string;
+  invoiceNumber?: string;
   sellerPublicKey: string;
   sellerName?: string;
+  sellerEmail?: string;
   amount: number;
   lineItems?: Array<{ label: string; quantity: number; unitPrice: number }>;
   assetCode: string;
@@ -70,6 +72,8 @@ export function toInvoiceDTO(invoice: {
 export interface ToInvoiceDTOOptions {
   /** Stellar network label (e.g. TESTNET / PUBLIC). Defaults to STELLAR_NETWORK or TESTNET. */
   network?: string;
+  /** Include contact fields only when the caller has established seller ownership. */
+  includePrivateContacts?: boolean;
 }
 
 /**
@@ -117,8 +121,13 @@ function resolveNetwork(options?: ToInvoiceDTOOptions): string {
 export function toInvoiceDTO(
   invoice: {
     id: string;
+    invoiceNumber?: string;
+    number?: string;
+    invoiceNo?: string;
+    invoice_number?: string;
     sellerPublicKey: string;
     sellerName?: string;
+    sellerEmail?: string;
     amount: number;
     assetCode: string;
     assetIssuer?: string;
@@ -145,8 +154,15 @@ export function toInvoiceDTO(
   options?: ToInvoiceDTOOptions,
 ): InvoiceDTO {
   const originalExpiresAt = invoice.originalExpiresAt ?? invoice.expiresAt;
+  const invoiceNumber = [
+    invoice.invoiceNumber,
+    invoice.number,
+    invoice.invoiceNo,
+    invoice.invoice_number,
+  ].find((value) => typeof value === 'string' && value.trim());
   const dto: InvoiceDTO = {
     id: invoice.id,
+    ...(invoiceNumber ? { invoiceNumber: invoiceNumber.trim() } : {}),
     sellerPublicKey: invoice.sellerPublicKey,
     ...(invoice.sellerMuxedAddress ? { sellerMuxedAddress: invoice.sellerMuxedAddress } : {}),
     amount: invoice.amount,
@@ -163,7 +179,6 @@ export function toInvoiceDTO(
     description: invoice.description,
     lineItems: invoice.lineItems,
     customerName: invoice.customerName,
-    customerEmail: invoice.customerEmail,
     status: invoice.status,
     paymentTxHash: invoice.paymentTxHash,
     payerPublicKey: invoice.payerPublicKey,
@@ -186,6 +201,11 @@ export function toInvoiceDTO(
 
   // The label belongs to this invoice; it must never become payment identity.
   if (invoice.sellerName?.trim()) dto.sellerName = invoice.sellerName.trim();
+
+  if (options?.includePrivateContacts) {
+    if (invoice.sellerEmail) dto.sellerEmail = invoice.sellerEmail;
+    if (invoice.customerEmail) dto.customerEmail = invoice.customerEmail;
+  }
 
   if (
     (invoice.status === 'PAID' || invoice.status === 'REFUNDED') &&
