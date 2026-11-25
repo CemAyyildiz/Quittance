@@ -33,6 +33,8 @@ export const getConfiguredNetwork = (): 'TESTNET' | 'PUBLIC' =>
     ? 'PUBLIC'
     : 'TESTNET';
 
+export const isTestnetNetwork = (): boolean => getConfiguredNetwork() === 'TESTNET';
+
 export const getWalletNetwork = async (): Promise<WalletNetwork> => {
   try {
     const details = await getNetworkDetails();
@@ -121,6 +123,11 @@ export const getAccountBalance = async (
     }
     throw error;
   }
+};
+
+export const hasEnoughXlmForFee = (balance?: string): boolean => {
+  const amount = Number(balance);
+  return Number.isFinite(amount) && amount >= Number(StellarSdk.BASE_FEE) / 10_000_000;
 };
 
 export type AssetReadiness = 'ok' | 'no-trustline' | 'insufficient-balance';
@@ -246,9 +253,16 @@ export const sendPayment = async (
   memo: string,
   assetCode: string = 'XLM',
   assetIssuer?: string,
-  maxTime?: number
+  maxTimeOrOptions?: number | SendPaymentOptions,
+  options?: SendPaymentOptions
 ): Promise<string> => {
   try {
+    const maxTime =
+      typeof maxTimeOrOptions === 'number' ? maxTimeOrOptions : undefined;
+    const paymentOptions =
+      typeof maxTimeOrOptions === 'object' ? maxTimeOrOptions : options;
+    const feeSource = paymentOptions?.feeSource?.trim();
+
     // Check wallet connection
     const connected = await checkWalletConnection();
     if (!connected) {
@@ -300,7 +314,6 @@ export const sendPayment = async (
 
     // The fee source pays the fee but is not the payer: sign the inner
     // payment with the payer first, then wrap and sign with the fee source.
-    const feeSource = options.feeSource?.trim();
     const signedTxXdr = await signTransaction(transaction.toXDR(), {
       networkPassphrase: NETWORK_PASSPHRASE,
       ...(feeSource ? { accountToSign: userPublicKey } : {}),
@@ -423,14 +436,34 @@ export const isValidPublicKey = (publicKey: string): boolean => {
   }
 };
 
+export const requestFriendbotFunding = async (publicKey: string): Promise<void> => {
+  if (!isTestnetNetwork()) {
+    throw new Error('Friendbot funding is only available on testnet');
+  }
+  if (!isValidPublicKey(publicKey)) {
+    throw new Error('Invalid Stellar public key');
+  }
+
+  const response = await fetch(
+    `https://friendbot.stellar.org/?addr=${encodeURIComponent(publicKey)}`,
+  );
+  if (!response.ok) {
+    throw new Error(`Friendbot request failed with status ${response.status}`);
+  }
+};
+
 export default {
   server,
   NETWORK_PASSPHRASE,
+  getConfiguredNetwork,
+  isTestnetNetwork,
+  hasEnoughXlmForFee,
   checkWalletConnection,
   requestWalletAccess,
   getUserPublicKey,
   loadAccount,
   getAccountBalance,
+  requestFriendbotFunding,
   checkAssetReadiness,
   buildPaymentTransaction,
   buildFeeBumpPaymentTransaction,

@@ -34,16 +34,6 @@ const {
 
 // The payment flow must never touch the real Horizon/Freighter SDK or the
 // real invoice backend while testing, so both are replaced with mocks.
-vi.mock('@/lib/stellar', () => ({
-  sendPayment: mockSendPayment,
-  checkWalletConnection: mockCheckWalletConnection,
-  requestWalletAccess: mockRequestWalletAccess,
-  getWalletNetwork: mockGetWalletNetwork,
-  getConfiguredNetwork: () => 'TESTNET',
-  getNetworkMismatch: (wallet: string, configured: string) =>
-    wallet !== 'UNKNOWN' && wallet !== configured,
-}));
-
 // Network calls are mocked, but the pure testnet/fee helpers stay real so the
 // fee threshold and the network gate are exercised, not stubbed.
 vi.mock('@/lib/stellar', async (importOriginal) => {
@@ -53,6 +43,10 @@ vi.mock('@/lib/stellar', async (importOriginal) => {
     sendPayment: mockSendPayment,
     checkWalletConnection: mockCheckWalletConnection,
     requestWalletAccess: mockRequestWalletAccess,
+    getWalletNetwork: mockGetWalletNetwork,
+    getConfiguredNetwork: () => 'TESTNET',
+    getNetworkMismatch: (wallet: string, configured: string) =>
+      wallet !== 'UNKNOWN' && wallet !== configured,
     getUserPublicKey: mockGetUserPublicKey,
     getAccountBalance: mockGetAccountBalance,
     requestFriendbotFunding: mockRequestFriendbotFunding,
@@ -106,9 +100,12 @@ beforeEach(() => {
   vi.stubEnv('NEXT_PUBLIC_STELLAR_NETWORK', 'TESTNET');
   mockCheckWalletConnection.mockResolvedValue(true);
   mockRequestWalletAccess.mockResolvedValue(true);
+  mockGetUserPublicKey.mockResolvedValue(PAYER_PUBLIC_KEY);
+  mockGetAccountBalance.mockResolvedValue([{ assetCode: 'XLM', balance: '100.0000000' }]);
   mockGetWalletNetwork.mockResolvedValue('TESTNET');
   mockSendPayment.mockResolvedValue(TX_HASH);
   mockVerify.mockResolvedValue({ verified: true });
+  mockIsValidPublicKey.mockReturnValue(true);
 });
 
 afterEach(() => {
