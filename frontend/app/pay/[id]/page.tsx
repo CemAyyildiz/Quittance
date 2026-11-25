@@ -12,6 +12,7 @@ import UserProfile from '@/components/UserProfile';
 import PaymentReceipt from '@/components/PaymentReceipt';
 import PaymentStatus from '@/components/PaymentStatus';
 import AssetLogo from '@/components/AssetLogo';
+import StroopAmount from '@/components/StroopAmount';
 import { formatAmount, formatDate, copyToClipboard } from '@/lib/utils';
 import { useCountdown } from '@/lib/useCountdown';
 import { Copy, ExternalLink, Loader2, Check, FileText, Mail, RefreshCw } from 'lucide-react';
@@ -369,6 +370,10 @@ export default function PaymentPage() {
                     <p className="text-4xl sm:text-6xl font-bold bg-gradient-to-r from-cyan-600 to-blue-600 bg-clip-text text-transparent break-all">
                       {formatAmount(invoice.amount, 7)}
                     </p>
+                    <StroopAmount
+                      amount={invoice.amount}
+                      className="block text-sm font-medium text-gray-600 mt-1 break-all"
+                    />
                     <p className="text-xl font-bold text-cyan-600 mt-2">
                       {invoice.assetCode}
                       {issuerDomain && (
@@ -540,7 +545,7 @@ export default function PaymentPage() {
               <div className="bg-gray-50 p-4 rounded-lg space-y-3 border">
                 <h3 className="font-semibold text-gray-900 mb-1">Pay manually from any wallet</h3>
                 <p className="text-xs text-gray-600 mb-4">
-                  Send the exact amount to the destination below and include the memo. Then paste the transaction hash to confirm payment.
+                  Send the exact amount to the destination below and include the memo as a text memo (MEMO_TEXT). Then paste the transaction hash to confirm payment.
                 </p>
 
                 <div>
@@ -560,7 +565,7 @@ export default function PaymentPage() {
                 </div>
 
                 <div>
-                  <p className="text-xs text-gray-600 mb-1">Memo (Required)</p>
+                  <p className="text-xs text-gray-600 mb-1">Memo (Required, text memo)</p>
                   <div className="flex items-center gap-2">
                     <code className="flex-1 text-xs bg-white p-2 rounded border font-semibold">
                       {invoice.memo}
@@ -573,6 +578,9 @@ export default function PaymentPage() {
                       <Copy className="w-4 h-4" aria-hidden="true" />
                     </button>
                   </div>
+                  <p className="text-xs text-gray-500 mt-1" data-testid="text-memo-hint">
+                    Choose the <strong>Text</strong> memo type in your wallet and enter it exactly as shown. A hash or ID memo will not confirm this invoice.
+                  </p>
                 </div>
 
                 <div>
@@ -580,6 +588,7 @@ export default function PaymentPage() {
                   <div className="flex items-center gap-2">
                     <code className="flex-1 text-xs bg-white p-2 rounded border font-semibold">
                       {invoice.amount}
+                      <StroopAmount amount={invoice.amount} className="ml-2 font-normal text-gray-500" />
                     </code>
                     <button
                       onClick={() => copyInfo(invoice.amount.toString(), 'Amount')}

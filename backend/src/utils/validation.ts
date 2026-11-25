@@ -3,8 +3,23 @@ import { StrKey } from '@stellar/stellar-sdk';
 import { MAX_MEMO_BYTES, getMemoByteLength } from './memo';
 
 export interface ParsedAmount { decimal: string; stroops: bigint; }
+/**
+ * Plain decimal form of a JS number. `String(1e-7)` is `"1e-7"`, which the
+ * decimal regex would reject, so small numbers are expanded exactly from their
+ * shortest round-trip representation.
+ */
+function numberToDecimalString(value: number): string | undefined {
+  if (!Number.isFinite(value)) return undefined;
+  const text = String(value);
+  const match = /^(\d+)(?:\.(\d+))?e-(\d+)$/.exec(text);
+  if (!match) return text;
+  const fractionDigits = (match[2] ?? '').length + Number(match[3]);
+  return value.toFixed(Math.min(fractionDigits, 100));
+}
+
 export function parseAmount(input: string | number): ParsedAmount | undefined {
-  const raw = typeof input === 'number' ? String(input) : input.trim();
+  const raw = typeof input === 'number' ? numberToDecimalString(input) : input.trim();
+  if (raw === undefined) return undefined;
   if (!/^\d+(?:[.,]\d+)?$/.test(raw) || (raw.match(/[.,]/g) ?? []).length > 1) return undefined;
   const decimal = raw.replace(',', '.');
   const [whole, fraction = ''] = decimal.split('.');
@@ -89,7 +104,13 @@ export function sumLineItems(lineItems: InvoiceLineItem[]): number {
 
 // Invoice creation schema
 export const createInvoiceSchema = z.object({
-  amount: z.number().finite().positive().max(1000000000),
+  // The pay page shows the stroop total next to the decimal amount, so an
+  // amount that is not a whole number of stroops is rejected here instead of
+  // being rounded or shown as zero later.
+  amount: z.number().finite().positive().max(1000000000).refine(
+    (amount) => parseAmount(amount) !== undefined,
+    'Amount must be a whole number of stroops (at most 7 decimal places)',
+  ),
   assetCode: z.string().default('XLM').optional(),
   assetIssuer: stellarPublicKeySchema.optional(),
   description: z.string().max(500).optional(),

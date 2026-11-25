@@ -68,3 +68,46 @@ export function formatStroops(stroops: bigint | number | string): string {
 
   return `${negative ? "-" : ""}${formattedUnits}.${formattedFraction}`;
 }
+
+/**
+ * `amountToStroops` — Convert a decimal invoice amount to its integer stroop
+ * total, the value Freighter actually sends.
+ *
+ * XLM and credit assets both use seven decimal places, so the same rule
+ * applies to every asset. Conversion is exact (string + bigint arithmetic,
+ * no float rounding), so a one-stroop difference is never hidden.
+ *
+ * Returns `undefined` — never `"0"` — for anything that is not a positive
+ * whole number of stroops: negative or zero amounts, more than seven decimal
+ * places, or non-numeric input.
+ *
+ * @example
+ * ```ts
+ * amountToStroops('1.5')       // "15000000"
+ * amountToStroops(1.5)         // "15000000"
+ * amountToStroops('0.0000001') // "1"
+ * amountToStroops('-1')        // undefined
+ * ```
+ */
+export function amountToStroops(amount: string | number | null | undefined): string | undefined {
+  let text: string;
+  if (typeof amount === 'number') {
+    if (!Number.isFinite(amount)) return undefined;
+    text = String(amount);
+    // `String(1e-7)` is "1e-7"; expand it exactly from the shortest form.
+    const exp = /^(\d+)(?:\.(\d+))?e-(\d+)$/.exec(text);
+    if (exp) text = amount.toFixed(Math.min((exp[2] ?? '').length + Number(exp[3]), 100));
+  } else if (typeof amount === 'string') {
+    text = amount.trim();
+  } else {
+    return undefined;
+  }
+
+  const match = /^(\d+)(?:\.(\d+))?$/.exec(text);
+  if (!match) return undefined;
+  const [, whole, fraction = ''] = match;
+  if (fraction.length > 7) return undefined;
+
+  const stroops = BigInt(whole) * STROOPS_PER_UNIT + BigInt(fraction.padEnd(7, '0'));
+  return stroops > 0n ? stroops.toString() : undefined;
+}

@@ -252,3 +252,27 @@ describe('InvoiceForm idempotent submit', () => {
     expect(calls[0][1].idempotencyKey).not.toBe(calls[1][1].idempotencyKey);
   });
 });
+
+describe('InvoiceForm stroop amounts', () => {
+  it('rejects an amount that cannot be converted to whole stroops at create', async () => {
+    const { invoiceApi } = await import('@/lib/api');
+    render(<InvoiceForm userWallet="GABC1234567890" />);
+    fireEvent.change(screen.getByPlaceholderText('10.00'), { target: { value: '1.00000001' } });
+    fireEvent.submit(screen.getByRole('button', { name: /create invoice/i }).closest('form')!);
+    expect((await screen.findAllByText(/at most 7 decimal places/i)).length).toBeGreaterThan(0);
+    expect(invoiceApi.create).not.toHaveBeenCalled();
+  });
+
+  it('accepts an amount with exactly seven decimal places', async () => {
+    const { invoiceApi } = await import('@/lib/api');
+    render(<InvoiceForm userWallet="GABC1234567890" />);
+    fireEvent.change(screen.getByPlaceholderText('10.00'), { target: { value: '1.0000001' } });
+    fireEvent.submit(screen.getByRole('button', { name: /create invoice/i }).closest('form')!);
+    await waitFor(() =>
+      expect(invoiceApi.create).toHaveBeenCalledWith(
+        expect.objectContaining({ amount: 1.0000001 }),
+        expect.anything(),
+      ),
+    );
+  });
+});

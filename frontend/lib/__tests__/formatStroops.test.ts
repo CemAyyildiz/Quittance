@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { formatStroops } from "../formatStroops";
+import { amountToStroops, formatStroops } from "../formatStroops";
 
 // ---------------------------------------------------------------------------
 // Happy path — bigint inputs (primary use case)
@@ -163,4 +163,28 @@ describe("formatStroops invariants", () => {
       expect(result).toMatch(/^-?[0-9,]+\.\d{7}$/);
     });
   }
+});
+
+describe("amountToStroops", () => {
+  it("converts 1.5 to 15000000 stroops", () => {
+    expect(amountToStroops("1.5")).toBe("15000000");
+    expect(amountToStroops(1.5)).toBe("15000000");
+  });
+
+  it("uses seven decimal places for XLM and credit assets alike", () => {
+    expect(amountToStroops("0.0000001")).toBe("1");
+    expect(amountToStroops("100.1234567")).toBe("1001234567");
+    expect(amountToStroops(1e-7)).toBe("1");
+    expect(amountToStroops(1.5e-6)).toBe("15");
+  });
+
+  it("round-trips with formatStroops", () => {
+    expect(formatStroops(BigInt(amountToStroops("12345.6789012")!))).toBe("12,345.6789012");
+  });
+
+  it("rejects amounts that are not a positive whole number of stroops", () => {
+    for (const bad of ["-1", -1.5, "0", 0, "1.00000001", 1e-8, "", "abc", "1e5", NaN, Infinity, null, undefined]) {
+      expect(amountToStroops(bad as never)).toBeUndefined();
+    }
+  });
 });

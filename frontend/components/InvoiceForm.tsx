@@ -16,6 +16,7 @@ import { MAX_MEMO_BYTES, getUtf8ByteLength, isValidEmail } from '@/lib/utils';
 import { extractBaseAddress, StrKey } from '@stellar/stellar-sdk';
 import AssetLogo from './AssetLogo';
 import { parseAmount } from '@/lib/amountParse';
+import { amountToStroops } from '@/lib/formatStroops';
 
 interface InvoiceFormProps {
   onSuccess?: (invoice: any) => void;
@@ -23,6 +24,7 @@ interface InvoiceFormProps {
 }
 
 const amountErrorId = 'amount-error';
+const STROOP_AMOUNT_ERROR = 'Amount can have at most 7 decimal places (1 stroop = 0.0000001)';
 const draftStoragePrefix = 'quittance:invoice-draft:';
 
 interface InvoiceDraft {
@@ -77,6 +79,9 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
   const [serverWarning, setServerWarning] = useState<string | null>(null);
   const [acknowledgedWarning, setAcknowledgedWarning] = useState(false);
   const [amountError, setAmountError] = useState('');
+  const [draftReadyFor, setDraftReadyFor] = useState<string | null>(null);
+  const [muxedAddress, setMuxedAddress] = useState('');
+  const [muxedAddressError, setMuxedAddressError] = useState('');
   const [emailError, setEmailError] = useState('');
   const [walletNetwork, setWalletNetwork] = useState<WalletNetwork>('UNKNOWN');
   const [networkMismatch, setNetworkMismatch] = useState(false);
@@ -217,6 +222,8 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
     );
     if (value && (isNaN(parseFloat(value)) || parseFloat(value) <= 0)) {
       setAmountError('Amount must be greater than 0');
+    } else if (value && amountToStroops(value) === undefined) {
+      setAmountError(STROOP_AMOUNT_ERROR);
     } else {
       setAmountError('');
     }
@@ -280,6 +287,11 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
     const amountNum = parseFloat(amount);
     if (!amount || amountNum <= 0 || !Number.isFinite(amountNum)) {
       setAmountError('Enter a valid amount');
+      amountInput.current?.focus();
+      return;
+    }
+    if (amountToStroops(amount) === undefined) {
+      setAmountError(STROOP_AMOUNT_ERROR);
       amountInput.current?.focus();
       return;
     }
