@@ -848,6 +848,7 @@ export default function PaymentPage() {
                     assetIssuer={invoice.assetIssuer}
                     invoiceId={invoice.id}
                     expiresAt={invoice.expiresAt}
+                    disabled={verifying}
                     onSuccess={handlePaymentSuccess}
                     onError={handlePaymentError}
                   />
