@@ -60,6 +60,7 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
   const [submitError, setSubmitError] = useState('');
   const [memoSubmitted, setMemoSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [draftReadyFor, setDraftReadyFor] = useState<string | null>(null);
   // `loading` only disables the button after a re-render, so a fast double
   // click could start two requests; this ref blocks re-entry synchronously.
   const submittingRef = useRef(false);
@@ -73,6 +74,8 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
   const [customerName, setCustomerName] = useState('');
   const [customerEmail, setCustomerEmail] = useState('');
   const [sellerName, setSellerName] = useState('');
+  const [muxedAddress, setMuxedAddress] = useState('');
+  const [muxedAddressError, setMuxedAddressError] = useState('');
   const [trustlineWarning, setTrustlineWarning] = useState<string | null>(null);
   const [serverWarning, setServerWarning] = useState<string | null>(null);
   const [acknowledgedWarning, setAcknowledgedWarning] = useState(false);
@@ -277,6 +280,16 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
       return;
     }
 
+    const enteredMuxedAddress = muxedAddress.trim();
+    if (
+      enteredMuxedAddress &&
+      (!StrKey.isValidMed25519PublicKey(enteredMuxedAddress) ||
+        extractBaseAddress(enteredMuxedAddress) !== userWallet)
+    ) {
+      setMuxedAddressError('Enter a valid muxed address for your connected wallet');
+      return;
+    }
+
     const amountNum = parseFloat(amount);
     if (!amount || amountNum <= 0 || !Number.isFinite(amountNum)) {
       setAmountError('Enter a valid amount');
@@ -308,7 +321,7 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
         assetCode: assetCode,
         assetIssuer: selectedAsset?.issuer,
         expiresInDays: 7,
-        sellerPublicKey: userWallet,
+        sellerPublicKey: enteredMuxedAddress || userWallet,
         sellerName: sellerName.trim() || undefined,
         description: description || undefined,
         memo: memo || undefined,
@@ -333,6 +346,8 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
       setCustomerName('');
       setCustomerEmail('');
       setSellerName('');
+      setMuxedAddress('');
+      setMuxedAddressError('');
       setAmountError('');
       setEmailError('');
       setMemoSubmitted(false);

@@ -1,10 +1,17 @@
 import express, { Application, Request, Response, NextFunction } from 'express';
+import { z } from 'zod';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import { requestId } from './middleware/request-id';
-import { createInvoiceSchema } from './utils/validation';
+import {
+  createInvoiceSchema,
+  memoByteLengthSchema,
+  stellarPublicKeySchema,
+} from './utils/validation';
 import { MemoError } from './utils/memo';
 import invoiceService from './services/invoice-memory.service';
+import memoryStorage, { type Invoice } from './storage/memory-storage';
+import { startMvpPaymentMonitor } from './services/mvp-payment-monitor';
 import { generatePaymentQR, generateStellarPaymentQR, buildStellarPaymentUri } from './utils/qrcode';
 import stellarService, {
   HorizonUnavailableError,
@@ -18,9 +25,16 @@ import {
 import healthDetailRouter from './routes/health-detail';
 import {
   toInvoiceDTO as mapInvoiceDTO,
+  toStatusHistoryDTO,
   type ToInvoiceDTOOptions,
 } from './utils/invoice-dto';
-import { addDecimalAmounts, compareDecimals, subtractDecimalAmounts } from './utils/amount-compare';
+import {
+  addDecimalAmounts,
+  amountToStroops,
+  compareDecimals,
+  isDecimalEqual,
+  subtractDecimalAmounts,
+} from './utils/amount-compare';
 import { VerifyErrorCode, VerifyErrorMessages } from './utils/verify-errors';
 import {
   assertInvoiceSettleable,
@@ -29,13 +43,25 @@ import {
 } from './utils/invoice-expiry';
 import {
   checkTransactionTimeBounds,
+  feeBumpWrapsOnlyPayment,
+  isFeeBumpTransaction,
+  isNestedFeeBump,
   isSelfPayment,
   paymentDestinationMatchesInvoice,
   paymentAssetMatchesInvoice,
 } from './utils/verify-invoice-payment';
-import { parsePaginationQuery } from './utils/parse-pagination';
+import { MAX_PAGE_LIMIT, parsePaginationQuery } from './utils/parse-pagination';
+import { memosMatch } from './utils/memo-normalize';
 import { isSmtpConfigured, sendEmail, generateInvoiceEmail } from './utils/smtp';
 import { STELLAR_NETWORK } from './config/stellar';
+import {
+  AnchorError,
+  AnchorErrorCode,
+  canonicalDigestMatches,
+  computeCanonicalDigest,
+  getAnchorContractId,
+} from './utils/canonical-proof';
+import { verifyAnchorTransaction } from './utils/anchor-transaction';
 import {
   IDEMPOTENCY_KEY_HEADER,
   createOnce,
@@ -250,10 +276,16 @@ app.post('/api/invoices/import', (req: Request, res: Response) => {
       expiresAt,
       originalExpiresAt: row.originalExpiresAt ? new Date(row.originalExpiresAt) : expiresAt,
       expiryExtended: row.expiryExtended ?? false,
+      payments: [],
+      receivedAmount: '0',
     });
   }
 
-  memoryStorage.importInvoices(newRows);
+  memoryStorage.importInvoices(newRows.map((row) => ({
+    ...row,
+    payments: [],
+    receivedAmount: '0',
+  })));
   res.json({ success: true, data: { imported: newRows.length, skippedIds } });
 });
 
@@ -335,9 +367,15 @@ app.get('/api/invoices', async (req: Request, res: Response) => {
   try {
     await runExpirySweep(invoiceService);
 
-    const { status, assetCode, createdFrom, createdTo, cursor, sellerPublicKey } =
-      req.query;
-    const { status, cursor, sellerPublicKey, search } = req.query;
+    const {
+      status,
+      assetCode,
+      createdFrom,
+      createdTo,
+      cursor,
+      sellerPublicKey,
+      search,
+    } = req.query;
 
     if (!sellerPublicKey) {
       return res.status(400).json({
@@ -445,13 +483,13 @@ app.get('/api/invoices', async (req: Request, res: Response) => {
             : undefined,
         createdFrom: startDate,
         createdTo: endDate,
-      }
+      },
       searchQuery || undefined
     );
 
     res.json({
       success: true,
-      data: result.invoices.map(toInvoiceDTO),
+      data: result.invoices.map((invoice) => toInvoiceDTO(invoice)),
       pagination: {
         limit: result.limit,
         nextCursor: result.nextCursor,

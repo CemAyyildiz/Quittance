@@ -8,7 +8,10 @@
 import { describe, it, expect } from 'vitest';
 import {
   checkTransactionTimeBounds,
+  feeBumpWrapsOnlyPayment,
   getTransactionMaxTime,
+  isFeeBumpTransaction,
+  isNestedFeeBump,
   isSelfPayment,
   paymentAssetMatchesInvoice,
   verifyInvoicePayment,

@@ -21,6 +21,7 @@ export function toStatusHistoryDTO(event: StatusEvent): StatusHistoryEntryDTO {
 export interface InvoiceDTO {
   id: string;
   sellerPublicKey: string;
+  sellerMuxedAddress?: string;
   sellerName?: string;
   amount: number;
   lineItems?: Array<{ label: string; quantity: number; unitPrice: number }>;
@@ -28,10 +29,9 @@ export interface InvoiceDTO {
   assetIssuer?: string;
   memo: string;
   description?: string;
-  lineItems?: unknown[];
   customerName?: string;
   customerEmail?: string;
-  status: 'PENDING' | 'PAID' | 'REFUNDED' | 'EXPIRED' | 'CANCELLED';
+  status: 'PENDING' | 'PAID' | 'REFUNDED' | 'EXPIRED' | 'CANCELLED' | 'UNCOLLECTIBLE';
   paymentTxHash?: string;
   payerPublicKey?: string;
   ledger?: number;
@@ -117,16 +117,17 @@ export function toInvoiceDTO(
   invoice: {
     id: string;
     sellerPublicKey: string;
+    sellerMuxedAddress?: string;
     sellerName?: string;
     amount: number;
     assetCode: string;
     assetIssuer?: string;
     memo: string;
     description?: string;
-    lineItems?: unknown[];
+    lineItems?: Array<{ label: string; quantity: number; unitPrice: number }>;
     customerName?: string;
     customerEmail?: string;
-    status: 'PENDING' | 'PAID' | 'REFUNDED' | 'EXPIRED' | 'CANCELLED';
+    status: 'PENDING' | 'PAID' | 'REFUNDED' | 'EXPIRED' | 'CANCELLED' | 'UNCOLLECTIBLE';
     paymentTxHash?: string;
     payerPublicKey?: string;
     ledger?: number;
@@ -160,7 +161,6 @@ export function toInvoiceDTO(
     assetIssuer: invoice.assetIssuer,
     memo: invoice.memo,
     description: invoice.description,
-    lineItems: invoice.lineItems,
     customerName: invoice.customerName,
     ...(options?.includeCustomerEmail === false ? {} : { customerEmail: invoice.customerEmail }),
     status: invoice.status,

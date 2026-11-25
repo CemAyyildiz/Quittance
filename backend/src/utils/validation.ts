@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { StrKey } from '@stellar/stellar-sdk';
 import { MAX_MEMO_BYTES, getMemoByteLength } from './memo';
+import { amountsMatch, isValidAmount } from './amount-compare';
 
 export interface ParsedAmount { decimal: string; stroops: bigint; }
 export function parseAmount(input: string | number): ParsedAmount | undefined {
@@ -17,7 +18,9 @@ const amountSchema = z.preprocess((value) => {
   if (typeof value !== 'string' && typeof value !== 'number') return value;
   const parsed = parseAmount(value);
   return parsed ? Number(parsed.decimal) : value;
-}, z.number().positive().max(1000000000));
+}, z.number().positive().max(1000000000).refine(isValidAmount, {
+  message: 'Amount must have at most 7 decimal places',
+}));
 
 // Stellar public key validation
 export const stellarPublicKeySchema = z.string()
@@ -89,7 +92,8 @@ export function sumLineItems(lineItems: InvoiceLineItem[]): number {
 
 // Invoice creation schema
 export const createInvoiceSchema = z.object({
-  amount: z.number().finite().positive().max(1000000000),
+  amount: amountSchema,
+  lineItems: z.array(lineItemSchema).min(1).max(MAX_LINE_ITEMS).optional(),
   assetCode: z.string().default('XLM').optional(),
   assetIssuer: stellarPublicKeySchema.optional(),
   description: z.string().max(500).optional(),
@@ -101,6 +105,16 @@ export const createInvoiceSchema = z.object({
   sellerPublicKey: sellerAddressSchema,
   memo: memoByteLengthSchema.optional(),
 }).superRefine((invoice, ctx) => {
+  if (
+    invoice.lineItems &&
+    amountsMatch(sumLineItems(invoice.lineItems), invoice.amount) === false
+  ) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['lineItems'],
+      message: 'Line item total must match invoice amount',
+    });
+  }
   if (invoice.assetCode && invoice.assetCode !== 'XLM') {
     if (!invoice.assetIssuer || !/^G[A-Z2-7]{55}$/.test(invoice.assetIssuer)) {
       ctx.addIssue({
