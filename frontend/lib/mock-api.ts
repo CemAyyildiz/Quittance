@@ -244,6 +244,67 @@ export const mockInvoiceApi = {
     };
   },
 
+  duplicate: async (
+    id: string,
+    data: { sellerPublicKey: string; copyCustomerEmail?: boolean },
+  ) => {
+    await delay(500);
+    const invoice = mockInvoices.find((inv) => inv.id === id);
+    if (!invoice || invoice.sellerPublicKey !== data.sellerPublicKey) {
+      throw new Error('Only the owning seller can duplicate this invoice');
+    }
+
+    const now = new Date();
+    const duplicated: MockInvoice = {
+      ...invoice,
+      id: Math.random().toString(36).substr(2, 9),
+      status: 'PENDING',
+      memo: `INV-${now.getTime().toString(36).toUpperCase()}-${Math.random()
+        .toString(36)
+        .substr(2, 4)
+        .toUpperCase()}`,
+      customerEmail: data.copyCustomerEmail ? invoice.customerEmail : undefined,
+      createdAt: now.toISOString(),
+      expiresAt: new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+      paidAt: undefined,
+      paymentTxHash: undefined,
+      payerPublicKey: undefined,
+      refundTxHash: undefined,
+      refundedAt: undefined,
+    };
+    mockInvoices.unshift(duplicated);
+
+    const paymentUrl = `${window.location.origin}/pay/${duplicated.id}`;
+    return {
+      success: true,
+      data: {
+        invoice: duplicated,
+        paymentUrl,
+        stellarPaymentUri: buildStellarPaymentUri(
+          duplicated.sellerPublicKey,
+          duplicated.amount.toString(),
+          duplicated.assetCode,
+          duplicated.memo,
+          duplicated.assetIssuer,
+        ),
+      },
+    };
+  },
+
+  markUncollectible: async (id: string, sellerPublicKey: string) => {
+    await delay(500);
+    const invoice = mockInvoices.find((inv) => inv.id === id);
+    if (!invoice || invoice.sellerPublicKey !== sellerPublicKey) {
+      throw new Error('Only the owning seller can update this invoice');
+    }
+    if (invoice.status !== 'PENDING' && invoice.status !== 'UNCOLLECTIBLE') {
+      throw new Error('Only pending invoices can be marked uncollectible');
+    }
+
+    invoice.status = 'UNCOLLECTIBLE';
+    return { success: true, data: invoice };
+  },
+
   refund: async (id: string, data: { sellerPublicKey: string; refundTxHash: string }) => {
     await delay(500);
     const invoice = mockInvoices.find(inv => inv.id === id);

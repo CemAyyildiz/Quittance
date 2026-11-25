@@ -31,6 +31,10 @@ export default function InvoiceDetailPage() {
   const [userWallet, setUserWallet] = useState<string | null>(null);
   const [refundTxHash, setRefundTxHash] = useState('');
   const [refunding, setRefunding] = useState(false);
+  const [duplicateOpen, setDuplicateOpen] = useState(false);
+  const [copyCustomerEmail, setCopyCustomerEmail] = useState(false);
+  const [duplicating, setDuplicating] = useState(false);
+  const [anchoring, setAnchoring] = useState(false);
   const timeRemaining = useCountdown(invoice?.status === 'PENDING' ? invoice.expiresAt : null);
   const isSeller =
     Boolean(userWallet) &&
@@ -109,6 +113,73 @@ export default function InvoiceDetailPage() {
       toast.error(error.response?.data?.error ?? 'Refund could not be verified');
     } finally {
       setRefunding(false);
+    }
+  };
+
+  const handleVoidInvoice = async () => {
+    if (!userWallet || !isSeller || invoice.status !== 'PENDING') return;
+    setVoiding(true);
+    try {
+      const result = await invoiceApi.cancel(id, userWallet);
+      setInvoice(result.data);
+      toast.success('Invoice voided');
+    } catch (error: any) {
+      toast.error(error.response?.data?.error ?? error.message ?? 'Invoice could not be voided');
+    } finally {
+      setVoiding(false);
+    }
+  };
+
+  const handleDuplicate = async () => {
+    if (!userWallet || !isSeller) return;
+    setDuplicating(true);
+    try {
+      const result = await invoiceApi.duplicate(id, {
+        sellerPublicKey: userWallet,
+        copyCustomerEmail,
+      });
+      const duplicateId = result.data.invoice?.id;
+      if (!duplicateId) {
+        throw new Error('The duplicated invoice could not be opened');
+      }
+
+      setDuplicateOpen(false);
+      toast.success('Invoice duplicated');
+      router.push(`/invoice/${duplicateId}`);
+    } catch (error: any) {
+      toast.error(error.response?.data?.error ?? error.message ?? 'Invoice could not be duplicated');
+    } finally {
+      setDuplicating(false);
+    }
+  };
+
+  const handleAnchorProof = async () => {
+    if (!userWallet || !isSeller || invoice.status !== 'PAID') return;
+    setAnchoring(true);
+    try {
+      const digestResult = await invoiceApi.getProofDigest(id, userWallet);
+      const digest = digestResult.data.digest;
+      const preparedResult = await invoiceApi.prepareAnchorProof(id, digest, userWallet);
+      const { contractId, digest: preparedDigest } = preparedResult.data;
+      if (!contractId) {
+        throw new Error('Receipt anchoring contract is not configured');
+      }
+      if (preparedDigest !== digest) {
+        throw new Error('The invoice proof digest changed; try again');
+      }
+
+      const txHash = await submitAnchorTransaction(contractId, id, digest);
+      const result = await invoiceApi.anchorProof(id, {
+        digest,
+        txHash,
+        sellerPublicKey: userWallet,
+      });
+      setInvoice(result.data);
+      toast.success('Invoice proof anchored on chain');
+    } catch (error: any) {
+      toast.error(error.response?.data?.error ?? error.message ?? 'Invoice proof could not be anchored');
+    } finally {
+      setAnchoring(false);
     }
   };
 
