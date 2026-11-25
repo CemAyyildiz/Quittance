@@ -13,6 +13,7 @@ import PaymentReceipt from '@/components/PaymentReceipt';
 import StatusHistory, { type StatusHistoryRow } from '@/components/StatusHistory';
 import AssetLogo from '@/components/AssetLogo';
 import { formatAmount, formatDate, copyToClipboard } from '@/lib/utils';
+import { formatUtc } from '@/lib/formatUtc';
 import { openInvoicePDF } from '@/lib/export';
 import { submitAnchorTransaction } from '@/lib/anchor';
 import { useCountdown } from '@/lib/useCountdown';
@@ -31,6 +32,9 @@ export default function InvoiceDetailPage() {
   const [userWallet, setUserWallet] = useState<string | null>(null);
   const [refundTxHash, setRefundTxHash] = useState('');
   const [refunding, setRefunding] = useState(false);
+  const [duplicateOpen, setDuplicateOpen] = useState(false);
+  const [copyCustomerEmail, setCopyCustomerEmail] = useState(false);
+  const [duplicating, setDuplicating] = useState(false);
   const timeRemaining = useCountdown(invoice?.status === 'PENDING' ? invoice.expiresAt : null);
   const isSeller =
     Boolean(userWallet) &&
@@ -92,6 +96,24 @@ export default function InvoiceDetailPage() {
   const handleDownloadProof = () => {
     openInvoicePDF(invoice);
     toast.success('Opening payment proof');
+  };
+
+  const handleDuplicate = async () => {
+    if (!userWallet) return;
+    setDuplicating(true);
+    try {
+      const result = await invoiceApi.duplicate(id, {
+        sellerPublicKey: userWallet,
+        copyCustomerEmail,
+      });
+      toast.success('Invoice duplicated');
+      router.push(`/invoice/${result.data.invoice.id}`);
+    } catch (error: any) {
+      toast.error(error.response?.data?.error || 'Failed to duplicate invoice');
+    } finally {
+      setDuplicating(false);
+      setDuplicateOpen(false);
+    }
   };
 
   const handleRefund = async () => {
@@ -364,14 +386,14 @@ export default function InvoiceDetailPage() {
                 </div>
 
                 <div className="border-b pb-4">
-                  <p className="text-sm text-gray-600 mb-1">Created</p>
-                  <p className="text-gray-900">{formatDate(invoice.createdAt)}</p>
+                  <p className="text-sm text-gray-600 mb-1">Created (UTC)</p>
+                  <p className="text-gray-900" data-testid="invoice-created-utc">{formatUtc(invoice.createdAt)}</p>
                 </div>
 
                 {invoice.paidAt && (
                   <div className="border-b pb-4">
-                    <p className="text-sm text-gray-600 mb-1">Paid At</p>
-                    <p className="text-gray-900">{formatDate(invoice.paidAt)}</p>
+                    <p className="text-sm text-gray-600 mb-1">Paid (UTC)</p>
+                    <p className="text-gray-900" data-testid="invoice-paid-utc">{formatUtc(invoice.paidAt)}</p>
                   </div>
                 )}
 
@@ -424,12 +446,6 @@ export default function InvoiceDetailPage() {
                   </div>
                 )}
 
-                {invoice.paidAt && (
-                  <div className="border-b pb-4">
-                    <p className="text-sm text-gray-600 mb-1">Paid At</p>
-                    <p className="text-gray-900">{formatDate(invoice.paidAt)}</p>
-                  </div>
-                )}
               </div>
             </div>
 
