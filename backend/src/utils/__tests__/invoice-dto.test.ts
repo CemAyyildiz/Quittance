@@ -44,7 +44,6 @@ describe('toInvoiceDTO', () => {
       memo: 'memo-abc-123',
       description: 'Test invoice',
       customerName: 'Alice',
-      customerEmail: 'alice@example.com',
       status: 'PENDING',
       paymentTxHash: undefined,
       payerPublicKey: undefined,
@@ -124,7 +123,6 @@ describe('toInvoiceDTO', () => {
       memo: 'memo-abc-123',
       description: 'Test invoice',
       customerName: 'Alice',
-      customerEmail: 'alice@example.com',
       status: 'EXPIRED',
       paymentTxHash: undefined,
       payerPublicKey: undefined,
@@ -152,7 +150,6 @@ describe('toInvoiceDTO', () => {
       memo: 'memo-abc-123',
       description: 'Test invoice',
       customerName: 'Alice',
-      customerEmail: 'alice@example.com',
       status: 'CANCELLED',
       paymentTxHash: undefined,
       payerPublicKey: undefined,
@@ -186,7 +183,6 @@ describe('toInvoiceDTO', () => {
       'assetCode',
       'assetIssuer',
       'createdAt',
-      'customerEmail',
       'customerName',
       'description',
       'expiresAt',
@@ -209,7 +205,7 @@ describe('toInvoiceDTO', () => {
     expect(result).not.toHaveProperty('proofCanonical');
   });
 
-  it('exposes the invoice display label but never a seller email profile', () => {
+  it('omits private contact emails from the public invoice view', () => {
     const invoice = {
       ...makeInvoice(),
       sellerName: 'Seller Co',
@@ -221,9 +217,23 @@ describe('toInvoiceDTO', () => {
     const ownKeys = Object.keys(result);
     expect(result.sellerName).toBe('Seller Co');
     expect(ownKeys).not.toContain('sellerEmail');
+    expect(ownKeys).not.toContain('customerEmail');
+  });
 
-    expect(result.customerName).toBe('Alice');
+  it('includes private contact emails only in the seller view', () => {
+    const result = toInvoiceDTO({
+      ...makeInvoice(),
+      sellerEmail: 'seller@example.com',
+    }, { includePrivateContacts: true });
+
+    expect(result.sellerEmail).toBe('seller@example.com');
     expect(result.customerEmail).toBe('alice@example.com');
+  });
+
+  it('normalizes supported invoice number fields', () => {
+    expect(toInvoiceDTO(makeInvoice({ invoiceNumber: 'INV-42' })).invoiceNumber).toBe('INV-42');
+    expect(toInvoiceDTO(makeInvoice({ invoice_number: 'INV-43' })).invoiceNumber).toBe('INV-43');
+    expect(toInvoiceDTO(makeInvoice({ invoiceNumber: '   ' })).invoiceNumber).toBeUndefined();
   });
 
   it('only exposes invoice-scoped wallet keys, no unrelated wallet fields', () => {

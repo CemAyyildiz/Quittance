@@ -14,9 +14,12 @@ beforeEach(() => {
   vi.clearAllMocks();
 });
 
-async function create(sellerName?: string) {
+async function create(
+  sellerName?: string,
+  contacts: { sellerEmail?: string; customerEmail?: string } = {},
+) {
   return request(app).post('/api/invoices').send({
-    amount: 1.5, sellerPublicKey: SELLER, sellerName,
+    amount: 1.5, sellerPublicKey: SELLER, sellerName, ...contacts,
   });
 }
 
@@ -43,6 +46,40 @@ describe('invoice seller labels', () => {
     expect((await create('a'.repeat(80))).status).toBe(201);
     expect((await create('a'.repeat(81))).status).toBe(400);
     expect(storage.size()).toBe(1);
+  });
+
+  it('keeps contact emails out of public reads and returns them to the seller', async () => {
+    const response = await create(undefined, {
+      sellerEmail: 'seller@example.com',
+      customerEmail: 'client@example.com',
+    });
+    expect(response.status).toBe(201);
+    const { id } = response.body.data.invoice;
+    expect(response.body.data.invoice.sellerEmail).toBe('seller@example.com');
+    expect(response.body.data.invoice.customerEmail).toBe('client@example.com');
+    expect(storage.getInvoiceById(id)?.sellerEmail).toBe('seller@example.com');
+
+    const publicRead = await request(app).get(`/api/invoices/${id}`);
+    expect(publicRead.body.data).not.toHaveProperty('sellerEmail');
+    expect(publicRead.body.data).not.toHaveProperty('customerEmail');
+
+    const sellerRead = await request(app)
+      .get(`/api/invoices/${id}`)
+      .query({ sellerPublicKey: SELLER });
+    expect(sellerRead.body.data.sellerEmail).toBe('seller@example.com');
+    expect(sellerRead.body.data.customerEmail).toBe('client@example.com');
+
+    const sellerList = await request(app)
+      .get('/api/invoices')
+      .query({ sellerPublicKey: SELLER });
+    expect(sellerList.body.data[0].sellerEmail).toBe('seller@example.com');
+    expect(sellerList.body.data[0].customerEmail).toBe('client@example.com');
+
+    const otherWalletRead = await request(app)
+      .get(`/api/invoices/${id}`)
+      .query({ sellerPublicKey: PAYER });
+    expect(otherWalletRead.body.data).not.toHaveProperty('sellerEmail');
+    expect(otherWalletRead.body.data).not.toHaveProperty('customerEmail');
   });
 
   it('requires payment to the public key even when a label looks like another key', async () => {

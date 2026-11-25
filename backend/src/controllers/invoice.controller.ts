@@ -36,7 +36,7 @@ class InvoiceController {
       res.status(201).json({
         success: true,
         data: {
-          invoice: toInvoiceDTO(invoice),
+          invoice: toInvoiceDTO(invoice, { includePrivateContacts: true }),
           paymentUrl,
           qrCode: qrCodeDataUrl,
           stellarQrCode,
@@ -63,9 +63,14 @@ class InvoiceController {
         });
       }
 
+      const sellerPublicKey = req.query.sellerPublicKey;
+      const isSeller =
+        typeof sellerPublicKey === 'string' &&
+        sellerPublicKey.toLowerCase() === invoice.sellerPublicKey.toLowerCase();
+
       res.json({
         success: true,
-        data: toInvoiceDTO(invoice),
+        data: toInvoiceDTO(invoice, { includePrivateContacts: isSeller }),
       });
     } catch (error: any) {
       res.status(500).json({
@@ -85,10 +90,16 @@ class InvoiceController {
         parseInt(limit as string),
         parseInt(offset as string)
       );
+      const requestedSellerPublicKey = req.query.sellerPublicKey;
+      const includePrivateContacts =
+        typeof requestedSellerPublicKey === 'string' &&
+        requestedSellerPublicKey.toLowerCase() === SELLER_PUBLIC_KEY.toLowerCase();
 
       res.json({
         success: true,
-        data: invoices.map((invoice) => toInvoiceDTO(invoice)),
+        data: invoices.map((invoice) =>
+          toInvoiceDTO(invoice, { includePrivateContacts }),
+        ),
         pagination: {
           limit: parseInt(limit as string),
           offset: parseInt(offset as string),

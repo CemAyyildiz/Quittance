@@ -6,6 +6,7 @@ interface Invoice {
   id: string;
   sellerPublicKey: string;
   sellerMuxedAddress?: string;
+  sellerEmail?: string;
   amount: number;
   assetCode: string;
   assetIssuer?: string;
@@ -59,15 +60,16 @@ class PostgresStorage {
 
     const result = await pool.query(
       `INSERT INTO invoices (
-        id, seller_public_key, seller_muxed_address, amount, asset_code, asset_issuer,
+        id, seller_public_key, seller_muxed_address, seller_email, amount, asset_code, asset_issuer,
         memo, description, customer_name, customer_email, 
         status, created_at, expires_at, original_expires_at, expiry_extended
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
       RETURNING *`,
       [
         id,
         data.sellerPublicKey,
         data.sellerMuxedAddress || null,
+        data.sellerEmail || null,
         data.amount,
         data.assetCode || 'XLM',
         data.assetIssuer || null,
@@ -287,6 +289,7 @@ class PostgresStorage {
       id: row.id,
       sellerPublicKey: row.seller_public_key,
       sellerMuxedAddress: row.seller_muxed_address || undefined,
+      sellerEmail: row.seller_email || undefined,
       amount: parseFloat(row.amount),
       assetCode: row.asset_code,
       assetIssuer: row.asset_issuer || undefined,

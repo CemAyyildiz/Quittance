@@ -102,6 +102,23 @@ describe('PaymentReceipt', () => {
     expect(withEmail).toContain('Email Proof');
   });
 
+  it('hides private contacts and email actions in the public receipt', () => {
+    const html = renderToStaticMarkup(
+      <PaymentReceipt
+        invoice={{
+          ...baseInvoice,
+          customerEmail: 'client@example.com',
+          sellerEmail: 'seller@example.com',
+        }}
+        showPrivateContacts={false}
+      />,
+    );
+
+    expect(html).not.toContain('client@example.com');
+    expect(html).not.toContain('seller@example.com');
+    expect(html).not.toContain('Email Proof');
+  });
+
   it('shows the Download Proof action with and without a customer email', () => {
     const withoutEmail = renderToStaticMarkup(<PaymentReceipt invoice={baseInvoice} />);
     expect(withoutEmail).toContain('Download Proof');

@@ -10,9 +10,13 @@ import CopyButton from './CopyButton';
 
 interface PaymentReceiptProps {
   invoice: any;
+  showPrivateContacts?: boolean;
 }
 
-export default function PaymentReceipt({ invoice }: PaymentReceiptProps) {
+export default function PaymentReceipt({
+  invoice,
+  showPrivateContacts = true,
+}: PaymentReceiptProps) {
   const paymentHash = invoice.paymentTxHash;
   if (invoice.status !== 'PAID' || typeof paymentHash !== 'string' || !/^[0-9a-fA-F]{64}$/.test(paymentHash)) {
     return null;
@@ -24,7 +28,7 @@ export default function PaymentReceipt({ invoice }: PaymentReceiptProps) {
   };
 
   const handleEmailProof = () => {
-    if (!invoice.customerEmail) {
+    if (!showPrivateContacts || !invoice.customerEmail) {
       toast.error('No client email on this invoice');
       return;
     }
@@ -48,7 +52,7 @@ PAYMENT DETAILS
 Amount Paid: ${formatAmount(invoice.amount, 7)} ${invoice.assetCode}
 ${invoice.description ? `Description: ${invoice.description}` : ''}
 ${invoice.customerName ? `Customer: ${invoice.customerName}` : ''}
-${invoice.customerEmail ? `Email: ${invoice.customerEmail}` : ''}
+${showPrivateContacts && invoice.customerEmail ? `Email: ${invoice.customerEmail}` : ''}
 
 ───────────────────────────────────────
 TRANSACTION DETAILS
@@ -131,13 +135,13 @@ Stellar Blockchain Payment System
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-center">
             <p className="text-sm text-blue-600 font-semibold">Paid to</p>
             <p className="text-lg font-bold text-blue-800">{invoice.sellerName}</p>
-            {invoice.sellerEmail && (
+            {showPrivateContacts && invoice.sellerEmail && (
               <p className="text-sm text-blue-600">{invoice.sellerEmail}</p>
             )}
           </div>
         )}
 
-        {(invoice.payerName || invoice.payerEmail) && (
+        {showPrivateContacts && (invoice.payerName || invoice.payerEmail) && (
           <div className="bg-green-50 border border-green-200 rounded-lg p-4 text-center">
             <p className="text-sm text-green-600 font-semibold">Paid by</p>
             {invoice.payerName && (
@@ -197,7 +201,7 @@ Stellar Blockchain Payment System
           </button>
         )}
 
-        {invoice.status === 'PAID' && invoice.customerEmail && (
+        {showPrivateContacts && invoice.status === 'PAID' && invoice.customerEmail && (
           <button
             onClick={handleEmailProof}
             className="btn btn-secondary w-full flex items-center justify-center gap-2"

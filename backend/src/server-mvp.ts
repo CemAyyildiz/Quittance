@@ -50,8 +50,9 @@ const ALLOW_SIMULATE = process.env.ALLOW_SIMULATE === 'true';
 /** Map invoices through the DTO helper with the configured Stellar network. */
 function toInvoiceDTO(
   invoice: Parameters<typeof mapInvoiceDTO>[0],
+  options?: Parameters<typeof mapInvoiceDTO>[1],
 ) {
-  return mapInvoiceDTO(invoice, { network: STELLAR_NETWORK });
+  return mapInvoiceDTO(invoice, { ...options, network: STELLAR_NETWORK });
 }
 
 // Middleware
@@ -120,7 +121,7 @@ async function buildCreateInvoiceResponse(invoice: any) {
   );
 
   return {
-    invoice: toInvoiceDTO(invoice),
+    invoice: toInvoiceDTO(invoice, { includePrivateContacts: true }),
     paymentUrl,
     qrCode: qrCodeDataUrl,
     stellarQrCode,
@@ -308,9 +309,14 @@ app.get('/api/invoices/:id', async (req: Request, res: Response) => {
       });
     }
 
+    const sellerPublicKey = req.query.sellerPublicKey;
+    const isSeller =
+      typeof sellerPublicKey === 'string' &&
+      sellerPublicKey.toLowerCase() === invoice.sellerPublicKey.toLowerCase();
+
     res.json({
       success: true,
-      data: toInvoiceDTO(invoice),
+      data: toInvoiceDTO(invoice, { includePrivateContacts: isSeller }),
     });
   } catch (error: any) {
     console.error('Get invoice error:', error);
@@ -442,7 +448,9 @@ app.get('/api/invoices', async (req: Request, res: Response) => {
 
     res.json({
       success: true,
-      data: result.invoices.map(toInvoiceDTO),
+      data: result.invoices.map((invoice) =>
+        toInvoiceDTO(invoice, { includePrivateContacts: true }),
+      ),
       pagination: {
         limit: result.limit,
         nextCursor: result.nextCursor,
