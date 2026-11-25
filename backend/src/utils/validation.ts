@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { StrKey } from '@stellar/stellar-sdk';
 import { MAX_MEMO_BYTES, getMemoByteLength } from './memo';
+import { normalizeAssetCode, NATIVE_ASSET_CODE } from './asset-helpers';
 
 export interface ParsedAmount { decimal: string; stroops: bigint; }
 export function parseAmount(input: string | number): ParsedAmount | undefined {
@@ -90,7 +91,12 @@ export function sumLineItems(lineItems: InvoiceLineItem[]): number {
 // Invoice creation schema
 export const createInvoiceSchema = z.object({
   amount: z.number().finite().positive().max(1000000000),
-  assetCode: z.string().default('XLM').optional(),
+  lineItems: z.array(lineItemSchema).max(MAX_LINE_ITEMS).optional(),
+  assetCode: z.string()
+    .trim()
+    .transform(normalizeAssetCode)
+    .pipe(z.string().max(12, 'Asset code must be at most 12 characters'))
+    .default(NATIVE_ASSET_CODE),
   assetIssuer: stellarPublicKeySchema.optional(),
   description: z.string().max(500).optional(),
   customerName: z.string().max(255).optional(),
@@ -101,8 +107,25 @@ export const createInvoiceSchema = z.object({
   sellerPublicKey: sellerAddressSchema,
   memo: memoByteLengthSchema.optional(),
 }).superRefine((invoice, ctx) => {
-  if (invoice.assetCode && invoice.assetCode !== 'XLM') {
-    if (!invoice.assetIssuer || !/^G[A-Z2-7]{55}$/.test(invoice.assetIssuer)) {
+  if (invoice.lineItems) {
+    const lineItemTotal = sumLineItems(invoice.lineItems);
+    if (lineItemTotal !== roundStellarAmount(invoice.amount)) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['amount'],
+        message: 'Amount must match the sum of line items',
+      });
+    }
+  }
+
+  if (invoice.assetCode !== NATIVE_ASSET_CODE) {
+    if (!invoice.assetIssuer) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['assetIssuer'],
+        message: `${invoice.assetCode} requires an asset issuer`,
+      });
+    } else if (!/^G[A-Z2-7]{55}$/.test(invoice.assetIssuer)) {
       ctx.addIssue({
         code: 'custom',
         path: ['assetIssuer'],

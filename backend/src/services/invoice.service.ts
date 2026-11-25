@@ -3,6 +3,7 @@ import { pool } from '../config/database';
 import { generateInvoiceMemo } from '../utils/memo';
 import { CreateInvoiceInput } from '../utils/validation';
 import { extractBaseAddress, StrKey } from '@stellar/stellar-sdk';
+import { normalizeAssetCode } from '../utils/asset-helpers';
 
 export interface Invoice {
   id: string;
@@ -56,7 +57,7 @@ class InvoiceService {
       sellerMuxedAddress ? extractBaseAddress(sellerMuxedAddress) : input.sellerPublicKey,
       sellerMuxedAddress || null,
       input.amount,
-      input.assetCode || 'XLM',
+      normalizeAssetCode(input.assetCode),
       input.assetIssuer || null,
       memo,
       input.description || null,
