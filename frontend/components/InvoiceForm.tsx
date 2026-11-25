@@ -73,6 +73,9 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
   const [customerName, setCustomerName] = useState('');
   const [customerEmail, setCustomerEmail] = useState('');
   const [sellerName, setSellerName] = useState('');
+  const [draftReadyFor, setDraftReadyFor] = useState<string | null>(null);
+  const [muxedAddress, setMuxedAddress] = useState('');
+  const [muxedAddressError, setMuxedAddressError] = useState('');
   const [trustlineWarning, setTrustlineWarning] = useState<string | null>(null);
   const [serverWarning, setServerWarning] = useState<string | null>(null);
   const [acknowledgedWarning, setAcknowledgedWarning] = useState(false);
@@ -277,6 +280,17 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
       return;
     }
 
+    const submittedMuxedAddress = muxedAddress.trim();
+    if (
+      submittedMuxedAddress &&
+      (!StrKey.isValidMed25519PublicKey(submittedMuxedAddress) ||
+        extractBaseAddress(submittedMuxedAddress) !== userWallet)
+    ) {
+      setMuxedAddressError('Enter a valid muxed address for your connected wallet');
+      return;
+    }
+    setMuxedAddressError('');
+
     const amountNum = parseFloat(amount);
     if (!amount || amountNum <= 0 || !Number.isFinite(amountNum)) {
       setAmountError('Enter a valid amount');
@@ -308,7 +322,7 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
         assetCode: assetCode,
         assetIssuer: selectedAsset?.issuer,
         expiresInDays: 7,
-        sellerPublicKey: userWallet,
+        sellerPublicKey: submittedMuxedAddress || userWallet,
         sellerName: sellerName.trim() || undefined,
         description: description || undefined,
         memo: memo || undefined,
@@ -333,6 +347,7 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
       setCustomerName('');
       setCustomerEmail('');
       setSellerName('');
+      setMuxedAddress('');
       setAmountError('');
       setEmailError('');
       setMemoSubmitted(false);

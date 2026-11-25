@@ -34,16 +34,6 @@ const {
 
 // The payment flow must never touch the real Horizon/Freighter SDK or the
 // real invoice backend while testing, so both are replaced with mocks.
-vi.mock('@/lib/stellar', () => ({
-  sendPayment: mockSendPayment,
-  checkWalletConnection: mockCheckWalletConnection,
-  requestWalletAccess: mockRequestWalletAccess,
-  getWalletNetwork: mockGetWalletNetwork,
-  getConfiguredNetwork: () => 'TESTNET',
-  getNetworkMismatch: (wallet: string, configured: string) =>
-    wallet !== 'UNKNOWN' && wallet !== configured,
-}));
-
 // Network calls are mocked, but the pure testnet/fee helpers stay real so the
 // fee threshold and the network gate are exercised, not stubbed.
 vi.mock('@/lib/stellar', async (importOriginal) => {
@@ -57,6 +47,10 @@ vi.mock('@/lib/stellar', async (importOriginal) => {
     getAccountBalance: mockGetAccountBalance,
     requestFriendbotFunding: mockRequestFriendbotFunding,
     isValidPublicKey: mockIsValidPublicKey,
+    getWalletNetwork: mockGetWalletNetwork,
+    getConfiguredNetwork: () => 'TESTNET',
+    getNetworkMismatch: (wallet: string, configured: string) =>
+      wallet !== 'UNKNOWN' && wallet !== configured,
   };
 });
 
@@ -107,6 +101,9 @@ beforeEach(() => {
   mockCheckWalletConnection.mockResolvedValue(true);
   mockRequestWalletAccess.mockResolvedValue(true);
   mockGetWalletNetwork.mockResolvedValue('TESTNET');
+  mockGetUserPublicKey.mockResolvedValue(PAYER_PUBLIC_KEY);
+  mockGetAccountBalance.mockResolvedValue([{ assetCode: 'XLM', balance: '100.0000000' }]);
+  mockIsValidPublicKey.mockReturnValue(true);
   mockSendPayment.mockResolvedValue(TX_HASH);
   mockVerify.mockResolvedValue({ verified: true });
 });
@@ -149,6 +146,7 @@ describe('PaymentButton', () => {
       expect(processing.querySelector('.animate-spin')).not.toBeNull();
       expect(screen.queryByRole('button', { name: PAY_IDLE_LABEL })).not.toBeInTheDocument();
     });
+    await waitFor(() => expect(mockSendPayment).toHaveBeenCalled());
 
     // Resolve the pending payment; the button must return to the idle state.
     await act(async () => {

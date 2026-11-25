@@ -8,6 +8,12 @@ import {
   getWalletNetwork,
   getConfiguredNetwork,
   getNetworkMismatch,
+  getUserPublicKey,
+  getAccountBalance,
+  hasEnoughXlmForFee,
+  isTestnetNetwork,
+  isValidPublicKey,
+  requestFriendbotFunding,
   type WalletNetwork,
 } from '@/lib/stellar';
 import { toast } from 'sonner';
@@ -48,6 +54,11 @@ export default function PaymentButton({
   onError,
 }: PaymentButtonProps) {
   const [loading, setLoading] = useState(false);
+  const [offerFunding, setOfferFunding] = useState(false);
+  const [funding, setFunding] = useState(false);
+  const [fundingError, setFundingError] = useState<string | null>(null);
+  const [feeBumpEnabled, setFeeBumpEnabled] = useState(false);
+  const [feeSource, setFeeSource] = useState('');
   const [walletNetwork, setWalletNetwork] = useState<WalletNetwork>('UNKNOWN');
   const [networkMismatch, setNetworkMismatch] = useState(false);
   const configuredNetwork = getConfiguredNetwork();
@@ -136,14 +147,17 @@ export default function PaymentButton({
       }
 
       toast.loading('Confirm in wallet...', { id: PAY_TOAST_ID });
-      const txHash = await sendPayment(
-        destination,
-        amount,
-        memo,
-        assetCode,
-        issuer,
-        bounds?.ok ? bounds.maxTime : undefined,
-      );
+      let txHash: string;
+      if (feeBumpEnabled) {
+        const options = { feeSource: feeSource.trim() };
+        txHash = bounds?.ok
+          ? await sendPayment(destination, amount, memo, assetCode, issuer, options, bounds.maxTime)
+          : await sendPayment(destination, amount, memo, assetCode, issuer, options);
+      } else {
+        txHash = bounds?.ok
+          ? await sendPayment(destination, amount, memo, assetCode, issuer, bounds.maxTime)
+          : await sendPayment(destination, amount, memo, assetCode, issuer);
+      }
 
       if (invoiceId) {
         toast.loading('Verifying payment...', { id: PAY_TOAST_ID });
@@ -186,6 +200,10 @@ export default function PaymentButton({
   };
 
   const handlePayment = () => {
+    if (feeBumpEnabled && !isValidPublicKey(feeSource.trim())) {
+      toast.error('Enter a valid fee source account');
+      return;
+    }
     void pay(true);
   };
 

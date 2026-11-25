@@ -244,6 +244,47 @@ export const mockInvoiceApi = {
     };
   },
 
+  duplicate: async (
+    id: string,
+    data: { sellerPublicKey: string; copyCustomerEmail?: boolean },
+  ) => {
+    await delay(500);
+    const invoice = mockInvoices.find(
+      (item) => item.id === id && item.sellerPublicKey === data.sellerPublicKey,
+    );
+    if (!invoice) {
+      throw new Error('Invoice not found');
+    }
+
+    const duplicate: MockInvoice = {
+      ...invoice,
+      id: Math.random().toString(36).slice(2, 11),
+      status: 'PENDING',
+      createdAt: new Date().toISOString(),
+      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+      paidAt: undefined,
+      paymentTxHash: undefined,
+      payerPublicKey: undefined,
+      refundTxHash: undefined,
+      refundedAt: undefined,
+      customerEmail: data.copyCustomerEmail ? invoice.customerEmail : undefined,
+    };
+    mockInvoices.unshift(duplicate);
+    return { success: true, data: { invoice: duplicate } };
+  },
+
+  markUncollectible: async (id: string, sellerPublicKey: string) => {
+    await delay(500);
+    const invoice = mockInvoices.find(
+      (item) => item.id === id && item.sellerPublicKey === sellerPublicKey,
+    );
+    if (!invoice) {
+      throw new Error('Invoice not found');
+    }
+    invoice.status = 'UNCOLLECTIBLE';
+    return { success: true, data: invoice };
+  },
+
   refund: async (id: string, data: { sellerPublicKey: string; refundTxHash: string }) => {
     await delay(500);
     const invoice = mockInvoices.find(inv => inv.id === id);

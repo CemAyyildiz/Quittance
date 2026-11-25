@@ -23,6 +23,7 @@ import { toast } from 'sonner';
 import { downloadAllInvoicesCSV, downloadPaidInvoiceCSV } from '@/lib/export';
 import { invoiceStatusLabel } from '@/lib/invoiceStatusLabel';
 import { getInvoiceReminder } from '@/lib/mailtoProof';
+import InvoiceBackupExport from '@/components/InvoiceBackupExport';
 
 const PAGE_SIZE = 50;
 
@@ -39,6 +40,9 @@ export default function DashboardPage() {
   const [searchInput, setSearchInput] = useState<string>('');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [viewMode, setViewMode] = useState<'invoices' | 'transactions'>('invoices');
+  const [exporting, setExporting] = useState<string | null>(null);
+  const [importing, setImporting] = useState(false);
+  const importInput = useRef<HTMLInputElement>(null);
   const loadRequestId = useRef(0);
   const [cursorStack, setCursorStack] = useState<Array<string | undefined>>([undefined]);
   const [pageIndex, setPageIndex] = useState(0);
@@ -214,7 +218,7 @@ export default function DashboardPage() {
 
   const handleExportJSON = async () => {
     if (!publicKey) return;
-    setExporting(true);
+    setExporting('json');
     try {
       const backup: any[] = [];
       let cursor: string | undefined;
@@ -235,7 +239,7 @@ export default function DashboardPage() {
     } catch {
       toast.error('Failed to export invoice backup');
     } finally {
-      setExporting(false);
+      setExporting(null);
     }
   };
 
@@ -446,10 +450,10 @@ export default function DashboardPage() {
               <button
                 type="button"
                 onClick={handleExportJSON}
-                disabled={exporting}
+                disabled={exporting !== null}
                 className="btn btn-primary whitespace-nowrap"
               >
-                {exporting ? 'Exporting...' : 'Back up JSON'}
+                {exporting === 'json' ? 'Exporting...' : 'Back up JSON'}
               </button>
               <input
                 ref={importInput}
@@ -604,7 +608,7 @@ export default function DashboardPage() {
                   </div>
                 )}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {filteredInvoices.map((invoice) => {
+                  {invoices.map((invoice) => {
                     const reminder = getInvoiceReminder(
                       invoice,
                       paymentOrigin ? `${paymentOrigin}/pay/${invoice.id}` : '',
