@@ -315,6 +315,7 @@ export default function PaymentPage() {
       invoice.memo,
       invoice.assetIssuer
     );
+  const sellerWalletConnected = userWallet === invoice.sellerPublicKey;
 
   const horizonUrl =
     process.env.NEXT_PUBLIC_STELLAR_NETWORK === 'TESTNET'
@@ -509,7 +510,7 @@ export default function PaymentPage() {
               )}
             </div>
 
-            {invoice.status === 'PAID' && (
+            {invoice.status === 'PAID' && sellerWalletConnected && (
               <div className="border-t pt-5 flex gap-2">
                 <button
                   onClick={handleDownloadPDF}
@@ -690,7 +691,10 @@ export default function PaymentPage() {
 
           <div className="space-y-6">
             {invoice.status === 'PAID' && (
-              <PaymentReceipt invoice={invoice} />
+              <PaymentReceipt
+                invoice={invoice}
+                showProofActions={sellerWalletConnected}
+              />
             )}
 
             {invoice.status === 'EXPIRED' && (

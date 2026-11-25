@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { importInvoiceBackup, invoiceApi } from '@/lib/api';
 import InvoiceCard from '@/components/InvoiceCard';
+import InvoiceBackupExport from '@/components/InvoiceBackupExport';
 import WalletConnect from '@/components/WalletConnect';
 import UserProfile from '@/components/UserProfile';
 import TransactionHistory from '@/components/TransactionHistory';
@@ -32,6 +33,8 @@ export default function DashboardPage() {
   const [stats, setStats] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
+  const [exporting, setExporting] = useState<'paid' | 'all' | 'json' | null>(null);
+  const [importing, setImporting] = useState(false);
   const [filter, setFilter] = useState<string>('all');
   const [assetCode, setAssetCode] = useState('');
   const [createdFrom, setCreatedFrom] = useState('');
@@ -40,6 +43,7 @@ export default function DashboardPage() {
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [viewMode, setViewMode] = useState<'invoices' | 'transactions'>('invoices');
   const loadRequestId = useRef(0);
+  const importInput = useRef<HTMLInputElement>(null);
   const [cursorStack, setCursorStack] = useState<Array<string | undefined>>([undefined]);
   const [pageIndex, setPageIndex] = useState(0);
   const [nextCursor, setNextCursor] = useState<string | undefined>(undefined);
@@ -214,7 +218,7 @@ export default function DashboardPage() {
 
   const handleExportJSON = async () => {
     if (!publicKey) return;
-    setExporting(true);
+    setExporting('json');
     try {
       const backup: any[] = [];
       let cursor: string | undefined;
@@ -235,7 +239,7 @@ export default function DashboardPage() {
     } catch {
       toast.error('Failed to export invoice backup');
     } finally {
-      setExporting(false);
+      setExporting(null);
     }
   };
 
@@ -446,10 +450,10 @@ export default function DashboardPage() {
               <button
                 type="button"
                 onClick={handleExportJSON}
-                disabled={exporting}
+                disabled={exporting !== null}
                 className="btn btn-primary whitespace-nowrap"
               >
-                {exporting ? 'Exporting...' : 'Back up JSON'}
+                {exporting === 'json' ? 'Exporting...' : 'Back up JSON'}
               </button>
               <input
                 ref={importInput}
@@ -604,7 +608,7 @@ export default function DashboardPage() {
                   </div>
                 )}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {filteredInvoices.map((invoice) => {
+                  {invoices.map((invoice) => {
                     const reminder = getInvoiceReminder(
                       invoice,
                       paymentOrigin ? `${paymentOrigin}/pay/${invoice.id}` : '',
