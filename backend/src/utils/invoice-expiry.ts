@@ -40,6 +40,22 @@ function expiresAtMs(invoice: ExpirableInvoice): number {
 }
 
 /**
+ * Whether a requested expiry is strictly in the future at `now`.
+ *
+ * Used when an invoice is created with an explicit `expiresAt`: an expiry at
+ * or before the current instant would make the invoice unpayable the moment
+ * it is shared. Instants are compared in UTC, so the server clock decides,
+ * not the client's local offset. An unreadable value is not future.
+ */
+export function isFutureExpiry(
+  expiresAt: Date | string,
+  now: number = Date.now(),
+): boolean {
+  const expiry = toDateMs(expiresAt);
+  return Number.isFinite(expiry) && expiry > now;
+}
+
+/**
  * Whether an invoice is past its settlement window at `now`.
  *
  * The comparison is strict, matching `markExpiredInvoices`: an invoice is

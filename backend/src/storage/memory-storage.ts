@@ -1,5 +1,6 @@
 // In-memory storage - Database yerine MVP için
 import { v4 as uuidv4 } from 'uuid';
+import { normalizeAssetCode } from '../utils/asset-helpers';
 
 export interface Invoice {
   id: string;
@@ -48,7 +49,7 @@ class MemoryStorage {
       sellerName: data.sellerName,
       amount: data.amount!,
       lineItems: data.lineItems,
-      assetCode: data.assetCode || 'XLM',
+      assetCode: normalizeAssetCode(data.assetCode),
       assetIssuer: data.assetIssuer,
       memo: data.memo!,
       description: data.description,

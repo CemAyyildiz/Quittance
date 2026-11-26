@@ -29,7 +29,15 @@ export default function InvoiceDetailPage() {
   const [paymentInfo, setPaymentInfo] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [voiding, setVoiding] = useState(false);
+  const [duplicateOpen, setDuplicateOpen] = useState(false);
+  const [copyCustomerEmail, setCopyCustomerEmail] = useState(false);
+  const [duplicating, setDuplicating] = useState(false);
+  const [anchoring, setAnchoring] = useState(false);
   const [userWallet, setUserWallet] = useState<string | null>(null);
+  const [duplicateOpen, setDuplicateOpen] = useState(false);
+  const [copyCustomerEmail, setCopyCustomerEmail] = useState(false);
+  const [duplicating, setDuplicating] = useState(false);
+  const [anchoring, setAnchoring] = useState(false);
   const [refundTxHash, setRefundTxHash] = useState('');
   const [refunding, setRefunding] = useState(false);
   const [duplicateOpen, setDuplicateOpen] = useState(false);
@@ -98,21 +106,65 @@ export default function InvoiceDetailPage() {
     toast.success('Opening payment proof');
   };
 
+  const handleVoidInvoice = async () => {
+    if (!userWallet || !isSeller) return;
+    setVoiding(true);
+    try {
+      const result = await invoiceApi.cancel(id, userWallet);
+      setInvoice(result.data);
+      toast.success('Invoice voided');
+    } catch (error: any) {
+      toast.error(error.response?.data?.error ?? 'Could not void invoice');
+    } finally {
+      setVoiding(false);
+    }
+  };
+
   const handleDuplicate = async () => {
-    if (!userWallet) return;
+    if (!userWallet || !isSeller) return;
     setDuplicating(true);
     try {
       const result = await invoiceApi.duplicate(id, {
         sellerPublicKey: userWallet,
         copyCustomerEmail,
       });
+      const duplicateId = result.data.invoice?.id;
+      if (!duplicateId) {
+        throw new Error('The duplicated invoice was not returned by the server');
+      }
       toast.success('Invoice duplicated');
-      router.push(`/invoice/${result.data.invoice.id}`);
+      router.push(`/invoice/${duplicateId}`);
     } catch (error: any) {
-      toast.error(error.response?.data?.error || 'Failed to duplicate invoice');
+      toast.error(error.response?.data?.error ?? error.message ?? 'Could not duplicate invoice');
     } finally {
       setDuplicating(false);
       setDuplicateOpen(false);
+    }
+  };
+
+  const handleAnchorProof = async () => {
+    if (!userWallet || !isSeller) return;
+    setAnchoring(true);
+    try {
+      const proofResult = await invoiceApi.getProofDigest(id, userWallet);
+      const digest = proofResult.data.digest;
+      const prepared = await invoiceApi.prepareAnchorProof(id, digest, userWallet);
+      const contractId = prepared.data.contractId;
+      if (!contractId) {
+        throw new Error('Receipt anchoring is not configured');
+      }
+      const txHash = await submitAnchorTransaction(contractId, invoice.id, digest);
+      const result = await invoiceApi.anchorProof(id, {
+        digest,
+        txHash,
+        sellerPublicKey: userWallet,
+      });
+      setInvoice(result.data);
+      toast.success('Proof anchored on chain');
+    } catch (error: any) {
+      toast.error(error.response?.data?.error ?? error.message ?? 'Could not anchor proof');
+    } finally {
+      setAnchoring(false);
     }
   };
 
@@ -131,6 +183,73 @@ export default function InvoiceDetailPage() {
       toast.error(error.response?.data?.error ?? 'Refund could not be verified');
     } finally {
       setRefunding(false);
+    }
+  };
+
+  const handleVoidInvoice = async () => {
+    if (!userWallet || !isSeller || invoice.status !== 'PENDING' || voiding) return;
+    setVoiding(true);
+    try {
+      const result = await invoiceApi.cancel(id, userWallet);
+      setInvoice(result.data);
+      toast.success('Invoice voided');
+    } catch (error: any) {
+      toast.error(error.response?.data?.error ?? 'Could not void invoice');
+    } finally {
+      setVoiding(false);
+    }
+  };
+
+  const handleDuplicate = async () => {
+    if (!userWallet || !isSeller || duplicating) return;
+    setDuplicating(true);
+    try {
+      const result = await invoiceApi.duplicate(id, {
+        sellerPublicKey: userWallet,
+        copyCustomerEmail,
+      });
+      const duplicatedInvoice = result.data?.invoice;
+      if (!duplicatedInvoice?.id) {
+        throw new Error('The duplicated invoice response is invalid');
+      }
+      setDuplicateOpen(false);
+      toast.success('Invoice duplicated');
+      router.push(`/invoice/${duplicatedInvoice.id}`);
+    } catch (error: any) {
+      toast.error(error.response?.data?.error ?? error.message ?? 'Could not duplicate invoice');
+    } finally {
+      setDuplicating(false);
+    }
+  };
+
+  const handleAnchorProof = async () => {
+    if (!userWallet || !isSeller || invoice.status !== 'PAID' || anchoring) return;
+    setAnchoring(true);
+    try {
+      const digestResult = await invoiceApi.getProofDigest(id, userWallet);
+      const digest = digestResult.data?.digest;
+      if (typeof digest !== 'string' || !digest) {
+        throw new Error('Could not compute the invoice proof digest');
+      }
+
+      const preparedResult = await invoiceApi.prepareAnchorProof(id, digest, userWallet);
+      const contractId = preparedResult.data?.contractId;
+      if (typeof contractId !== 'string' || !contractId) {
+        throw new Error('Receipt anchoring contract is not configured');
+      }
+
+      const txHash = await submitAnchorTransaction(contractId, id, digest);
+      const result = await invoiceApi.anchorProof(id, {
+        digest,
+        txHash,
+        sellerPublicKey: userWallet,
+      });
+      setInvoice(result.data);
+      toast.success('Proof anchored on chain');
+    } catch (error: any) {
+      toast.error(error.response?.data?.error ?? error.message ?? 'Could not anchor proof');
+    } finally {
+      setAnchoring(false);
     }
   };
 

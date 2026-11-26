@@ -11,9 +11,13 @@ import CopyButton from './CopyButton';
 
 interface PaymentReceiptProps {
   invoice: any;
+  showProofActions?: boolean;
 }
 
-export default function PaymentReceipt({ invoice }: PaymentReceiptProps) {
+export default function PaymentReceipt({
+  invoice,
+  showProofActions = true,
+}: PaymentReceiptProps) {
   const paymentHash = invoice.paymentTxHash;
   if (invoice.status !== 'PAID' || typeof paymentHash !== 'string' || !/^[0-9a-fA-F]{64}$/.test(paymentHash)) {
     return null;
@@ -188,7 +192,7 @@ Stellar Blockchain Payment System
       </div>
 
       <div className="border-t pt-6 space-y-3 print:hidden">
-        {invoice.status === 'PAID' && (
+        {showProofActions && invoice.status === 'PAID' && (
           <button
             onClick={handleDownloadPDF}
             className="btn btn-primary w-full flex items-center justify-center gap-2"
@@ -198,7 +202,7 @@ Stellar Blockchain Payment System
           </button>
         )}
 
-        {invoice.status === 'PAID' && invoice.customerEmail && (
+        {showProofActions && invoice.status === 'PAID' && invoice.customerEmail && (
           <button
             onClick={handleEmailProof}
             className="btn btn-secondary w-full flex items-center justify-center gap-2"
