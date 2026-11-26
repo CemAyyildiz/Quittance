@@ -53,8 +53,10 @@ export const invoiceApi = USE_MOCK_API ? mockInvoiceApi : {
     return response.data;
   },
 
-  getById: async (id: string) => {
-    const response = await api.get(`/invoices/${id}`);
+  getById: async (id: string, sellerPublicKey?: string) => {
+    const response = await api.get(`/invoices/${id}`, {
+      params: sellerPublicKey ? { sellerPublicKey } : undefined,
+    });
     return response.data;
   },
 

@@ -21,9 +21,9 @@ export function toStatusHistoryDTO(event: StatusEvent): StatusHistoryEntryDTO {
 export interface InvoiceDTO {
   id: string;
   sellerPublicKey: string;
+  sellerMuxedAddress?: string;
   sellerName?: string;
   amount: number;
-  sellerMuxedAddress?: string;
   lineItems?: Array<{ label: string; quantity: number; unitPrice: number }>;
   assetCode: string;
   assetIssuer?: string;
@@ -31,7 +31,7 @@ export interface InvoiceDTO {
   description?: string;
   customerName?: string;
   customerEmail?: string;
-  status: 'PENDING' | 'PAID' | 'REFUNDED' | 'EXPIRED' | 'CANCELLED';
+  status: 'PENDING' | 'PAID' | 'REFUNDED' | 'EXPIRED' | 'CANCELLED' | 'UNCOLLECTIBLE';
   paymentTxHash?: string;
   payerPublicKey?: string;
   ledger?: number;
@@ -57,7 +57,6 @@ export interface ProofDigestFields {
   invoiceId: string;
   amount: number | string;
   assetCode: string;
-  /** Empty string for native XLM — never the word "null". */
   assetIssuer: string;
   memo: string;
   sellerPublicKey: string;
@@ -68,6 +67,8 @@ export interface ProofDigestFields {
 export interface ToInvoiceDTOOptions {
   /** Stellar network label (e.g. TESTNET / PUBLIC). Defaults to STELLAR_NETWORK or TESTNET. */
   network?: string;
+  /** Exclude optional customer email when serializing an invoice for public access. */
+  includeCustomerEmail?: boolean;
 }
 
 /**
@@ -123,10 +124,10 @@ export function toInvoiceDTO(
     assetIssuer?: string;
     memo: string;
     description?: string;
-    lineItems?: unknown[];
+    lineItems?: Array<{ label: string; quantity: number; unitPrice: number }>;
     customerName?: string;
     customerEmail?: string;
-    status: 'PENDING' | 'PAID' | 'REFUNDED' | 'EXPIRED' | 'CANCELLED';
+    status: 'PENDING' | 'PAID' | 'REFUNDED' | 'EXPIRED' | 'CANCELLED' | 'UNCOLLECTIBLE';
     paymentTxHash?: string;
     payerPublicKey?: string;
     ledger?: number;
@@ -161,7 +162,7 @@ export function toInvoiceDTO(
     memo: invoice.memo,
     description: invoice.description,
     customerName: invoice.customerName,
-    customerEmail: invoice.customerEmail,
+    ...(options?.includeCustomerEmail === false ? {} : { customerEmail: invoice.customerEmail }),
     status: invoice.status,
     paymentTxHash: invoice.paymentTxHash,
     payerPublicKey: invoice.payerPublicKey,

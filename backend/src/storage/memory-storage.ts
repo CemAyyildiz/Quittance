@@ -5,6 +5,7 @@ import { normalizeAssetCode } from '../utils/asset-helpers';
 export interface Invoice {
   id: string;
   sellerPublicKey: string;
+  sellerMuxedAddress?: string;
   sellerName?: string;
   amount: number;
   lineItems?: Array<{ label: string; quantity: number; unitPrice: number }>;
@@ -12,11 +13,11 @@ export interface Invoice {
   assetIssuer?: string;
   memo: string;
   description?: string;
-  lineItems?: unknown[];
   customerName?: string;
   customerEmail?: string;
-  status: 'PENDING' | 'PAID' | 'REFUNDED' | 'EXPIRED' | 'CANCELLED';
+  status: 'PENDING' | 'PAID' | 'REFUNDED' | 'EXPIRED' | 'CANCELLED' | 'UNCOLLECTIBLE';
   paymentTxHash?: string;
+  anchoringTxHash?: string;
   paymentLedger?: number;
   payerPublicKey?: string;
   ledger?: number;
@@ -34,6 +35,41 @@ export interface Invoice {
   receivedAmount: string;
 }
 
+export type StatusEventStatus =
+  | 'CREATED'
+  | 'PARTIALLY_PAID'
+  | 'PAID'
+  | 'EXTENDED'
+  | 'VOIDED'
+  | 'REFUNDED'
+  | 'EXPIRED'
+  | 'UNCOLLECTIBLE';
+
+export interface StatusEvent {
+  status: StatusEventStatus;
+  at: Date;
+  txHash?: string;
+}
+
+function statusEventFor(
+  status: Invoice['status'],
+): StatusEventStatus {
+  switch (status) {
+    case 'PENDING':
+      return 'CREATED';
+    case 'PAID':
+      return 'PAID';
+    case 'REFUNDED':
+      return 'REFUNDED';
+    case 'EXPIRED':
+      return 'EXPIRED';
+    case 'CANCELLED':
+      return 'VOIDED';
+    case 'UNCOLLECTIBLE':
+      return 'UNCOLLECTIBLE';
+  }
+}
+
 class MemoryStorage {
   private invoices: Map<string, Invoice> = new Map();
   private invoicesByMemo: Map<string, string> = new Map(); // memo -> invoice id
@@ -46,9 +82,9 @@ class MemoryStorage {
     const invoice: Invoice = {
       id: data.id || uuidv4(),
       sellerPublicKey: data.sellerPublicKey!,
+      sellerMuxedAddress: data.sellerMuxedAddress,
       sellerName: data.sellerName,
       amount: data.amount!,
-      lineItems: data.lineItems,
       assetCode: normalizeAssetCode(data.assetCode),
       assetIssuer: data.assetIssuer,
       memo: data.memo!,
@@ -199,6 +235,32 @@ class MemoryStorage {
     return invoice;
   }
 
+  recordPayment(
+    id: string,
+    payment: { txHash: string; amount: string; payerPublicKey: string; ledger: number; paidAt: Date },
+    receivedAmount: string,
+    paid: boolean,
+  ): Invoice | undefined {
+    const invoice = this.invoices.get(id);
+    if (!invoice) return undefined;
+    const payments = [...invoice.payments, payment];
+    const updated = this.updateInvoice(id, {
+      payments,
+      receivedAmount,
+      ...(paid
+        ? {
+            status: 'PAID',
+            paymentTxHash: payment.txHash,
+            payerPublicKey: payment.payerPublicKey,
+            ledger: payment.ledger,
+            paidAt: payment.paidAt,
+          }
+        : {}),
+    });
+    this.invoicesByTxHash.set(payment.txHash, id);
+    return updated;
+  }
+
   markAsRefunded(
     id: string,
     refundTxHash: string,
@@ -212,6 +274,12 @@ class MemoryStorage {
     });
     if (invoice) this.invoicesByTxHash.set(refundTxHash, id);
     return invoice;
+  }
+
+  markUncollectible(id: string): Invoice | undefined {
+    const invoice = this.invoices.get(id);
+    if (!invoice || invoice.status !== 'PENDING') return invoice;
+    return this.updateInvoice(id, { status: 'UNCOLLECTIBLE' });
   }
 
   // Get all invoices

@@ -94,7 +94,7 @@ describe('PaymentPage SEP-7 handoff', () => {
     expect(await screen.findByRole('button', { name: 'Download Proof' })).toBeEnabled();
   });
 
-  it('gives the available email proof action an accessible name', async () => {
+  it('keeps customer email out of the public payment receipt', async () => {
     mockInvoice({
       status: 'PAID',
       paidAt: '2026-11-23T12:00:00Z',
@@ -102,10 +102,11 @@ describe('PaymentPage SEP-7 handoff', () => {
     });
     render(<PaymentPage />);
     expect(screen.queryByRole('button', { name: /email payment proof/i })).toBeNull();
+    expect(document.body).not.toHaveTextContent('client@example.com');
     fireEvent.click(await screen.findByRole('button', { name: 'connect-wallet' }));
-    expect(
-      await screen.findByRole('button', { name: /email payment proof/i }),
-    ).toBeEnabled();
+    expect(await screen.findByRole('button', { name: 'Download Proof' })).toBeEnabled();
+    expect(screen.queryByRole('button', { name: /email payment proof/i })).toBeNull();
+    expect(document.body).not.toHaveTextContent('client@example.com');
   });
 
   it('shows paid status and removes the payment action for a paid invoice', async () => {

@@ -126,11 +126,11 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
   const [submitError, setSubmitError] = useState('');
   const [memoSubmitted, setMemoSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [draftReadyFor, setDraftReadyFor] = useState<string | null>(null);
   // `loading` only disables the button after a re-render, so a fast double
   // click could start two requests; this ref blocks re-entry synchronously.
   const submittingRef = useRef(false);
   const [amount, setAmount] = useState('');
-  const [draftReadyFor, setDraftReadyFor] = useState<string | null>(null);
   const [rememberedAssetCode, setRememberedAssetCode] = useState<string | null>(null);
   const [lineItems, setLineItems] = useState<InvoiceLineInput[]>([
     { label: '', quantity: '1', unitPrice: '' },
@@ -148,11 +148,8 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
   const [acknowledgedWarning, setAcknowledgedWarning] = useState(false);
   const [amountError, setAmountError] = useState('');
   const [emailError, setEmailError] = useState('');
-  const [muxedAddress, setMuxedAddress] = useState('');
-  const [muxedAddressError, setMuxedAddressError] = useState('');
   const [expiresAt, setExpiresAt] = useState('');
   const [expiryError, setExpiryError] = useState('');
-  const [draftReadyFor, setDraftReadyFor] = useState<string | null>(null);
   const [walletNetwork, setWalletNetwork] = useState<WalletNetwork>('UNKNOWN');
   const [networkMismatch, setNetworkMismatch] = useState(false);
   const configuredNetwork = getConfiguredNetwork();
@@ -374,8 +371,7 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
     }
     setMuxedAddressError('');
 
-    const chosenAsset = getAssetByCode(assetCode);
-    if (!chosenAsset) {
+    if (!selectedAsset) {
       setSubmitError('Select a supported asset');
       return;
     }
@@ -441,6 +437,7 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
         assetCode: assetCode,
         assetIssuer: selectedAsset?.issuer,
         expiresInDays: 7,
+        expiresAt: expiryValue ? new Date(expiryValue).toISOString() : undefined,
         sellerPublicKey: enteredMuxedAddress || userWallet,
         sellerName: sellerName.trim() || undefined,
         description: description || undefined,

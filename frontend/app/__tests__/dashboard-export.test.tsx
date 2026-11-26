@@ -28,7 +28,6 @@ vi.mock('sonner', () => ({
   toast: { success: vi.fn(), error: vi.fn() },
 }));
 
-vi.mock('@/components/InvoiceCard', () => ({ default: () => null }));
 vi.mock('@/components/WalletConnect', () => ({ default: () => null }));
 vi.mock('@/components/UserProfile', () => ({ default: () => null }));
 vi.mock('@/components/TransactionHistory', () => ({ default: () => null }));
@@ -42,6 +41,8 @@ function invoice(id: string, status: string, sellerPublicKey = SELLER) {
     amount: 1,
     assetCode: 'XLM',
     memo: id,
+    createdAt: '2026-01-01T00:00:00.000Z',
+    expiresAt: '2026-01-02T00:00:00.000Z',
   };
 }
 
@@ -110,5 +111,26 @@ describe('Dashboard CSV exports', () => {
     await waitFor(() => {
       expect(downloadAllInvoicesCSV).toHaveBeenCalledWith([pending, paid], SELLER);
     });
+  });
+
+  it('does not show a customer email in a dashboard invoice row', async () => {
+    const customerEmail = 'private@example.com';
+    const dueSoonInvoice = {
+      ...invoice('pending-email', 'PENDING'),
+      customerEmail,
+      createdAt: new Date().toISOString(),
+      expiresAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+    };
+    vi.mocked(invoiceApi.getAll).mockResolvedValue({
+      data: [dueSoonInvoice],
+      pagination: {},
+    } as never);
+
+    render(<DashboardPage />);
+
+    expect(
+      await screen.findByRole('link', { name: 'Remind about invoice pending-email' }),
+    ).toBeInTheDocument();
+    expect(document.body).not.toHaveTextContent(customerEmail);
   });
 });

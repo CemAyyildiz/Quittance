@@ -144,31 +144,54 @@ export const decimalsLessThan = isDecimalLessThan;
 export const decimalsGreaterThan = isDecimalGreaterThan;
 
 const STELLAR_SCALE = 7;
+export const STROOPS_PER_UNIT = 10n ** BigInt(STELLAR_SCALE);
+export const MAX_STROOPS = 9_223_372_036_854_775_807n;
 
-function toScaledUnits(value: string): bigint {
-  const trimmed = value.trim();
-  if (!/^\d+(?:\.\d{0,7})?$/.test(trimmed)) {
-    throw new Error('Amount must be a non-negative decimal with at most 7 places');
+export function amountToStroops(value: string | number): bigint {
+  const trimmed = String(value).trim();
+  if (!/^\d+(?:\.\d{1,7})?$/.test(trimmed)) {
+    throw new Error('Amount must be a non-negative decimal with at most 7 decimal places');
   }
   const [whole, fraction = ''] = trimmed.split('.');
-  return BigInt(whole) * 10n ** BigInt(STELLAR_SCALE) + BigInt(fraction.padEnd(STELLAR_SCALE, '0'));
+  const stroops =
+    BigInt(whole) * STROOPS_PER_UNIT +
+    BigInt(fraction.padEnd(STELLAR_SCALE, '0') || '0');
+  if (stroops > MAX_STROOPS) {
+    throw new Error('Amount exceeds the maximum Stellar stroop value');
+  }
+  return stroops;
+}
+
+export function isValidAmount(value: string | number): boolean {
+  try {
+    return amountToStroops(value) > 0n;
+  } catch {
+    return false;
+  }
+}
+
+export function amountsMatch(a: string | number, b: string | number): boolean {
+  try {
+    return amountToStroops(a) === amountToStroops(b);
+  } catch {
+    return false;
+  }
 }
 
 function fromScaledUnits(value: bigint): string {
-  const scale = 10n ** BigInt(STELLAR_SCALE);
-  const whole = value / scale;
-  const fraction = (value % scale).toString().padStart(STELLAR_SCALE, '0').replace(/0+$/, '');
+  const whole = value / STROOPS_PER_UNIT;
+  const fraction = (value % STROOPS_PER_UNIT).toString().padStart(STELLAR_SCALE, '0').replace(/0+$/, '');
   return fraction ? `${whole}.${fraction}` : whole.toString();
 }
 
 /** Add Stellar decimal amounts without IEEE-754 rounding. */
 export function addDecimalAmounts(a: string, b: string): string {
-  return fromScaledUnits(toScaledUnits(a) + toScaledUnits(b));
+  return fromScaledUnits(amountToStroops(a) + amountToStroops(b));
 }
 
 /** Subtract non-negative Stellar decimal amounts without rounding. */
 export function subtractDecimalAmounts(a: string, b: string): string {
-  const result = toScaledUnits(a) - toScaledUnits(b);
+  const result = amountToStroops(a) - amountToStroops(b);
   if (result < 0n) throw new Error('Amount subtraction cannot be negative');
   return fromScaledUnits(result);
 }

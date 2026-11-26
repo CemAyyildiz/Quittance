@@ -10,9 +10,12 @@ import { assertCanExtendExpiry } from '../utils/invoice-expiry';
 import { getStorage } from '../storage/storage-factory';
 import type { InvoiceStore } from '../storage/storage-factory';
 import type { StatusEvent, StatusEventStatus } from '../storage/memory-storage';
+import memoryStorage from '../storage/memory-storage';
 import { DEFAULT_PAGE_LIMIT, MAX_PAGE_LIMIT } from '../utils/parse-pagination';
 import { normalizeAssetCode } from '../utils/asset-helpers';
 import { extractBaseAddress, StrKey } from '@stellar/stellar-sdk';
+import { AnchorError, AnchorErrorCode, canonicalDigestMatches } from '../utils/canonical-proof';
+import { queueInvoicePaidWebhook } from './webhook.service';
 
 class InvoiceMemoryService {
   // Serializes creation so the memo check and the insert cannot interleave
@@ -89,7 +92,10 @@ class InvoiceMemoryService {
       ? input.sellerPublicKey
       : undefined;
     const invoice = await storage.createInvoice({
-      sellerPublicKey: input.sellerPublicKey, // Dynamic wallet of the caller.
+      sellerPublicKey: sellerMuxedAddress
+        ? extractBaseAddress(input.sellerPublicKey)
+        : input.sellerPublicKey,
+      sellerMuxedAddress,
       sellerName: input.sellerName,
       amount: input.amount,
       lineItems: input.lineItems,
@@ -144,6 +150,7 @@ class InvoiceMemoryService {
 
     return this.createInvoice({
       sellerPublicKey,
+      sellerName: source.sellerName,
       amount: source.amount,
       assetCode: source.assetCode,
       assetIssuer: source.assetIssuer,
@@ -202,8 +209,12 @@ class InvoiceMemoryService {
     paid: boolean,
   ): Promise<any> {
     const storage = await getStorage();
+    if (!storage.recordPayment) {
+      throw new Error('Partial payments are not supported by this storage backend');
+    }
     const invoice = await storage.recordPayment(invoiceId, payment, receivedAmount, paid);
     if (!invoice) throw new Error('Invoice not found');
+    if (paid) queueInvoicePaidWebhook(invoice);
     return invoice;
   }
 

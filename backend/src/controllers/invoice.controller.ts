@@ -63,9 +63,14 @@ class InvoiceController {
         });
       }
 
+      const requestedSellerPublicKey = req.query.sellerPublicKey;
+      const includeCustomerEmail =
+        typeof requestedSellerPublicKey === 'string' &&
+        requestedSellerPublicKey.toLowerCase() === invoice.sellerPublicKey.toLowerCase();
+
       res.json({
         success: true,
-        data: toInvoiceDTO(invoice),
+        data: toInvoiceDTO(invoice, { includeCustomerEmail }),
       });
     } catch (error: any) {
       res.status(500).json({
@@ -237,7 +242,7 @@ class InvoiceController {
 
       res.json({
         success: true,
-        data: toInvoiceDTO(updatedInvoice),
+        data: toInvoiceDTO(updatedInvoice, { includeCustomerEmail: false }),
       });
     } catch (error: any) {
       res.status(500).json({
@@ -302,7 +307,7 @@ class InvoiceController {
           qrCode: qrCodeDataUrl,
           stellarQrCode,
           stellarPaymentUri,
-          invoice: toInvoiceDTO(invoice),
+          invoice: toInvoiceDTO(invoice, { includeCustomerEmail: false }),
         },
       });
     } catch (error: any) {

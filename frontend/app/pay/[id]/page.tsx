@@ -16,9 +16,9 @@ import AssetLogo from '@/components/AssetLogo';
 import AmountDisplay from '@/components/AmountDisplay';
 import { formatAmount, formatDate, copyToClipboard } from '@/lib/utils';
 import { useCountdown } from '@/lib/useCountdown';
-import { Copy, ExternalLink, Loader2, Check, FileText, Mail, RefreshCw } from 'lucide-react';
+import { Copy, ExternalLink, Loader2, Check, FileText, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
-import { openInvoicePDF, shareInvoiceByEmail } from '@/lib/export';
+import { openInvoicePDF } from '@/lib/export';
 import { extractHorizonCode, mapHorizonError } from '@/lib/horizonErrorMap';
 import { loadAssetIssuerDomain } from '@/lib/stellarToml';
 import { streamInvoicePayments } from '@/lib/payment-monitor';
@@ -266,15 +266,6 @@ export default function PaymentPage() {
       openInvoicePDF(invoice as any);
       toast.success('Opening payment proof');
     }
-  };
-
-  const handleEmailShare = () => {
-    if (!invoice) return;
-    if (!invoice.customerEmail) {
-      toast.error('No client email on this invoice');
-      return;
-    }
-    shareInvoiceByEmail(invoice as any);
   };
 
   if (loading) {
@@ -526,16 +517,6 @@ export default function PaymentPage() {
                   <FileText className="w-4 h-4" aria-hidden="true" />
                   Download Proof
                 </button>
-                {invoice.customerEmail && (
-                  <button
-                    onClick={handleEmailShare}
-                    className="btn btn-outline flex items-center justify-center gap-2 px-4"
-                    title="Email Proof"
-                    aria-label="Email payment proof"
-                  >
-                    <Mail className="w-4 h-4" aria-hidden="true" />
-                  </button>
-                )}
               </div>
             )}
 
@@ -685,6 +666,7 @@ export default function PaymentPage() {
             {invoice.status === 'PAID' && (
               <PaymentReceipt
                 invoice={invoice}
+                showCustomerEmail={false}
                 showProofActions={sellerWalletConnected}
               />
             )}

@@ -32,6 +32,8 @@ function receipt(memo: string, amount: string) {
       ledger_sequence: 123,
       source_account: PAYER,
       created_at: '2026-11-24T12:00:00.000Z',
+      successful: true,
+      valid_before: '2026-11-24T12:05:00.000Z',
     },
     operations: [{
       type: 'payment',
