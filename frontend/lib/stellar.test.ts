@@ -19,6 +19,7 @@ import {
   requestWalletAccess,
   getUserPublicKey,
   buildPaymentTransaction,
+  buildFeeBumpPaymentTransaction,
   getWalletNetwork,
   getConfiguredNetwork,
   getNetworkMismatch,

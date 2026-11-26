@@ -36,15 +36,54 @@ describe('createInvoiceSchema', () => {
       sellerPublicKey: validSellerPublicKey,
     }).success).toBe(false);
 
-    expect(createInvoiceSchema.safeParse({
-      amount: 20,
+    const overCap = createInvoiceSchema.safeParse({
+      amount: 21,
       lineItems: Array.from({ length: 21 }, (_, index) => ({
         label: `Line ${index + 1}`,
         quantity: 1,
         unitPrice: 1,
       })),
       sellerPublicKey: validSellerPublicKey,
-    }).success).toBe(false);
+    });
+    expect(overCap.success).toBe(false);
+    if (!overCap.success) {
+      expect(
+        overCap.error.issues.some(
+          (issue) =>
+            issue.path.includes('lineItems') &&
+            issue.message.toLowerCase().includes('too long'),
+        ),
+      ).toBe(true);
+    }
+  });
+
+  it('accepts exactly 20 line items when they sum to the amount and accepts empty line items', () => {
+    const twentyItemsFixture = Array.from({ length: 20 }, (_, index) => ({
+      label: `Service ${index + 1}`,
+      quantity: 1,
+      unitPrice: 2.5,
+    }));
+
+    const atCap = createInvoiceSchema.safeParse({
+      amount: 50,
+      lineItems: twentyItemsFixture,
+      sellerPublicKey: validSellerPublicKey,
+    });
+    expect(atCap.success).toBe(true);
+
+    const atCapMismatch = createInvoiceSchema.safeParse({
+      amount: 49,
+      lineItems: twentyItemsFixture,
+      sellerPublicKey: validSellerPublicKey,
+    });
+    expect(atCapMismatch.success).toBe(false);
+
+    const emptyList = createInvoiceSchema.safeParse({
+      amount: 50,
+      lineItems: [],
+      sellerPublicKey: validSellerPublicKey,
+    });
+    expect(emptyList.success).toBe(true);
   });
 
   it('accepts a valid invoice payload', () => {
@@ -105,6 +144,63 @@ describe('createInvoiceSchema', () => {
     });
 
     expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.assetCode).toBe('USDC');
+    }
+  });
+
+  it('uppercases a lowercase asset code and stores no issuer rewrite', () => {
+    const result = createInvoiceSchema.safeParse({
+      amount: 25.5,
+      assetCode: 'usdc',
+      assetIssuer: 'GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5',
+      sellerPublicKey: validSellerPublicKey,
+    });
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.assetCode).toBe('USDC');
+      expect(result.data.assetIssuer).toBe('GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5');
+    }
+  });
+
+  it('rejects a credit asset without an issuer and names the asset', () => {
+    const result = createInvoiceSchema.safeParse({
+      amount: 25.5,
+      assetCode: 'usdc',
+      sellerPublicKey: validSellerPublicKey,
+    });
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues.some((issue) =>
+        issue.path.includes('assetIssuer') && issue.message.includes('USDC'),
+      )).toBe(true);
+    }
+  });
+
+  it('accepts XLM without an issuer', () => {
+    expect(createInvoiceSchema.safeParse({
+      amount: 25.5,
+      assetCode: 'XLM',
+      sellerPublicKey: validSellerPublicKey,
+    }).success).toBe(true);
+  });
+
+  it('rejects asset codes longer than 12 characters and accepts 12', () => {
+    expect(createInvoiceSchema.safeParse({
+      amount: 25.5,
+      assetCode: 'ABCDEFGHIJKLM',
+      assetIssuer: validSellerPublicKey,
+      sellerPublicKey: validSellerPublicKey,
+    }).success).toBe(false);
+
+    expect(createInvoiceSchema.safeParse({
+      amount: 25.5,
+      assetCode: 'ABCDEFGHIJKL',
+      assetIssuer: validSellerPublicKey,
+      sellerPublicKey: validSellerPublicKey,
+    }).success).toBe(true);
   });
 
   it('rejects a USDC invoice with a malformed issuer', () => {
@@ -151,6 +247,43 @@ describe('createInvoiceSchema', () => {
     expect(
       result.error.issues.some((issue) => issue.path.includes('customerEmail')),
     ).toBe(true);
+  });
+
+  it('rejects an expiry that is already in the past', () => {
+    const result = createInvoiceSchema.safeParse({
+      amount: 10,
+      expiresAt: new Date(Date.now() - 60_000).toISOString(),
+      sellerPublicKey: validSellerPublicKey,
+    });
+
+    expect(result.success).toBe(false);
+    if (result.success) {
+      throw new Error('Expected a past expiry to fail validation');
+    }
+    expect(
+      result.error.issues.some((issue) => issue.path.includes('expiresAt')),
+    ).toBe(true);
+  });
+
+  it('accepts an expiry one hour in the future', () => {
+    const result = createInvoiceSchema.safeParse({
+      amount: 10,
+      expiresAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+      sellerPublicKey: validSellerPublicKey,
+    });
+
+    expect(result.success).toBe(true);
+  });
+
+  it('keeps the default expiry when none is supplied', () => {
+    const result = createInvoiceSchema.safeParse({
+      amount: 10,
+      sellerPublicKey: validSellerPublicKey,
+    });
+
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(result.data.expiresAt).toBeUndefined();
   });
 
   it('rejects expiresInDays of 0', () => {
@@ -218,6 +351,53 @@ describe('createInvoiceSchema', () => {
     expect(
       result.error.issues.some((issue) => issue.path.includes('amount')),
     ).toBe(true);
+  });
+
+  it('rejects an amount with more than seven decimal places', () => {
+    const result = createInvoiceSchema.safeParse({
+      amount: 1.12345678,
+      sellerPublicKey: validSellerPublicKey,
+    });
+
+    expect(result.success).toBe(false);
+    if (result.success) {
+      throw new Error('Expected an eight-decimal amount to fail validation');
+    }
+    expect(result.error.issues.some((issue) => issue.path.includes('amount'))).toBe(true);
+  });
+
+  it('accepts an amount with exactly seven decimal places', () => {
+    const result = createInvoiceSchema.safeParse({
+      amount: 1.1234567,
+      sellerPublicKey: validSellerPublicKey,
+    });
+
+    expect(result.success).toBe(true);
+  });
+
+  it('rejects trailing zeros beyond seven decimal places instead of rounding', () => {
+    const result = createInvoiceSchema.safeParse({
+      amount: '1.10000000',
+      sellerPublicKey: validSellerPublicKey,
+    });
+
+    expect(result.success).toBe(false);
+  });
+
+  it('counts decimals after a comma separator', () => {
+    expect(
+      createInvoiceSchema.safeParse({
+        amount: '1,1234567',
+        sellerPublicKey: validSellerPublicKey,
+      }).success,
+    ).toBe(true);
+
+    expect(
+      createInvoiceSchema.safeParse({
+        amount: '1,12345678',
+        sellerPublicKey: validSellerPublicKey,
+      }).success,
+    ).toBe(false);
   });
 
   it('accepts amount at max ceiling (1000000000)', () => {

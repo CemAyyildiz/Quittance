@@ -261,6 +261,7 @@ export const mockInvoiceApi = {
       memo: `INV-${Date.now().toString(36).toUpperCase()}`,
       customerEmail: data.copyCustomerEmail ? invoice.customerEmail : undefined,
       createdAt: new Date().toISOString(),
+      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
       paidAt: undefined,
       paymentTxHash: undefined,
       payerPublicKey: undefined,
@@ -286,11 +287,8 @@ export const mockInvoiceApi = {
   markUncollectible: async (id: string, sellerPublicKey: string) => {
     await delay(500);
     const invoice = mockInvoices.find((inv) => inv.id === id);
-    if (!invoice || invoice.sellerPublicKey !== sellerPublicKey) {
-      throw new Error('Only the owning seller can mark this invoice uncollectible');
-    }
-    if (invoice.status !== 'PENDING' && invoice.status !== 'UNCOLLECTIBLE') {
-      throw new Error('Only a pending invoice can be marked uncollectible');
+    if (!invoice || invoice.sellerPublicKey !== sellerPublicKey || invoice.status !== 'PENDING') {
+      throw new Error('Only the owning seller can mark a pending invoice uncollectible');
     }
 
     invoice.status = 'UNCOLLECTIBLE';
