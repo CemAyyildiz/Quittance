@@ -55,7 +55,7 @@ export interface InvoiceDTO {
 export interface ProofDigestFields {
   network: string;
   invoiceId: string;
-  amount: number;
+  amount: number | string;
   assetCode: string;
   assetIssuer: string;
   memo: string;

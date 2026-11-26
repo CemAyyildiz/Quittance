@@ -24,13 +24,79 @@ interface InvoiceFormProps {
 
 const amountErrorId = 'amount-error';
 const draftStoragePrefix = 'quittance:invoice-draft:';
+const rememberedAssetStorageKey = 'quittance:last-invoiced-asset';
+
+/** Whether a raw amount string carries more than seven decimal places. */
+function hasTooManyDecimals(value: string): boolean {
+  const normalized = value.trim().replace(',', '.');
+  const fraction = normalized.split('.')[1] ?? '';
+  return fraction.length > 7;
+}
+
+/** Whether the value resolves to an absolute instant after now. */
+function isFutureExpiry(value: string): boolean {
+  const ms = Date.parse(value);
+  return Number.isFinite(ms) && ms > Date.now();
+}
 
 interface InvoiceDraft {
   amount: string;
-  assetCode: string;
   description: string;
   customerName: string;
 }
+
+interface RememberedInvoiceAsset {
+  assetCode: string;
+  assetIssuer: string | null;
+}
+
+function discardRememberedAsset(): boolean {
+  try {
+    window.localStorage.removeItem(rememberedAssetStorageKey);
+    return true;
+  } catch (error) {
+    console.warn('Could not clear remembered invoice asset:', error);
+    return false;
+  }
+}
+
+function readRememberedAsset(): string | null {
+  if (typeof window === 'undefined') return null;
+
+  let raw: string | null;
+  try {
+    raw = window.localStorage.getItem(rememberedAssetStorageKey);
+  } catch (error) {
+    console.warn('Could not read remembered invoice asset:', error);
+    return null;
+  }
+  if (!raw) return null;
+
+  try {
+    const stored = JSON.parse(raw) as Partial<RememberedInvoiceAsset> | null;
+    const asset =
+      stored && typeof stored.assetCode === 'string'
+        ? getAssetByCode(stored.assetCode)
+        : undefined;
+    const issuerIsValid = asset?.issuer
+      ? typeof stored?.assetIssuer === 'string' &&
+        StrKey.isValidEd25519PublicKey(stored.assetIssuer) &&
+        stored.assetIssuer === asset.issuer
+      : stored?.assetIssuer == null;
+
+    if (!asset || !issuerIsValid) {
+      discardRememberedAsset();
+      return null;
+    }
+
+    return asset.code;
+  } catch (error) {
+    console.warn('Discarding invalid remembered invoice asset:', error);
+    discardRememberedAsset();
+    return null;
+  }
+}
+
 const memoCounterId = 'memo-counter';
 const memoErrorId = 'memo-error';
 const MAX_LINE_ITEMS = 20;
@@ -65,6 +131,7 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
   // click could start two requests; this ref blocks re-entry synchronously.
   const submittingRef = useRef(false);
   const [amount, setAmount] = useState('');
+  const [rememberedAssetCode, setRememberedAssetCode] = useState<string | null>(null);
   const [lineItems, setLineItems] = useState<InvoiceLineInput[]>([
     { label: '', quantity: '1', unitPrice: '' },
   ]);
@@ -81,9 +148,17 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
   const [acknowledgedWarning, setAcknowledgedWarning] = useState(false);
   const [amountError, setAmountError] = useState('');
   const [emailError, setEmailError] = useState('');
+  const [expiresAt, setExpiresAt] = useState('');
+  const [expiryError, setExpiryError] = useState('');
   const [walletNetwork, setWalletNetwork] = useState<WalletNetwork>('UNKNOWN');
   const [networkMismatch, setNetworkMismatch] = useState(false);
   const configuredNetwork = getConfiguredNetwork();
+
+  useEffect(() => {
+    const storedAssetCode = readRememberedAsset();
+    setAssetCode(storedAssetCode ?? 'XLM');
+    setRememberedAssetCode(storedAssetCode);
+  }, []);
 
   const selectedAsset = getAssetByCode(assetCode);
   const memoBytes = getUtf8ByteLength(memo);
@@ -118,7 +193,6 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
     setDraftReadyFor(null);
     if (!userWallet || typeof window === 'undefined') {
       setAmount('');
-      setAssetCode('XLM');
       setDescription('');
       setCustomerName('');
       return;
@@ -130,22 +204,15 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
       if (rawDraft) {
         const draft = JSON.parse(rawDraft) as Partial<InvoiceDraft>;
         setAmount(typeof draft.amount === 'string' ? draft.amount : '');
-        setAssetCode(
-          typeof draft.assetCode === 'string' && getAssetByCode(draft.assetCode)
-            ? draft.assetCode
-            : 'XLM'
-        );
         setDescription(typeof draft.description === 'string' ? draft.description : '');
         setCustomerName(typeof draft.customerName === 'string' ? draft.customerName : '');
       } else {
         setAmount('');
-        setAssetCode('XLM');
         setDescription('');
         setCustomerName('');
       }
     } catch {
       setAmount('');
-      setAssetCode('XLM');
       setDescription('');
       setCustomerName('');
     }
@@ -154,13 +221,13 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
 
   useEffect(() => {
     if (!userWallet || draftReadyFor !== userWallet || typeof window === 'undefined') return;
-    const draft: InvoiceDraft = { amount, assetCode, description, customerName };
+    const draft: InvoiceDraft = { amount, description, customerName };
     try {
       window.localStorage.setItem(`${draftStoragePrefix}${userWallet}`, JSON.stringify(draft));
     } catch {
       // Draft persistence is best effort and must never block invoice creation.
     }
-  }, [amount, assetCode, description, customerName, draftReadyFor, userWallet]);
+  }, [amount, description, customerName, draftReadyFor, userWallet]);
 
   useEffect(() => {
     let cancelled = false;
@@ -218,10 +285,21 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
         index === 0 ? { ...line, unitPrice: value } : line,
       ),
     );
-    if (value && (isNaN(parseFloat(value)) || parseFloat(value) <= 0)) {
+    if (hasTooManyDecimals(value)) {
+      setAmountError('Amount can have at most 7 decimal places');
+    } else if (value && (isNaN(parseFloat(value)) || parseFloat(value) <= 0)) {
       setAmountError('Amount must be greater than 0');
     } else {
       setAmountError('');
+    }
+  };
+
+  const handleExpiryChange = (value: string) => {
+    setExpiresAt(value);
+    if (value && !isFutureExpiry(value)) {
+      setExpiryError('Expiry must be in the future');
+    } else {
+      setExpiryError('');
     }
   };
 
@@ -281,12 +359,20 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
     }
 
     const enteredMuxedAddress = muxedAddress.trim();
-    if (
-      enteredMuxedAddress &&
-      (!StrKey.isValidMed25519PublicKey(enteredMuxedAddress) ||
-        extractBaseAddress(enteredMuxedAddress) !== userWallet)
-    ) {
-      setMuxedAddressError('Enter a valid muxed address for your connected wallet');
+    if (enteredMuxedAddress) {
+      if (!StrKey.isValidMed25519PublicKey(enteredMuxedAddress)) {
+        setMuxedAddressError('Enter a valid Stellar muxed address');
+        return;
+      }
+      if (extractBaseAddress(enteredMuxedAddress) !== userWallet) {
+        setMuxedAddressError('The muxed address must belong to your connected wallet');
+        return;
+      }
+    }
+    setMuxedAddressError('');
+
+    if (!selectedAsset) {
+      setSubmitError('Select a supported asset');
       return;
     }
 
@@ -296,7 +382,20 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
       amountInput.current?.focus();
       return;
     }
+    if (hasTooManyDecimals(amount)) {
+      setAmountError('Amount can have at most 7 decimal places');
+      amountInput.current?.focus();
+      return;
+    }
     setAmountError('');
+
+    const expiryValue = expiresAt.trim();
+    const expiryMs = expiryValue ? Date.parse(expiryValue) : undefined;
+    if (expiryValue && (expiryMs === undefined || !isFutureExpiry(expiryValue))) {
+      setExpiryError('Expiry must be in the future');
+      return;
+    }
+    setExpiryError('');
 
     if (memoTooLong) {
       setMemoSubmitted(true);
@@ -305,11 +404,28 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
       return;
     }
 
+    if (customerEmail.trim() && !isValidEmail(customerEmail.trim())) {
+      setEmailError('Enter a valid client email');
+      emailInput.current?.focus();
+      return;
+    }
+    setEmailError('');
+
+    const muxedDestination = muxedAddress.trim();
+    if (
+      muxedDestination &&
+      (!StrKey.isValidMed25519PublicKey(muxedDestination) ||
+        extractBaseAddress(muxedDestination) !== userWallet)
+    ) {
+      setMuxedAddressError('Enter a valid M address for your connected wallet');
+      return;
+    }
+    setMuxedAddressError('');
+
     submittingRef.current = true;
     setLoading(true);
     const idempotencyKey = newIdempotencyKey();
     try {
-      const selectedAsset = getAssetByCode(assetCode);
       const submittedLineItems = lineItems.map((line) => ({
         label: line.label.trim() || description.trim() || 'Item',
         quantity: Number(line.quantity),
@@ -321,13 +437,29 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
         assetCode: assetCode,
         assetIssuer: selectedAsset?.issuer,
         expiresInDays: 7,
+        expiresAt: expiryValue ? new Date(expiryValue).toISOString() : undefined,
         sellerPublicKey: enteredMuxedAddress || userWallet,
         sellerName: sellerName.trim() || undefined,
         description: description || undefined,
         memo: memo || undefined,
         customerName: customerName.trim() || undefined,
         customerEmail: customerEmail.trim() || undefined,
+        ...(acknowledgedWarning ? { acknowledgeNoTrustline: true } : {}),
       }, { idempotencyKey });
+
+      try {
+        window.localStorage.setItem(
+          rememberedAssetStorageKey,
+          JSON.stringify({
+            assetCode: selectedAsset.code,
+            assetIssuer: selectedAsset.issuer ?? null,
+          }),
+        );
+        setRememberedAssetCode(selectedAsset.code);
+      } catch (error) {
+        console.warn('Could not remember invoice asset:', error);
+        toast.warning('Invoice created, but this asset could not be remembered in this browser');
+      }
 
       toast.success('Invoice created');
       onSuccess?.(result.data);
@@ -340,7 +472,6 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
       }
       setAmount('');
       setLineItems([{ label: '', quantity: '1', unitPrice: '' }]);
-      setAssetCode('XLM');
       setDescription('');
       setMemo('');
       setCustomerName('');
@@ -350,15 +481,32 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
       setMuxedAddressError('');
       setAmountError('');
       setEmailError('');
+      setMuxedAddressError('');
+      setExpiryError('');
       setMemoSubmitted(false);
     } catch (error: any) {
-      const message = error.response?.data?.error || 'Failed to create invoice';
-      setSubmitError(message);
-      toast.error(message);
+      const data = error.response?.data;
+      if (data?.code === 'SELLER_TRUSTLINE_WARNING' && typeof data.warning === 'string') {
+        // The seller can acknowledge the missing trustline and retry.
+        setServerWarning(data.warning);
+      } else {
+        const message = data?.error || 'Failed to create invoice';
+        setSubmitError(message);
+        toast.error(message);
+      }
     } finally {
       submittingRef.current = false;
       setLoading(false);
     }
+  };
+
+  const clearRememberedAsset = () => {
+    if (!discardRememberedAsset()) {
+      toast.error('Could not clear the remembered asset from this browser');
+      return;
+    }
+    setRememberedAssetCode(null);
+    setAssetCode('XLM');
   };
 
   return (
@@ -398,6 +546,15 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
             <div className="absolute left-3 bottom-3 pointer-events-none">
               <AssetLogo code={assetCode} size={24} showName={false} />
             </div>
+            {rememberedAssetCode && (
+              <button
+                type="button"
+                onClick={clearRememberedAsset}
+                className="mt-1 block text-xs text-cyan-700 underline underline-offset-2"
+              >
+                Clear remembered asset
+              </button>
+            )}
           </div>
         </div>
         {amountError && (
@@ -502,6 +659,45 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
           <p id={memoErrorId} role={memoSubmitted ? 'alert' : undefined} className="text-sm text-red-600 mt-1">
             Memo is {memoBytes} bytes. Stellar allows at most {MAX_MEMO_BYTES} bytes, and
             non-ASCII characters use more than one byte each.
+          </p>
+        )}
+      </div>
+
+      <div>
+        <label className="label" htmlFor="invoice-seller-name">
+          Your display name (optional)
+        </label>
+        <input
+          id="invoice-seller-name"
+          type="text"
+          className="input text-sm"
+          placeholder="Your name or business"
+          value={sellerName}
+          onChange={(e) => setSellerName(e.target.value)}
+          maxLength={80}
+        />
+      </div>
+
+      <div>
+        <label className="label" htmlFor="invoice-expiry">
+          Expiry (optional)
+        </label>
+        <input
+          id="invoice-expiry"
+          type="datetime-local"
+          className={`input text-sm ${expiryError ? 'border-red-500' : ''}`}
+          value={expiresAt}
+          onChange={(e) => handleExpiryChange(e.target.value)}
+          aria-invalid={Boolean(expiryError)}
+          aria-describedby={expiryError ? 'expiry-error' : 'expiry-hint'}
+        />
+        {expiryError ? (
+          <p id="expiry-error" role="alert" className="text-sm text-red-600 mt-1">
+            {expiryError}
+          </p>
+        ) : (
+          <p id="expiry-hint" className="text-xs text-gray-500 mt-1">
+            Must be in the future. Leave empty to use the seven-day default.
           </p>
         )}
       </div>

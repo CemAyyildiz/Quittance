@@ -2,6 +2,8 @@ import { z } from 'zod';
 import { StrKey } from '@stellar/stellar-sdk';
 import { MAX_MEMO_BYTES, getMemoByteLength } from './memo';
 import { amountsMatch, isValidAmount } from './amount-compare';
+import { isFutureExpiry } from './invoice-expiry';
+import { normalizeAssetCode, NATIVE_ASSET_CODE } from './asset-helpers';
 
 export interface ParsedAmount { decimal: string; stroops: bigint; }
 export function parseAmount(input: string | number): ParsedAmount | undefined {
@@ -93,8 +95,15 @@ export function sumLineItems(lineItems: InvoiceLineItem[]): number {
 // Invoice creation schema
 export const createInvoiceSchema = z.object({
   amount: amountSchema,
-  lineItems: z.array(lineItemSchema).min(1).max(MAX_LINE_ITEMS).optional(),
-  assetCode: z.string().default('XLM').optional(),
+  lineItems: z
+    .array(lineItemSchema)
+    .max(MAX_LINE_ITEMS, `Line items list is too long (maximum ${MAX_LINE_ITEMS} items)`)
+    .optional(),
+  assetCode: z.string()
+    .trim()
+    .transform(normalizeAssetCode)
+    .pipe(z.string().max(12, 'Asset code must be at most 12 characters'))
+    .default(NATIVE_ASSET_CODE),
   assetIssuer: stellarPublicKeySchema.optional(),
   description: z.string().max(500).optional(),
   customerName: z.string().max(255).optional(),
@@ -102,25 +111,39 @@ export const createInvoiceSchema = z.object({
   sellerName: z.string().trim().max(80).optional().transform((name) => name || undefined),
   sellerEmail: z.string().email().optional(),
   expiresInDays: z.number().min(1).max(365).default(7).optional(),
+  expiresAt: z.string().datetime({ offset: true }).optional(),
   sellerPublicKey: sellerAddressSchema,
   memo: memoByteLengthSchema.optional(),
 }).superRefine((invoice, ctx) => {
-  if (
-    invoice.lineItems &&
-    amountsMatch(sumLineItems(invoice.lineItems), invoice.amount) === false
-  ) {
+  if (invoice.expiresAt !== undefined && !isFutureExpiry(invoice.expiresAt)) {
     ctx.addIssue({
       code: 'custom',
-      path: ['lineItems'],
-      message: 'Line item total must match invoice amount',
+      path: ['expiresAt'],
+      message: 'Expiry must be in the future',
     });
   }
-  if (invoice.assetCode && invoice.assetCode !== 'XLM') {
-    if (!invoice.assetIssuer || !/^G[A-Z2-7]{55}$/.test(invoice.assetIssuer)) {
+
+  if (invoice.assetCode !== NATIVE_ASSET_CODE) {
+    if (!invoice.assetIssuer) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['assetIssuer'],
+        message: `${invoice.assetCode} requires an asset issuer`,
+      });
+    } else if (!/^G[A-Z2-7]{55}$/.test(invoice.assetIssuer)) {
       ctx.addIssue({
         code: 'custom',
         path: ['assetIssuer'],
         message: 'Credit assets require a valid Stellar issuer public key',
+      });
+    }
+  }
+  if (invoice.lineItems?.length) {
+    if (!amountsMatch(sumLineItems(invoice.lineItems), invoice.amount)) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['lineItems'],
+        message: 'Line item total must match invoice amount',
       });
     }
   }

@@ -37,9 +37,11 @@ export const invoiceApi = USE_MOCK_API ? mockInvoiceApi : {
     customerName?: string;
     customerEmail?: string;
     expiresInDays?: number;
+    expiresAt?: string;
     sellerPublicKey?: string;
     sellerName?: string;
     sellerEmail?: string;
+    acknowledgeNoTrustline?: boolean;
   }, options?: { idempotencyKey?: string }) => {
     // A key per submit attempt lets the backend return the original invoice
     // if the same submit reaches it twice.

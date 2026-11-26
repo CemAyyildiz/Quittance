@@ -367,6 +367,18 @@ describe('isSelfPayment', () => {
 describe('paymentAssetMatchesInvoice', () => {
   const ISSUER = 'GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5';
 
+  it('compares asset codes case-insensitively', () => {
+    expect(
+      paymentAssetMatchesInvoice({
+        paymentAsset: 'usdc',
+        invoiceAssetCode: 'USDC',
+        paymentAssetIssuer: ISSUER,
+        invoiceAssetIssuer: ISSUER,
+        paymentIsNative: false,
+      }),
+    ).toBe(true);
+  });
+
   it('treats surrounding whitespace on an issuer as the same issuer', () => {
     expect(
       paymentAssetMatchesInvoice({
