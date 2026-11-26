@@ -1,9 +1,11 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import React from 'react';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import '@testing-library/jest-dom/vitest';
 import InvoiceForm from '../InvoiceForm';
 import { encodeMuxedAccount, encodeMuxedAccountToAddress } from '@stellar/stellar-sdk';
+import { getUserPublicKey, isFreighterInstalled } from '@/lib/stellar';
 
 vi.mock('@/lib/api', () => ({
   invoiceApi: { create: vi.fn().mockResolvedValue({ data: {} }) },
@@ -12,12 +14,19 @@ vi.mock('sonner', () => ({
   toast: { success: vi.fn(), error: vi.fn() },
 }));
 vi.mock('@/lib/stellar', () => ({
+  isFreighterInstalled: vi.fn().mockResolvedValue(true),
+  getUserPublicKey: vi.fn().mockResolvedValue('GSELLER'),
   checkAssetReadiness: vi.fn().mockResolvedValue('ok'),
   getWalletNetwork: vi.fn().mockResolvedValue('TESTNET'),
   getConfiguredNetwork: () => 'TESTNET',
   getNetworkMismatch: (wallet: string, configured: string) =>
     wallet !== 'UNKNOWN' && wallet !== configured,
 }));
+
+beforeEach(() => {
+  vi.mocked(isFreighterInstalled).mockResolvedValue(true);
+  vi.mocked(getUserPublicKey).mockResolvedValue('GSELLER');
+});
 
 afterEach(() => {
   cleanup();
@@ -120,6 +129,41 @@ describe('InvoiceForm seller display name', () => {
       expect.anything(),
     ));
     await waitFor(() => expect((label as HTMLInputElement).value).toBe(''));
+  });
+});
+
+describe('InvoiceForm Freighter availability', () => {
+  it('shows the install link and does not create an invoice when Freighter is missing', async () => {
+    const { invoiceApi } = await import('@/lib/api');
+    vi.mocked(isFreighterInstalled).mockResolvedValue(false);
+    render(
+      <InvoiceForm userWallet="GCQTGZQQ5G4PTM2GL7CDIFKUBIPEC52BROAQIAPW53XBRJVN6ZJVTG6V" />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /create invoice/i }));
+
+    const notice = await screen.findByRole('alert');
+    expect(notice).toHaveTextContent('Freighter is required');
+    expect(screen.getByRole('link', { name: 'Install Freighter' })).toHaveAttribute(
+      'href',
+      'https://www.freighter.app/',
+    );
+    expect(invoiceApi.create).not.toHaveBeenCalled();
+  });
+
+  it('shows an unlock message when Freighter is installed but cannot provide an account', async () => {
+    const { invoiceApi } = await import('@/lib/api');
+    vi.mocked(isFreighterInstalled).mockResolvedValue(true);
+    vi.mocked(getUserPublicKey).mockResolvedValue(null);
+    render(
+      <InvoiceForm userWallet="GCQTGZQQ5G4PTM2GL7CDIFKUBIPEC52BROAQIAPW53XBRJVN6ZJVTG6V" />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /create invoice/i }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Freighter is installed but locked');
+    expect(screen.queryByRole('link', { name: 'Install Freighter' })).not.toBeInTheDocument();
+    expect(invoiceApi.create).not.toHaveBeenCalled();
   });
 });
 
@@ -278,7 +322,7 @@ describe('InvoiceForm client email validation', () => {
     });
     fireEvent.click(screen.getByRole('button', { name: /create invoice/i }));
 
-    expect(screen.getByText('Enter a valid client email')).toBeTruthy();
+    expect(await screen.findByText('Enter a valid client email')).toBeTruthy();
     expect(invoiceApi.create).not.toHaveBeenCalled();
   });
 
@@ -329,7 +373,7 @@ describe('InvoiceForm idempotent submit', () => {
     fireEvent.submit(form);
     fireEvent.submit(form);
 
-    expect(invoiceApi.create).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(invoiceApi.create).toHaveBeenCalledTimes(1));
     const [, options] = vi.mocked(invoiceApi.create).mock.calls[0] as any[];
     expect(typeof options.idempotencyKey).toBe('string');
     expect(options.idempotencyKey.length).toBeGreaterThan(0);

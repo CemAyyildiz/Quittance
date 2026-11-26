@@ -10,11 +10,14 @@ import {
   getConfiguredNetwork,
   getNetworkMismatch,
   getWalletNetwork,
+  isFreighterInstalled,
+  getUserPublicKey,
   type WalletNetwork,
 } from '@/lib/stellar';
 import { MAX_MEMO_BYTES, getUtf8ByteLength, isValidEmail } from '@/lib/utils';
 import { extractBaseAddress, StrKey } from '@stellar/stellar-sdk';
 import AssetLogo from './AssetLogo';
+import FreighterStatusNotice, { type FreighterIssue } from './FreighterStatusNotice';
 import { parseAmount } from '@/lib/amountParse';
 
 interface InvoiceFormProps {
@@ -124,6 +127,7 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
   const emailInput = useRef<HTMLInputElement>(null);
   const memoInput = useRef<HTMLInputElement>(null);
   const [submitError, setSubmitError] = useState('');
+  const [freighterIssue, setFreighterIssue] = useState<FreighterIssue | null>(null);
   const [memoSubmitted, setMemoSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
   // `loading` only disables the button after a re-render, so a fast double
@@ -141,8 +145,6 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
   const [customerName, setCustomerName] = useState('');
   const [customerEmail, setCustomerEmail] = useState('');
   const [sellerName, setSellerName] = useState('');
-  const [muxedAddress, setMuxedAddress] = useState('');
-  const [muxedAddressError, setMuxedAddressError] = useState('');
   const [trustlineWarning, setTrustlineWarning] = useState<string | null>(null);
   const [serverWarning, setServerWarning] = useState<string | null>(null);
   const [acknowledgedWarning, setAcknowledgedWarning] = useState(false);
@@ -152,7 +154,6 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
   const [muxedAddressError, setMuxedAddressError] = useState('');
   const [expiresAt, setExpiresAt] = useState('');
   const [expiryError, setExpiryError] = useState('');
-  const [draftReadyFor, setDraftReadyFor] = useState<string | null>(null);
   const [walletNetwork, setWalletNetwork] = useState<WalletNetwork>('UNKNOWN');
   const [networkMismatch, setNetworkMismatch] = useState(false);
   const configuredNetwork = getConfiguredNetwork();
@@ -354,82 +355,80 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
     if (submittingRef.current) {
       return;
     }
-
-    if (!userWallet) {
-      setSubmitError('Connect your wallet first');
-      toast.error('Connect your wallet first');
-      return;
-    }
-
-    const enteredMuxedAddress = muxedAddress.trim();
-    if (enteredMuxedAddress) {
-      if (!StrKey.isValidMed25519PublicKey(enteredMuxedAddress)) {
-        setMuxedAddressError('Enter a valid Stellar muxed address');
-        return;
-      }
-      if (extractBaseAddress(enteredMuxedAddress) !== userWallet) {
-        setMuxedAddressError('The muxed address must belong to your connected wallet');
-        return;
-      }
-    }
-    setMuxedAddressError('');
-
-    const chosenAsset = getAssetByCode(assetCode);
-    if (!chosenAsset) {
-      setSubmitError('Select a supported asset');
-      return;
-    }
-
-    const amountNum = parseFloat(amount);
-    if (!amount || amountNum <= 0 || !Number.isFinite(amountNum)) {
-      setAmountError('Enter a valid amount');
-      amountInput.current?.focus();
-      return;
-    }
-    if (hasTooManyDecimals(amount)) {
-      setAmountError('Amount can have at most 7 decimal places');
-      amountInput.current?.focus();
-      return;
-    }
-    setAmountError('');
-
-    const expiryValue = expiresAt.trim();
-    const expiryMs = expiryValue ? Date.parse(expiryValue) : undefined;
-    if (expiryValue && (expiryMs === undefined || !isFutureExpiry(expiryValue))) {
-      setExpiryError('Expiry must be in the future');
-      return;
-    }
-    setExpiryError('');
-
-    if (memoTooLong) {
-      setMemoSubmitted(true);
-      memoInput.current?.focus();
-      toast.error(`Memo must be at most ${MAX_MEMO_BYTES} bytes`);
-      return;
-    }
-
-    if (customerEmail.trim() && !isValidEmail(customerEmail.trim())) {
-      setEmailError('Enter a valid client email');
-      emailInput.current?.focus();
-      return;
-    }
-    setEmailError('');
-
-    const muxedDestination = muxedAddress.trim();
-    if (
-      muxedDestination &&
-      (!StrKey.isValidMed25519PublicKey(muxedDestination) ||
-        extractBaseAddress(muxedDestination) !== userWallet)
-    ) {
-      setMuxedAddressError('Enter a valid M address for your connected wallet');
-      return;
-    }
-    setMuxedAddressError('');
-
     submittingRef.current = true;
-    setLoading(true);
-    const idempotencyKey = newIdempotencyKey();
     try {
+      if (!(await isFreighterInstalled())) {
+        setFreighterIssue('missing');
+        return;
+      }
+      setFreighterIssue(null);
+
+      if (!userWallet) {
+        setSubmitError('Connect your Freighter wallet first');
+        toast.error('Connect your Freighter wallet first');
+        return;
+      }
+      if (!(await getUserPublicKey())) {
+        setFreighterIssue('locked');
+        return;
+      }
+
+      const enteredMuxedAddress = muxedAddress.trim();
+      if (enteredMuxedAddress) {
+        if (!StrKey.isValidMed25519PublicKey(enteredMuxedAddress)) {
+          setMuxedAddressError('Enter a valid Stellar muxed address');
+          return;
+        }
+        if (extractBaseAddress(enteredMuxedAddress) !== userWallet) {
+          setMuxedAddressError('The muxed address must belong to your connected wallet');
+          return;
+        }
+      }
+      setMuxedAddressError('');
+
+      const chosenAsset = getAssetByCode(assetCode);
+      if (!chosenAsset) {
+        setSubmitError('Select a supported asset');
+        return;
+      }
+
+      const amountNum = parseFloat(amount);
+      if (!amount || amountNum <= 0 || !Number.isFinite(amountNum)) {
+        setAmountError('Enter a valid amount');
+        amountInput.current?.focus();
+        return;
+      }
+      if (hasTooManyDecimals(amount)) {
+        setAmountError('Amount can have at most 7 decimal places');
+        amountInput.current?.focus();
+        return;
+      }
+      setAmountError('');
+
+      const expiryValue = expiresAt.trim();
+      const expiryMs = expiryValue ? Date.parse(expiryValue) : undefined;
+      if (expiryValue && (expiryMs === undefined || !isFutureExpiry(expiryValue))) {
+        setExpiryError('Expiry must be in the future');
+        return;
+      }
+      setExpiryError('');
+
+      if (memoTooLong) {
+        setMemoSubmitted(true);
+        memoInput.current?.focus();
+        toast.error(`Memo must be at most ${MAX_MEMO_BYTES} bytes`);
+        return;
+      }
+
+      if (customerEmail.trim() && !isValidEmail(customerEmail.trim())) {
+        setEmailError('Enter a valid client email');
+        emailInput.current?.focus();
+        return;
+      }
+      setEmailError('');
+
+      setLoading(true);
+      const idempotencyKey = newIdempotencyKey();
       const submittedLineItems = lineItems.map((line) => ({
         label: line.label.trim() || description.trim() || 'Item',
         quantity: Number(line.quantity),
@@ -439,8 +438,9 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
         amount: amountNum,
         lineItems: submittedLineItems,
         assetCode: assetCode,
-        assetIssuer: selectedAsset?.issuer,
+        assetIssuer: chosenAsset.issuer,
         expiresInDays: 7,
+        expiresAt: expiryValue ? new Date(expiryValue).toISOString() : undefined,
         sellerPublicKey: enteredMuxedAddress || userWallet,
         sellerName: sellerName.trim() || undefined,
         description: description || undefined,
@@ -454,11 +454,11 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
         window.localStorage.setItem(
           rememberedAssetStorageKey,
           JSON.stringify({
-            assetCode: selectedAsset.code,
-            assetIssuer: selectedAsset.issuer ?? null,
+            assetCode: chosenAsset.code,
+            assetIssuer: chosenAsset.issuer ?? null,
           }),
         );
-        setRememberedAssetCode(selectedAsset.code);
+        setRememberedAssetCode(chosenAsset.code);
       } catch (error) {
         console.warn('Could not remember invoice asset:', error);
         toast.warning('Invoice created, but this asset could not be remembered in this browser');
@@ -484,13 +484,11 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
       setMuxedAddressError('');
       setAmountError('');
       setEmailError('');
-      setMuxedAddressError('');
       setExpiryError('');
       setMemoSubmitted(false);
     } catch (error: any) {
       const data = error.response?.data;
       if (data?.code === 'SELLER_TRUSTLINE_WARNING' && typeof data.warning === 'string') {
-        // The seller can acknowledge the missing trustline and retry.
         setServerWarning(data.warning);
       } else {
         const message = data?.error || 'Failed to create invoice';
@@ -514,6 +512,7 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
 
   return (
     <form noValidate onSubmit={handleSubmit} className="space-y-4">
+      {freighterIssue && <FreighterStatusNotice issue={freighterIssue} />}
       {submitError && <p role="alert" className="text-sm text-red-600">{submitError}</p>}
       <div>
         <label className="label" htmlFor="invoice-amount">Invoice Amount *</label>

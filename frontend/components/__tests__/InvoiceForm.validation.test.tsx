@@ -10,6 +10,8 @@ vi.mock('sonner', () => ({
   toast: { success: vi.fn(), error: vi.fn() },
 }));
 vi.mock('@/lib/stellar', () => ({
+  isFreighterInstalled: vi.fn().mockResolvedValue(true),
+  getUserPublicKey: vi.fn().mockResolvedValue('GABC1234567890'),
   checkAssetReadiness: vi.fn().mockResolvedValue('ok'),
   getWalletNetwork: vi.fn().mockResolvedValue('TESTNET'),
   getConfiguredNetwork: () => 'TESTNET',

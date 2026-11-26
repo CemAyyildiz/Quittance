@@ -10,6 +10,11 @@ vi.mock('@/lib/api', () => ({
 vi.mock('sonner', () => ({
   toast: { success: vi.fn(), error: vi.fn() },
 }));
+vi.mock('@/lib/stellar', async (importOriginal) => ({
+  ...await importOriginal<typeof import('@/lib/stellar')>(),
+  isFreighterInstalled: vi.fn().mockResolvedValue(true),
+  getUserPublicKey: vi.fn().mockResolvedValue('G' + 'A'.repeat(55)),
+}));
 
 afterEach(() => cleanup());
 

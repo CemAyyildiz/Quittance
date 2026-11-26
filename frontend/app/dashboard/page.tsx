@@ -24,7 +24,6 @@ import { toast } from 'sonner';
 import { downloadAllInvoicesCSV, downloadPaidInvoiceCSV } from '@/lib/export';
 import { invoiceStatusLabel } from '@/lib/invoiceStatusLabel';
 import { getInvoiceReminder } from '@/lib/mailtoProof';
-import InvoiceBackupExport from '@/components/InvoiceBackupExport';
 
 const PAGE_SIZE = 50;
 
@@ -34,24 +33,23 @@ export default function DashboardPage() {
   const [stats, setStats] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
-  const [exporting, setExporting] = useState<'paid' | 'all' | 'json' | null>(null);
-  const [importing, setImporting] = useState(false);
   const [filter, setFilter] = useState<string>('all');
   const [assetCode, setAssetCode] = useState('');
   const [createdFrom, setCreatedFrom] = useState('');
   const [createdTo, setCreatedTo] = useState('');
   const [searchInput, setSearchInput] = useState<string>('');
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const [exportingCSV, setExportingCSV] = useState<'paid' | 'all' | null>(null);
+  const [exportingJSON, setExportingJSON] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const importInput = useRef<HTMLInputElement>(null);
   const [viewMode, setViewMode] = useState<'invoices' | 'transactions'>('invoices');
   const loadRequestId = useRef(0);
-  const importInput = useRef<HTMLInputElement>(null);
   const [cursorStack, setCursorStack] = useState<Array<string | undefined>>([undefined]);
   const [pageIndex, setPageIndex] = useState(0);
   const [nextCursor, setNextCursor] = useState<string | undefined>(undefined);
   const [paymentOrigin, setPaymentOrigin] = useState('');
-  const [exporting, setExporting] = useState<'paid' | 'all' | 'json' | null>(null);
-  const [importing, setImporting] = useState(false);
-  const importInput = useRef<HTMLInputElement>(null);
+  const exporting = exportingCSV !== null || exportingJSON;
   // The wallet whose invoices the dashboard is currently allowed to show.
   // In-flight responses for a previous Freighter account are dropped.
   const activeSeller = useRef<string | null>(publicKey ?? null);
@@ -205,9 +203,9 @@ export default function DashboardPage() {
   };
 
   const handleExportCSV = async (type: 'paid' | 'all') => {
-    if (!publicKey || exporting !== null) return;
+    if (!publicKey || exporting) return;
 
-    setExporting(type);
+    setExportingCSV(type);
     try {
       const status = type === 'paid' ? 'PAID' : undefined;
       const exported = await loadInvoicesForExport(status);
@@ -224,7 +222,7 @@ export default function DashboardPage() {
       console.error('Invoice CSV export failed:', error);
       toast.error('Failed to export invoices');
     } finally {
-      setExporting(null);
+      setExportingCSV(null);
     }
   };
 
@@ -249,8 +247,8 @@ export default function DashboardPage() {
   };
 
   const handleExportJSON = async () => {
-    if (!publicKey) return;
-    setExporting('json');
+    if (!publicKey || exporting) return;
+    setExportingJSON(true);
     try {
       const backup: any[] = [];
       let cursor: string | undefined;
@@ -271,7 +269,7 @@ export default function DashboardPage() {
     } catch {
       toast.error('Failed to export invoice backup');
     } finally {
-      setExporting(null);
+      setExportingJSON(false);
     }
   };
 
@@ -437,7 +435,7 @@ export default function DashboardPage() {
           </div>
             )}
 
-            <InvoiceBackupExport key={publicKey} sellerPublicKey={publicKey!} />
+            <InvoiceBackupExport key={publicKey} sellerPublicKey={publicKey} />
 
             <div className="flex gap-3 mb-4">
               <div className="card flex-1 mb-0">
@@ -460,32 +458,32 @@ export default function DashboardPage() {
               <button
                 type="button"
                 onClick={() => void handleExportCSV('paid')}
-                disabled={exporting !== null}
+                disabled={exporting}
                 className="btn btn-primary flex items-center gap-2 whitespace-nowrap"
                 title="Export paid invoices"
                 aria-label="Export paid CSV"
               >
                 <Download className="w-5 h-5" aria-hidden="true" />
-                <span className="hidden sm:inline">{exporting === 'paid' ? 'Exporting…' : 'Export Paid CSV'}</span>
+                <span className="hidden sm:inline">{exportingCSV === 'paid' ? 'Exporting…' : 'Export Paid CSV'}</span>
               </button>
               <button
                 type="button"
                 onClick={() => void handleExportCSV('all')}
-                disabled={exporting !== null}
+                disabled={exporting}
                 className="btn btn-outline flex items-center gap-2 whitespace-nowrap"
                 title="Export all invoices"
                 aria-label="Export all CSV"
               >
                 <Download className="w-5 h-5" aria-hidden="true" />
-                <span className="hidden sm:inline">{exporting === 'all' ? 'Exporting…' : 'Export All CSV'}</span>
+                <span className="hidden sm:inline">{exportingCSV === 'all' ? 'Exporting…' : 'Export All CSV'}</span>
               </button>
               <button
                 type="button"
                 onClick={handleExportJSON}
-                disabled={exporting !== null}
+                disabled={exporting}
                 className="btn btn-primary whitespace-nowrap"
               >
-                {exporting === 'json' ? 'Exporting...' : 'Back up JSON'}
+                {exportingJSON ? 'Exporting...' : 'Back up JSON'}
               </button>
               <input
                 ref={importInput}

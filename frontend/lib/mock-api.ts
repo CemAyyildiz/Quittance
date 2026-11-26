@@ -249,33 +249,56 @@ export const mockInvoiceApi = {
     data: { sellerPublicKey: string; copyCustomerEmail?: boolean },
   ) => {
     await delay(500);
-    const source = mockInvoices.find((invoice) => invoice.id === id);
-    if (!source || source.sellerPublicKey !== data.sellerPublicKey) {
+    const invoice = mockInvoices.find((inv) => inv.id === id);
+    if (!invoice || invoice.sellerPublicKey !== data.sellerPublicKey) {
       throw new Error('Only the owning seller can duplicate this invoice');
     }
 
-    const invoice = {
-      ...source,
-      id: Math.random().toString(36).slice(2, 11),
+    const now = new Date();
+    const duplicated: MockInvoice = {
+      ...invoice,
+      id: Math.random().toString(36).substr(2, 9),
       status: 'PENDING',
-      sellerPublicKey: data.sellerPublicKey,
-      customerEmail: data.copyCustomerEmail ? source.customerEmail : undefined,
-      memo: `INV-${Date.now().toString(36).toUpperCase()}`,
-      paymentTxHash: undefined,
+      memo: `INV-${now.getTime().toString(36).toUpperCase()}-${Math.random()
+        .toString(36)
+        .substr(2, 4)
+        .toUpperCase()}`,
+      customerEmail: data.copyCustomerEmail ? invoice.customerEmail : undefined,
+      createdAt: now.toISOString(),
+      expiresAt: new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString(),
       paidAt: undefined,
+      paymentTxHash: undefined,
       payerPublicKey: undefined,
-      createdAt: new Date().toISOString(),
-      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+      refundTxHash: undefined,
+      refundedAt: undefined,
     };
-    mockInvoices.unshift(invoice);
-    return { success: true, data: { invoice } };
+    mockInvoices.unshift(duplicated);
+
+    const paymentUrl = `${window.location.origin}/pay/${duplicated.id}`;
+    return {
+      success: true,
+      data: {
+        invoice: duplicated,
+        paymentUrl,
+        stellarPaymentUri: buildStellarPaymentUri(
+          duplicated.sellerPublicKey,
+          duplicated.amount.toString(),
+          duplicated.assetCode,
+          duplicated.memo,
+          duplicated.assetIssuer,
+        ),
+      },
+    };
   },
 
   markUncollectible: async (id: string, sellerPublicKey: string) => {
-    await delay(300);
-    const invoice = mockInvoices.find((item) => item.id === id);
-    if (!invoice || invoice.sellerPublicKey !== sellerPublicKey || invoice.status !== 'PENDING') {
-      throw new Error('Only the owning seller can mark a pending invoice uncollectible');
+    await delay(500);
+    const invoice = mockInvoices.find((inv) => inv.id === id);
+    if (!invoice || invoice.sellerPublicKey !== sellerPublicKey) {
+      throw new Error('Only the owning seller can update this invoice');
+    }
+    if (invoice.status !== 'PENDING' && invoice.status !== 'UNCOLLECTIBLE') {
+      throw new Error('Only pending invoices can be marked uncollectible');
     }
     invoice.status = 'UNCOLLECTIBLE';
     return { success: true, data: invoice };

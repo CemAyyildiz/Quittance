@@ -9,6 +9,7 @@ import {
   getConfiguredNetwork,
   getNetworkMismatch,
   getWalletNetwork,
+  isFreighterInstalled,
   type WalletNetwork,
 } from '@/lib/stellar';
 import { useWalletStore } from '@/lib/store';
@@ -17,14 +18,16 @@ import { Wallet, LogOut, Loader2, ExternalLink, Bell, BellOff } from 'lucide-rea
 import { toast } from 'sonner';
 import { formatAddress } from '@/lib/utils';
 import { explorerAccountUrl } from '@/lib/explorerUrl';
+import FreighterStatusNotice, { type FreighterIssue } from './FreighterStatusNotice';
 
 interface WalletConnectProps {
   onConnect?: (publicKey: string) => void;
-  onConnectionFailure?: () => void;
+  onConnectionFailure?: (issue: FreighterIssue) => void;
 }
 
 export default function WalletConnect({ onConnect, onConnectionFailure }: WalletConnectProps = {}) {
   const [loading, setLoading] = useState(false);
+  const [connectionIssue, setConnectionIssue] = useState<FreighterIssue | null>(null);
   const [monitoringActive, setMonitoringActive] = useState(false);
   const [walletNetwork, setWalletNetwork] = useState<WalletNetwork>('UNKNOWN');
   const [networkMismatch, setNetworkMismatch] = useState(false);
@@ -84,6 +87,14 @@ export default function WalletConnect({ onConnect, onConnectionFailure }: Wallet
   const handleConnect = async () => {
     setLoading(true);
     try {
+      const installed = await isFreighterInstalled();
+      if (!installed) {
+        setConnectionIssue('missing');
+        onConnectionFailure?.('missing');
+        return;
+      }
+
+      setConnectionIssue(null);
       const allowed = await requestWalletAccess();
       if (allowed) {
         const key = await getUserPublicKey();
@@ -92,15 +103,24 @@ export default function WalletConnect({ onConnect, onConnectionFailure }: Wallet
           toast.success('Wallet connected');
           onConnect?.(key);
         } else {
-          onConnectionFailure?.();
+          setConnectionIssue('locked');
+          onConnectionFailure?.('locked');
+          toast.error('Freighter is installed but locked. Unlock it and try again.');
         }
       } else {
-        toast.error('Access denied');
-        onConnectionFailure?.();
+        setConnectionIssue('locked');
+        onConnectionFailure?.('locked');
+        toast.error('Freighter is installed but locked or access was denied. Unlock it and try again.');
       }
     } catch (error: any) {
-      toast.error('Failed to connect. Install Freighter wallet.');
-      onConnectionFailure?.();
+      const issue = (await isFreighterInstalled()) ? 'locked' : 'missing';
+      setConnectionIssue(issue);
+      onConnectionFailure?.(issue);
+      toast.error(
+        issue === 'missing'
+          ? 'Freighter is required. Install Freighter to connect.'
+          : 'Freighter is installed but locked. Unlock it and try again.',
+      );
     } finally {
       setLoading(false);
     }
@@ -204,23 +224,28 @@ export default function WalletConnect({ onConnect, onConnectionFailure }: Wallet
   }
 
   return (
-    <button
-      onClick={handleConnect}
-      disabled={loading}
-      aria-busy={loading}
-      className="btn btn-primary flex items-center gap-2"
-    >
-      {loading ? (
-        <>
-          <Loader2 className="w-5 h-5 animate-spin" aria-hidden="true" />
-          <span className="hidden sm:inline">Connecting...</span>
-        </>
-      ) : (
-        <>
-          <Wallet className="w-5 h-5" />
-          <span className="hidden sm:inline">Connect Wallet</span>
-        </>
+    <div className="space-y-3">
+      <button
+        onClick={handleConnect}
+        disabled={loading}
+        aria-busy={loading}
+        className="btn btn-primary flex items-center gap-2"
+      >
+        {loading ? (
+          <>
+            <Loader2 className="w-5 h-5 animate-spin" aria-hidden="true" />
+            <span className="hidden sm:inline">Connecting...</span>
+          </>
+        ) : (
+          <>
+            <Wallet className="w-5 h-5" />
+            <span className="hidden sm:inline">Connect Wallet</span>
+          </>
+        )}
+      </button>
+      {connectionIssue && !onConnectionFailure && (
+        <FreighterStatusNotice issue={connectionIssue} />
       )}
-    </button>
+    </div>
   );
 }

@@ -26,6 +26,7 @@ vi.mock('@/lib/stellar', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/lib/stellar')>();
   return {
     ...actual,
+    isFreighterInstalled: vi.fn().mockResolvedValue(true),
     sendPayment: mockSendPayment,
     checkWalletConnection: vi.fn().mockResolvedValue(true),
     requestWalletAccess: vi.fn().mockResolvedValue(true),

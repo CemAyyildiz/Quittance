@@ -8,12 +8,13 @@ import {
   getWalletNetwork,
   getConfiguredNetwork,
   getNetworkMismatch,
+  isFreighterInstalled,
   getUserPublicKey,
   getAccountBalance,
-  requestFriendbotFunding,
+  hasEnoughXlmForFee,
   isTestnetNetwork,
   isValidPublicKey,
-  hasEnoughXlmForFee,
+  requestFriendbotFunding,
   type WalletNetwork,
 } from '@/lib/stellar';
 import { toast } from 'sonner';
@@ -22,6 +23,7 @@ import { invoiceApi } from '@/lib/api';
 import { getAssetByCode } from '@/lib/assets';
 import { horizonStatus } from '@/lib/horizonStatus';
 import { getInvoiceTimeBounds } from '@/lib/invoiceTimeBounds';
+import FreighterStatusNotice, { type FreighterIssue } from './FreighterStatusNotice';
 
 interface PaymentButtonProps {
   destination: string;
@@ -60,21 +62,17 @@ export default function PaymentButton({
   onError,
 }: PaymentButtonProps) {
   const [loading, setLoading] = useState(false);
+  const [freighterIssue, setFreighterIssue] = useState<FreighterIssue | null>(null);
   const [verifying, setVerifying] = useState(false);
   // A verified payment has settled the invoice; paying again would duplicate it.
   const [settled, setSettled] = useState(false);
-  const [feeBumpEnabled, setFeeBumpEnabled] = useState(false);
-  const [feeSource, setFeeSource] = useState('');
   const [offerFunding, setOfferFunding] = useState(false);
   const [funding, setFunding] = useState(false);
   const [fundingError, setFundingError] = useState<string | null>(null);
+  const [feeBumpEnabled, setFeeBumpEnabled] = useState(false);
+  const [feeSource, setFeeSource] = useState('');
   const [walletNetwork, setWalletNetwork] = useState<WalletNetwork>('UNKNOWN');
   const [networkMismatch, setNetworkMismatch] = useState(false);
-  const [offerFunding, setOfferFunding] = useState(false);
-  const [funding, setFunding] = useState(false);
-  const [fundingError, setFundingError] = useState<string | null>(null);
-  const [feeBumpEnabled, setFeeBumpEnabled] = useState(false);
-  const [feeSource, setFeeSource] = useState('');
   const configuredNetwork = getConfiguredNetwork();
 
   useEffect(() => {
@@ -132,6 +130,12 @@ export default function PaymentButton({
       return;
     }
 
+    if (!(await isFreighterInstalled())) {
+      setFreighterIssue('missing');
+      return;
+    }
+    setFreighterIssue(null);
+
     const feeSourceAccount = feeSource.trim();
     if (feeBumpEnabled && !isValidPublicKey(feeSourceAccount)) {
       toast.error('Enter a valid fee source account');
@@ -156,9 +160,17 @@ export default function PaymentButton({
       if (!connected) {
         const allowed = await requestWalletAccess();
         if (!allowed) {
-          toast.error('Access denied');
+          setFreighterIssue('locked');
+          toast.error('Freighter is installed but locked or access was denied. Unlock it and try again.');
           return;
         }
+      }
+
+      const publicKey = await getUserPublicKey();
+      if (!publicKey) {
+        setFreighterIssue('locked');
+        toast.error('Freighter is installed but locked. Unlock it and try again.');
+        return;
       }
 
       if (checkFeeBalance && !feeBumpEnabled && (await needsTestnetFunding())) {
@@ -263,6 +275,11 @@ export default function PaymentButton({
 
   return (
     <div>
+      {freighterIssue && (
+        <div className="mb-4">
+          <FreighterStatusNotice issue={freighterIssue} />
+        </div>
+      )}
       {networkMismatch && (
         <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 mb-4 text-sm text-red-800">
           Network mismatch: Freighter is on {walletNetwork}, but the API is configured for {configuredNetwork}.
