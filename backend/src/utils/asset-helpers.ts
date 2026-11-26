@@ -19,6 +19,11 @@ export const CREDIT_ASSET_TYPES = ['credit_alphanum4', 'credit_alphanum12'] as c
 // The code used on invoices when a credit asset record has no asset_code.
 export const UNKNOWN_ASSET_CODE = 'UNKNOWN';
 
+export function normalizeAssetCode(assetCode: string | null | undefined): string {
+  const normalized = (assetCode ?? '').trim().toUpperCase();
+  return normalized || NATIVE_ASSET_CODE;
+}
+
 export type HorizonAssetType = typeof NATIVE_ASSET_TYPE | (typeof CREDIT_ASSET_TYPES)[number];
 
 export interface HorizonAssetLike {

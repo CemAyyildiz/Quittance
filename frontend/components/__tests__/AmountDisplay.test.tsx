@@ -72,6 +72,22 @@ describe('AmountDisplay', () => {
     expect(html).toContain('my-amount');
   });
 
+  it('marks a credit asset as not native XLM when asked', () => {
+    const html = renderToStaticMarkup(
+      <AmountDisplay amount={42.25} assetCode="EURC" showAssetKind />
+    );
+    expect(html).toContain('EURC');
+    expect(html).toContain('not native XLM');
+  });
+
+  it('leaves native XLM unmarked when asset kind labels are shown', () => {
+    const html = renderToStaticMarkup(
+      <AmountDisplay amount={12.5} assetCode="XLM" showAssetKind />
+    );
+    expect(html).toContain('XLM');
+    expect(html).not.toContain('not native XLM');
+  });
+
   it('renders a negative amount with a visible minus sign', () => {
     const html = renderToStaticMarkup(
       <AmountDisplay amount={-1.5} assetCode="XLM" />

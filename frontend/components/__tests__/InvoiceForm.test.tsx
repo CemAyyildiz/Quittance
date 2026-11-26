@@ -30,6 +30,7 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup();
+  window.localStorage.clear();
   vi.clearAllMocks();
 });
 
@@ -50,6 +51,69 @@ function changeEmailTo(input: HTMLElement, value: string) {
 }
 
 const MEMO_PLACEHOLDER = 'Payment reference, e.g. INV-2026';
+const SELLER_PUBLIC_KEY = 'GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5';
+const REMEMBERED_ASSET_KEY = 'quittance:last-invoiced-asset';
+const USDC_ISSUER = 'GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5';
+
+describe('InvoiceForm remembered asset', () => {
+  it('remembers the successful invoice asset for the next form, regardless of wallet', async () => {
+    const { invoiceApi } = await import('@/lib/api');
+    const firstForm = render(<InvoiceForm userWallet="GABC1234567890" />);
+
+    fireEvent.change(screen.getByPlaceholderText('10.00'), { target: { value: '5' } });
+    fireEvent.change(screen.getByLabelText('Asset'), { target: { value: 'USDC' } });
+    fireEvent.click(screen.getByRole('button', { name: /create invoice/i }));
+
+    await waitFor(() => {
+      expect(invoiceApi.create).toHaveBeenCalledWith(
+        expect.objectContaining({ assetCode: 'USDC', assetIssuer: USDC_ISSUER }),
+        expect.objectContaining({ idempotencyKey: expect.any(String) }),
+      );
+    });
+    await waitFor(() => {
+      expect(JSON.parse(window.localStorage.getItem(REMEMBERED_ASSET_KEY) ?? 'null')).toEqual({
+        assetCode: 'USDC',
+        assetIssuer: USDC_ISSUER,
+      });
+    });
+
+    firstForm.unmount();
+    render(<InvoiceForm userWallet="GOTHER1234567890" />);
+
+    await waitFor(() =>
+      expect((screen.getByLabelText('Asset') as HTMLSelectElement).value).toBe('USDC'),
+    );
+  });
+
+  it('clears the remembered asset and selects XLM', async () => {
+    window.localStorage.setItem(
+      REMEMBERED_ASSET_KEY,
+      JSON.stringify({ assetCode: 'USDC', assetIssuer: USDC_ISSUER }),
+    );
+    render(<InvoiceForm />);
+
+    await waitFor(() =>
+      expect((screen.getByLabelText('Asset') as HTMLSelectElement).value).toBe('USDC'),
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Clear remembered asset' }));
+
+    expect(window.localStorage.getItem(REMEMBERED_ASSET_KEY)).toBeNull();
+    expect((screen.getByLabelText('Asset') as HTMLSelectElement).value).toBe('XLM');
+  });
+
+  it('discards a remembered asset with an invalid issuer and uses XLM', async () => {
+    window.localStorage.setItem(
+      REMEMBERED_ASSET_KEY,
+      JSON.stringify({ assetCode: 'USDC', assetIssuer: 'invalid-issuer' }),
+    );
+    render(<InvoiceForm />);
+
+    await waitFor(() => {
+      expect((screen.getByLabelText('Asset') as HTMLSelectElement).value).toBe('XLM');
+      expect(window.localStorage.getItem(REMEMBERED_ASSET_KEY)).toBeNull();
+    });
+  });
+});
 
 describe('InvoiceForm seller display name', () => {
   it('submits a trimmed invoice label and keeps the connected wallet as identity', async () => {
@@ -62,6 +126,7 @@ describe('InvoiceForm seller display name', () => {
     fireEvent.click(screen.getByRole('button', { name: /create invoice/i }));
     await waitFor(() => expect(invoiceApi.create).toHaveBeenCalledWith(
       expect.objectContaining({ sellerName: 'Studio & Co', sellerPublicKey: 'GABC1234567890' }),
+      expect.anything(),
     ));
     await waitFor(() => expect((label as HTMLInputElement).value).toBe(''));
   });
@@ -98,6 +163,54 @@ describe('InvoiceForm Freighter availability', () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Freighter is installed but locked');
     expect(screen.queryByRole('link', { name: 'Install Freighter' })).not.toBeInTheDocument();
+    expect(invoiceApi.create).not.toHaveBeenCalled();
+  });
+});
+
+describe('InvoiceForm muxed payment address', () => {
+  it('submits a valid muxed address belonging to the connected seller', async () => {
+    const { invoiceApi } = await import('@/lib/api');
+    const muxedAddress = encodeMuxedAccountToAddress(
+      encodeMuxedAccount(SELLER_PUBLIC_KEY, '42'),
+      true,
+    );
+    render(<InvoiceForm userWallet={SELLER_PUBLIC_KEY} />);
+
+    fireEvent.change(screen.getByPlaceholderText('10.00'), {
+      target: { value: '5' },
+    });
+    fireEvent.change(screen.getByLabelText('Muxed payment address (optional)'), {
+      target: { value: muxedAddress },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /create invoice/i }));
+
+    await waitFor(() =>
+      expect(invoiceApi.create).toHaveBeenCalledWith(
+        expect.objectContaining({ sellerPublicKey: muxedAddress }),
+        expect.objectContaining({ idempotencyKey: expect.any(String) }),
+      ),
+    );
+  });
+
+  it('rejects a muxed address belonging to a different wallet', async () => {
+    const { invoiceApi } = await import('@/lib/api');
+    const muxedAddress = encodeMuxedAccountToAddress(
+      encodeMuxedAccount('GCQTGZQQ5G4PTM2GL7CDIFKUBIPEC52BROAQIAPW53XBRJVN6ZJVTG6V', '42'),
+      true,
+    );
+    render(<InvoiceForm userWallet={SELLER_PUBLIC_KEY} />);
+
+    fireEvent.change(screen.getByPlaceholderText('10.00'), {
+      target: { value: '5' },
+    });
+    fireEvent.change(screen.getByLabelText('Muxed payment address (optional)'), {
+      target: { value: muxedAddress },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /create invoice/i }));
+
+    expect(
+      await screen.findByText('The muxed address must belong to your connected wallet'),
+    ).toBeTruthy();
     expect(invoiceApi.create).not.toHaveBeenCalled();
   });
 });
@@ -209,7 +322,7 @@ describe('InvoiceForm client email validation', () => {
     });
     fireEvent.click(screen.getByRole('button', { name: /create invoice/i }));
 
-    expect(screen.getByText('Enter a valid client email')).toBeTruthy();
+    expect(await screen.findByText('Enter a valid client email')).toBeTruthy();
     expect(invoiceApi.create).not.toHaveBeenCalled();
   });
 

@@ -11,6 +11,7 @@ import { getStorage } from '../storage/storage-factory';
 import type { InvoiceStore } from '../storage/storage-factory';
 import type { StatusEvent, StatusEventStatus } from '../storage/memory-storage';
 import { DEFAULT_PAGE_LIMIT, MAX_PAGE_LIMIT } from '../utils/parse-pagination';
+import { normalizeAssetCode } from '../utils/asset-helpers';
 import { extractBaseAddress, StrKey } from '@stellar/stellar-sdk';
 
 class InvoiceMemoryService {
@@ -76,8 +77,12 @@ class InvoiceMemoryService {
       memo = await this.generateFreeMemo();
     }
 
-    const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + (input.expiresInDays || 7));
+    const expiresAt = input.expiresAt
+      ? new Date(input.expiresAt)
+      : new Date();
+    if (!input.expiresAt) {
+      expiresAt.setDate(expiresAt.getDate() + (input.expiresInDays || 7));
+    }
 
     const storage = await getStorage();
     const sellerMuxedAddress = StrKey.isValidMed25519PublicKey(input.sellerPublicKey)
@@ -88,9 +93,8 @@ class InvoiceMemoryService {
       sellerName: input.sellerName,
       amount: input.amount,
       lineItems: input.lineItems,
-      assetCode: input.assetCode || 'XLM',
+      assetCode: normalizeAssetCode(input.assetCode),
       assetIssuer: input.assetIssuer,
-      lineItems: input.lineItems,
       memo,
       description: input.description,
       customerName: input.customerName,
@@ -228,7 +232,7 @@ class InvoiceMemoryService {
       assetCode?: string;
       createdFrom?: Date;
       createdTo?: Date;
-    } = {}
+    } = {},
     search?: string
   ): Promise<{ invoices: any[]; nextCursor?: string; limit: number }> {
     const pageLimit = Number.isFinite(limit)

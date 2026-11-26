@@ -300,7 +300,6 @@ export const mockInvoiceApi = {
     if (invoice.status !== 'PENDING' && invoice.status !== 'UNCOLLECTIBLE') {
       throw new Error('Only pending invoices can be marked uncollectible');
     }
-
     invoice.status = 'UNCOLLECTIBLE';
     return { success: true, data: invoice };
   },

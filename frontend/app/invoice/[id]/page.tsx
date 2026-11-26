@@ -28,13 +28,13 @@ export default function InvoiceDetailPage() {
   const [paymentInfo, setPaymentInfo] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [voiding, setVoiding] = useState(false);
-  const [userWallet, setUserWallet] = useState<string | null>(null);
-  const [refundTxHash, setRefundTxHash] = useState('');
-  const [refunding, setRefunding] = useState(false);
   const [duplicateOpen, setDuplicateOpen] = useState(false);
   const [copyCustomerEmail, setCopyCustomerEmail] = useState(false);
   const [duplicating, setDuplicating] = useState(false);
   const [anchoring, setAnchoring] = useState(false);
+  const [userWallet, setUserWallet] = useState<string | null>(null);
+  const [refundTxHash, setRefundTxHash] = useState('');
+  const [refunding, setRefunding] = useState(false);
   const timeRemaining = useCountdown(invoice?.status === 'PENDING' ? invoice.expiresAt : null);
   const isSeller =
     Boolean(userWallet) &&
@@ -117,7 +117,7 @@ export default function InvoiceDetailPage() {
   };
 
   const handleVoidInvoice = async () => {
-    if (!userWallet || !isSeller || invoice.status !== 'PENDING') return;
+    if (!userWallet || !isSeller || invoice.status !== 'PENDING' || voiding) return;
     setVoiding(true);
     try {
       const result = await invoiceApi.cancel(id, userWallet);
@@ -131,37 +131,43 @@ export default function InvoiceDetailPage() {
   };
 
   const handleDuplicate = async () => {
-    if (!userWallet || !isSeller) return;
+    if (!userWallet || !isSeller || duplicating) return;
     setDuplicating(true);
     try {
       const result = await invoiceApi.duplicate(id, {
         sellerPublicKey: userWallet,
         copyCustomerEmail,
       });
-      const duplicateId = result.data.invoice?.id;
+      const duplicatedInvoice = result.data?.invoice;
+      const duplicateId = duplicatedInvoice?.id;
       if (!duplicateId) {
-        throw new Error('The duplicated invoice could not be opened');
+        throw new Error('The duplicated invoice response is invalid');
       }
 
       setDuplicateOpen(false);
       toast.success('Invoice duplicated');
       router.push(`/invoice/${duplicateId}`);
     } catch (error: any) {
-      toast.error(error.response?.data?.error ?? error.message ?? 'Invoice could not be duplicated');
+      toast.error(error.response?.data?.error ?? error.message ?? 'Could not duplicate invoice');
     } finally {
       setDuplicating(false);
     }
   };
 
   const handleAnchorProof = async () => {
-    if (!userWallet || !isSeller || invoice.status !== 'PAID') return;
+    if (!userWallet || !isSeller || invoice.status !== 'PAID' || anchoring) return;
     setAnchoring(true);
     try {
       const digestResult = await invoiceApi.getProofDigest(id, userWallet);
-      const digest = digestResult.data.digest;
+      const digest = digestResult.data?.digest;
+      if (typeof digest !== 'string' || !digest) {
+        throw new Error('Could not compute the invoice proof digest');
+      }
+
       const preparedResult = await invoiceApi.prepareAnchorProof(id, digest, userWallet);
-      const { contractId, digest: preparedDigest } = preparedResult.data;
-      if (!contractId) {
+      const contractId = preparedResult.data?.contractId;
+      const preparedDigest = preparedResult.data?.digest;
+      if (typeof contractId !== 'string' || !contractId) {
         throw new Error('Receipt anchoring contract is not configured');
       }
       if (preparedDigest !== digest) {

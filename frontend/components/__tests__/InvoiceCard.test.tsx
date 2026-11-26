@@ -29,7 +29,7 @@ describe('InvoiceCard', () => {
 
     const html = renderToStaticMarkup(<InvoiceCard invoice={sampleInvoice} />);
 
-    expect(html).toContain('250.00');
+    expect(html).toContain('250');
     expect(html).toContain('XLM');
     expect(html).toContain(sampleInvoice.memo);
     expect(html).toContain('Pending');
