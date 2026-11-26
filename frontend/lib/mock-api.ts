@@ -249,17 +249,20 @@ export const mockInvoiceApi = {
     data: { sellerPublicKey: string; copyCustomerEmail?: boolean },
   ) => {
     await delay(500);
-    const invoice = mockInvoices.find(
-      (item) => item.id === id && item.sellerPublicKey === data.sellerPublicKey,
-    );
+    const invoice = mockInvoices.find((item) => item.id === id);
     if (!invoice) {
       throw new Error('Invoice not found');
+    }
+    if (invoice.sellerPublicKey !== data.sellerPublicKey) {
+      throw new Error('Only the owning seller can duplicate this invoice');
     }
 
     const duplicate: MockInvoice = {
       ...invoice,
       id: Math.random().toString(36).slice(2, 11),
       status: 'PENDING',
+      sellerPublicKey: data.sellerPublicKey,
+      memo: `INV-${Date.now().toString(36).toUpperCase()}`,
       createdAt: new Date().toISOString(),
       expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
       paidAt: undefined,
@@ -274,12 +277,15 @@ export const mockInvoiceApi = {
   },
 
   markUncollectible: async (id: string, sellerPublicKey: string) => {
-    await delay(500);
+    await delay(300);
     const invoice = mockInvoices.find(
       (item) => item.id === id && item.sellerPublicKey === sellerPublicKey,
     );
     if (!invoice) {
       throw new Error('Invoice not found');
+    }
+    if (invoice.status !== 'PENDING') {
+      throw new Error('Only the owning seller can mark a pending invoice uncollectible');
     }
     invoice.status = 'UNCOLLECTIBLE';
     return { success: true, data: invoice };

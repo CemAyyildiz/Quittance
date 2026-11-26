@@ -48,7 +48,10 @@ vi.mock('@/lib/stellar', async (importOriginal) => {
     requestFriendbotFunding: mockRequestFriendbotFunding,
     isValidPublicKey: mockIsValidPublicKey,
     getWalletNetwork: mockGetWalletNetwork,
-    getConfiguredNetwork: () => 'TESTNET',
+    getConfiguredNetwork: () =>
+      process.env.NEXT_PUBLIC_STELLAR_NETWORK?.trim().toUpperCase() === 'PUBLIC'
+        ? 'PUBLIC'
+        : 'TESTNET',
     getNetworkMismatch: (wallet: string, configured: string) =>
       wallet !== 'UNKNOWN' && wallet !== configured,
   };
@@ -205,7 +208,8 @@ describe('PaymentButton', () => {
       id: 'payment-flow',
     });
     expect(onSuccess).toHaveBeenCalledWith(TX_HASH);
-    expect(screen.getByRole('button', { name: PAY_IDLE_LABEL })).toBeEnabled();
+    // A verified payment has settled the invoice; the control must stay off.
+    expect(screen.getByRole('button', { name: PAY_IDLE_LABEL })).toBeDisabled();
   });
 
   it('wraps the payment when a fee source is entered', async () => {
@@ -323,6 +327,7 @@ describe('PaymentButton testnet fee funding', () => {
 
   it('does not offer Friendbot off testnet even with no XLM', async () => {
     vi.stubEnv('NEXT_PUBLIC_STELLAR_NETWORK', 'PUBLIC');
+    mockGetWalletNetwork.mockResolvedValue('PUBLIC');
     mockGetAccountBalance.mockResolvedValue([{ assetCode: 'XLM', balance: '0.0000000' }]);
     renderButton();
 

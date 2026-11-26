@@ -34,6 +34,11 @@ interface PaymentButtonProps {
   expiresAt?: string | Date;
   payerName?: string;
   payerEmail?: string;
+  /**
+   * Parent-owned busy state (for example an in-flight manual verification).
+   * While true the pay control is not clickable.
+   */
+  disabled?: boolean;
   onSuccess?: (txHash: string) => void;
   onError?: (error: unknown) => void;
 }
@@ -50,17 +55,21 @@ export default function PaymentButton({
   expiresAt,
   payerName,
   payerEmail,
+  disabled = false,
   onSuccess,
   onError,
 }: PaymentButtonProps) {
   const [loading, setLoading] = useState(false);
+  const [verifying, setVerifying] = useState(false);
+  // A verified payment has settled the invoice; paying again would duplicate it.
+  const [settled, setSettled] = useState(false);
   const [offerFunding, setOfferFunding] = useState(false);
   const [funding, setFunding] = useState(false);
   const [fundingError, setFundingError] = useState<string | null>(null);
-  const [feeBumpEnabled, setFeeBumpEnabled] = useState(false);
-  const [feeSource, setFeeSource] = useState('');
   const [walletNetwork, setWalletNetwork] = useState<WalletNetwork>('UNKNOWN');
   const [networkMismatch, setNetworkMismatch] = useState(false);
+  const [feeBumpEnabled, setFeeBumpEnabled] = useState(false);
+  const [feeSource, setFeeSource] = useState('');
   const configuredNetwork = getConfiguredNetwork();
 
   useEffect(() => {
@@ -118,6 +127,12 @@ export default function PaymentButton({
       return;
     }
 
+    const feeSourceAccount = feeSource.trim();
+    if (feeBumpEnabled && !isValidPublicKey(feeSourceAccount)) {
+      toast.error('Enter a valid fee source account');
+      return;
+    }
+
     setLoading(true);
     setOfferFunding(false);
     setFundingError(null);
@@ -147,25 +162,39 @@ export default function PaymentButton({
       }
 
       toast.loading('Confirm in wallet...', { id: PAY_TOAST_ID });
-      let txHash: string;
-      if (feeBumpEnabled) {
-        const options = { feeSource: feeSource.trim() };
-        txHash = bounds?.ok
-          ? await sendPayment(destination, amount, memo, assetCode, issuer, options, bounds.maxTime)
-          : await sendPayment(destination, amount, memo, assetCode, issuer, options);
-      } else {
-        txHash = bounds?.ok
-          ? await sendPayment(destination, amount, memo, assetCode, issuer, bounds.maxTime)
-          : await sendPayment(destination, amount, memo, assetCode, issuer);
-      }
+      const maxTime = bounds?.ok ? bounds.maxTime : undefined;
+      const txHash =
+        maxTime !== undefined && feeBumpEnabled
+          ? await sendPayment(
+              destination,
+              amount,
+              memo,
+              assetCode,
+              issuer,
+              maxTime,
+              { feeSource: feeSourceAccount },
+            )
+          : await sendPayment(
+              destination,
+              amount,
+              memo,
+              assetCode,
+              issuer,
+              feeBumpEnabled ? { feeSource: feeSourceAccount } : maxTime,
+            );
 
       if (invoiceId) {
         toast.loading('Verifying payment...', { id: PAY_TOAST_ID });
+        // Hold the pay control from the moment verification starts until it
+        // finishes, so a slow response cannot allow a second submission.
+        setVerifying(true);
         try {
           await invoiceApi.verify(invoiceId, txHash, {
             payerName,
             payerEmail,
           });
+          // Verified: the invoice is settled, so the control stays disabled.
+          setSettled(true);
           toast.success('Payment verified', {
             id: PAY_TOAST_ID,
             description: `TX: ${txHash.slice(0, 8)}...${txHash.slice(-8)}`,
@@ -176,6 +205,9 @@ export default function PaymentButton({
             id: PAY_TOAST_ID,
             description: 'Refresh the page or wait for status to update',
           });
+        } finally {
+          // A failed verification (caught above) re-enables the control.
+          setVerifying(false);
         }
       } else {
         toast.success('Payment successful', {
@@ -321,7 +353,13 @@ export default function PaymentButton({
       <button
         type="button"
         onClick={handlePayment}
-        disabled={loading || (timeBounds !== undefined && !timeBounds.ok)}
+        disabled={
+          loading ||
+          verifying ||
+          settled ||
+          disabled ||
+          (timeBounds !== undefined && !timeBounds.ok)
+        }
         aria-busy={loading}
         className="btn btn-primary w-full flex items-center justify-center gap-2 text-lg py-4"
       >
