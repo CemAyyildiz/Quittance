@@ -31,7 +31,14 @@ async function call(method: 'GET' | 'POST', path: string, body?: unknown) {
 
 function horizonPayment(memo: string, destination: Record<string, unknown>) {
   return {
-    transaction: { memo, ledger_sequence: 12345, source_account: PAYER },
+    transaction: {
+      memo,
+      ledger_sequence: 12345,
+      source_account: PAYER,
+      successful: true,
+      created_at: new Date().toISOString(),
+      valid_before: new Date(Date.now() + 5 * 60 * 1000).toISOString(),
+    },
     operations: [{
       type: 'payment',
       to: SELLER,

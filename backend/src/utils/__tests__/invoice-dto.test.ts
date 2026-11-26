@@ -48,11 +48,18 @@ describe('toInvoiceDTO', () => {
       status: 'PENDING',
       paymentTxHash: undefined,
       payerPublicKey: undefined,
+      ledger: undefined,
       createdAt: '2026-07-28T10:00:00.000Z',
       paidAt: undefined,
+      refundTxHash: undefined,
+      refundedAt: undefined,
+      refundLedger: undefined,
       expiresAt: '2026-08-04T10:00:00.000Z',
       originalExpiresAt: '2026-08-04T10:00:00.000Z',
       expiryExtended: false,
+      payments: [],
+      receivedAmount: '0',
+      remainingAmount: '100',
     });
   });
 
@@ -128,11 +135,18 @@ describe('toInvoiceDTO', () => {
       status: 'EXPIRED',
       paymentTxHash: undefined,
       payerPublicKey: undefined,
+      ledger: undefined,
       createdAt: '2026-07-28T10:00:00.000Z',
       paidAt: undefined,
+      refundTxHash: undefined,
+      refundedAt: undefined,
+      refundLedger: undefined,
       expiresAt: '2026-07-25T10:00:00.000Z',
       originalExpiresAt: '2026-07-25T10:00:00.000Z',
       expiryExtended: false,
+      payments: [],
+      receivedAmount: '0',
+      remainingAmount: '100',
     });
   });
 
@@ -156,11 +170,18 @@ describe('toInvoiceDTO', () => {
       status: 'CANCELLED',
       paymentTxHash: undefined,
       payerPublicKey: undefined,
+      ledger: undefined,
       createdAt: '2026-07-28T10:00:00.000Z',
       paidAt: undefined,
+      refundTxHash: undefined,
+      refundedAt: undefined,
+      refundLedger: undefined,
       expiresAt: '2026-07-20T10:00:00.000Z',
       originalExpiresAt: '2026-07-20T10:00:00.000Z',
       expiryExtended: false,
+      payments: [],
+      receivedAmount: '0',
+      remainingAmount: '100',
     });
   });
 
@@ -199,9 +220,12 @@ describe('toInvoiceDTO', () => {
       'paidAt',
       'payerPublicKey',
       'paymentTxHash',
+      'payments',
+      'receivedAmount',
       'refundLedger',
       'refundTxHash',
       'refundedAt',
+      'remainingAmount',
       'sellerPublicKey',
       'status',
     ]);

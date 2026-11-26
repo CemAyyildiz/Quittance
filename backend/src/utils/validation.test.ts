@@ -433,6 +433,28 @@ describe('createInvoiceSchema', () => {
     ).toBe(true);
   });
 
+  it('stores whitespace-only descriptions as absent and trims surrounding whitespace', () => {
+    const blank = createInvoiceSchema.safeParse({
+      amount: 10,
+      description: '   ',
+      sellerPublicKey: validSellerPublicKey,
+    });
+    expect(blank.success).toBe(true);
+    if (blank.success) {
+      expect(blank.data.description).toBeUndefined();
+    }
+
+    const padded = createInvoiceSchema.safeParse({
+      amount: 10,
+      description: '  Website redesign  ',
+      sellerPublicKey: validSellerPublicKey,
+    });
+    expect(padded.success).toBe(true);
+    if (padded.success) {
+      expect(padded.data.description).toBe('Website redesign');
+    }
+  });
+
   it('accepts customerName at 255 chars and rejects 256', () => {
     const validResult = createInvoiceSchema.safeParse({
       amount: 10,

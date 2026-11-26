@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { StrKey } from '@stellar/stellar-sdk';
 import { MAX_MEMO_BYTES, getMemoByteLength } from './memo';
+import { amountsMatch, isValidAmount } from './amount-compare';
 import { isFutureExpiry } from './invoice-expiry';
 import { normalizeAssetCode, NATIVE_ASSET_CODE } from './asset-helpers';
 
@@ -15,35 +16,13 @@ export function parseAmount(input: string | number): ParsedAmount | undefined {
   if (stroops <= 0n || stroops > 10_000_000_000_000_000n) return undefined;
   return { decimal, stroops };
 }
-/**
- * Amount accepted as a string or a number, normalised to a number.
- *
- * Stellar amounts stop at seven decimal places, so a longer fraction is
- * rejected rather than rounded. The check runs on the submitted text, which
- * is why a string amount with trailing zeros (`1.10000000`) is refused too;
- * a comma is read as the decimal mark before the fraction is counted.
- */
-const amountSchema = z
-  .union([z.string(), z.number()])
-  .superRefine((value, ctx) => {
-    const raw = String(value).trim().replace(',', '.');
-    if (!/^\d+(?:\.\d+)?$/.test(raw)) {
-      ctx.addIssue({ code: 'custom', message: 'Amount must be a positive decimal' });
-      return;
-    }
-    const fraction = raw.split('.')[1] ?? '';
-    if (fraction.length > MAX_STELLAR_DECIMALS) {
-      ctx.addIssue({
-        code: 'custom',
-        message: `Amount must have no more than ${MAX_STELLAR_DECIMALS} decimal places`,
-      });
-    }
-    const numeric = Number(raw);
-    if (!(numeric > 0) || numeric > 1000000000) {
-      ctx.addIssue({ code: 'custom', message: 'Amount must be between 0 and 1000000000' });
-    }
-  })
-  .transform((value) => Number(String(value).trim().replace(',', '.')));
+const amountSchema = z.preprocess((value) => {
+  if (typeof value !== 'string' && typeof value !== 'number') return value;
+  const parsed = parseAmount(value);
+  return parsed ? Number(parsed.decimal) : value;
+}, z.number().positive().max(1000000000).refine(isValidAmount, {
+  message: 'Amount must have at most 7 decimal places',
+}));
 
 // Stellar public key validation
 export const stellarPublicKeySchema = z.string()
@@ -115,7 +94,7 @@ export function sumLineItems(lineItems: InvoiceLineItem[]): number {
 
 // Invoice creation schema
 export const createInvoiceSchema = z.object({
-  amount: z.number().finite().positive().max(1000000000),
+  amount: amountSchema,
   lineItems: z
     .array(lineItemSchema)
     .max(MAX_LINE_ITEMS, `Line items list is too long (maximum ${MAX_LINE_ITEMS} items)`)
@@ -126,7 +105,10 @@ export const createInvoiceSchema = z.object({
     .pipe(z.string().max(12, 'Asset code must be at most 12 characters'))
     .default(NATIVE_ASSET_CODE),
   assetIssuer: stellarPublicKeySchema.optional(),
-  description: z.string().max(500).optional(),
+  description: z.string()
+    .max(500)
+    .transform((value) => value.trim() || undefined)
+    .optional(),
   customerName: z.string().max(255).optional(),
   customerEmail: z.string().email().optional(),
   sellerName: z.string().trim().max(80).optional().transform((name) => name || undefined),
@@ -159,14 +141,12 @@ export const createInvoiceSchema = z.object({
       });
     }
   }
-  if (invoice.lineItems && invoice.lineItems.length > 0) {
-    const lineTotal = sumLineItems(invoice.lineItems);
-    const invoiceAmount = roundStellarAmount(invoice.amount);
-    if (lineTotal !== invoiceAmount) {
+  if (invoice.lineItems?.length) {
+    if (!amountsMatch(sumLineItems(invoice.lineItems), invoice.amount)) {
       ctx.addIssue({
         code: 'custom',
         path: ['lineItems'],
-        message: `Line items total (${lineTotal}) must equal invoice amount (${invoiceAmount})`,
+        message: 'Line item total must match invoice amount',
       });
     }
   }

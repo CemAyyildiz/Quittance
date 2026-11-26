@@ -62,7 +62,7 @@ describe('MVP invoice CSV export', () => {
     seedInvoice('PENDING-CSV');
 
     const response = await fetch(
-      `${baseUrl}/api/invoices/export?sellerPublicKey=${SELLER}`,
+      `${baseUrl}/api/invoices/export.csv?sellerPublicKey=${SELLER}`,
     );
     const csv = (await response.text()).replace(/^\uFEFF/, '');
 
@@ -71,7 +71,7 @@ describe('MVP invoice CSV export', () => {
     expect(csv).not.toContain('PENDING-CSV');
 
     const emptyResponse = await fetch(
-      `${baseUrl}/api/invoices/export?sellerPublicKey=${OTHER_SELLER}`,
+      `${baseUrl}/api/invoices/export.csv?sellerPublicKey=${OTHER_SELLER}`,
     );
     const emptyCsv = (await emptyResponse.text()).replace(/^\uFEFF/, '');
 
