@@ -10,10 +10,10 @@ import {
   getNetworkMismatch,
   getUserPublicKey,
   getAccountBalance,
-  requestFriendbotFunding,
+  hasEnoughXlmForFee,
   isTestnetNetwork,
   isValidPublicKey,
-  hasEnoughXlmForFee,
+  requestFriendbotFunding,
   type WalletNetwork,
 } from '@/lib/stellar';
 import { toast } from 'sonner';
@@ -63,16 +63,11 @@ export default function PaymentButton({
   const [verifying, setVerifying] = useState(false);
   // A verified payment has settled the invoice; paying again would duplicate it.
   const [settled, setSettled] = useState(false);
-  const [feeBumpEnabled, setFeeBumpEnabled] = useState(false);
-  const [feeSource, setFeeSource] = useState('');
   const [offerFunding, setOfferFunding] = useState(false);
   const [funding, setFunding] = useState(false);
   const [fundingError, setFundingError] = useState<string | null>(null);
   const [walletNetwork, setWalletNetwork] = useState<WalletNetwork>('UNKNOWN');
   const [networkMismatch, setNetworkMismatch] = useState(false);
-  const [offerFunding, setOfferFunding] = useState(false);
-  const [funding, setFunding] = useState(false);
-  const [fundingError, setFundingError] = useState<string | null>(null);
   const [feeBumpEnabled, setFeeBumpEnabled] = useState(false);
   const [feeSource, setFeeSource] = useState('');
   const configuredNetwork = getConfiguredNetwork();
@@ -237,6 +232,10 @@ export default function PaymentButton({
   };
 
   const handlePayment = () => {
+    if (feeBumpEnabled && !isValidPublicKey(feeSource.trim())) {
+      toast.error('Enter a valid fee source account');
+      return;
+    }
     void pay(true);
   };
 

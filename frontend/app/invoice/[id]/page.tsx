@@ -12,7 +12,9 @@ import UserProfile from '@/components/UserProfile';
 import PaymentReceipt from '@/components/PaymentReceipt';
 import StatusHistory, { type StatusHistoryRow } from '@/components/StatusHistory';
 import AssetLogo from '@/components/AssetLogo';
+import PaymentLinkCopy from '@/components/PaymentLinkCopy';
 import { formatAmount, formatDate, copyToClipboard } from '@/lib/utils';
+import { paymentUrlBuilder } from '@/lib/paymentUrlBuilder';
 import { openInvoicePDF } from '@/lib/export';
 import { submitAnchorTransaction } from '@/lib/anchor';
 import { useCountdown } from '@/lib/useCountdown';
@@ -33,10 +35,6 @@ export default function InvoiceDetailPage() {
   const [duplicating, setDuplicating] = useState(false);
   const [anchoring, setAnchoring] = useState(false);
   const [userWallet, setUserWallet] = useState<string | null>(null);
-  const [duplicateOpen, setDuplicateOpen] = useState(false);
-  const [copyCustomerEmail, setCopyCustomerEmail] = useState(false);
-  const [duplicating, setDuplicating] = useState(false);
-  const [anchoring, setAnchoring] = useState(false);
   const [refundTxHash, setRefundTxHash] = useState('');
   const [refunding, setRefunding] = useState(false);
   const timeRemaining = useCountdown(invoice?.status === 'PENDING' ? invoice.expiresAt : null);
@@ -74,7 +72,8 @@ export default function InvoiceDetailPage() {
     }
   };
 
-  const getPaymentShareUrl = () => `${window.location.origin}/pay/${invoice.id}`;
+  const getPaymentShareUrl = () =>
+    paymentUrlBuilder(process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000', invoice.id);
 
   const handleShare = async () => {
     const url = getPaymentShareUrl();
@@ -100,68 +99,6 @@ export default function InvoiceDetailPage() {
   const handleDownloadProof = () => {
     openInvoicePDF(invoice);
     toast.success('Opening payment proof');
-  };
-
-  const handleVoidInvoice = async () => {
-    if (!userWallet || !isSeller) return;
-    setVoiding(true);
-    try {
-      const result = await invoiceApi.cancel(id, userWallet);
-      setInvoice(result.data);
-      toast.success('Invoice voided');
-    } catch (error: any) {
-      toast.error(error.response?.data?.error ?? 'Could not void invoice');
-    } finally {
-      setVoiding(false);
-    }
-  };
-
-  const handleDuplicate = async () => {
-    if (!userWallet || !isSeller) return;
-    setDuplicating(true);
-    try {
-      const result = await invoiceApi.duplicate(id, {
-        sellerPublicKey: userWallet,
-        copyCustomerEmail,
-      });
-      const duplicateId = result.data.invoice?.id;
-      if (!duplicateId) {
-        throw new Error('The duplicated invoice was not returned by the server');
-      }
-      toast.success('Invoice duplicated');
-      router.push(`/invoice/${duplicateId}`);
-    } catch (error: any) {
-      toast.error(error.response?.data?.error ?? error.message ?? 'Could not duplicate invoice');
-    } finally {
-      setDuplicating(false);
-      setDuplicateOpen(false);
-    }
-  };
-
-  const handleAnchorProof = async () => {
-    if (!userWallet || !isSeller) return;
-    setAnchoring(true);
-    try {
-      const proofResult = await invoiceApi.getProofDigest(id, userWallet);
-      const digest = proofResult.data.digest;
-      const prepared = await invoiceApi.prepareAnchorProof(id, digest, userWallet);
-      const contractId = prepared.data.contractId;
-      if (!contractId) {
-        throw new Error('Receipt anchoring is not configured');
-      }
-      const txHash = await submitAnchorTransaction(contractId, invoice.id, digest);
-      const result = await invoiceApi.anchorProof(id, {
-        digest,
-        txHash,
-        sellerPublicKey: userWallet,
-      });
-      setInvoice(result.data);
-      toast.success('Proof anchored on chain');
-    } catch (error: any) {
-      toast.error(error.response?.data?.error ?? error.message ?? 'Could not anchor proof');
-    } finally {
-      setAnchoring(false);
-    }
   };
 
   const handleRefund = async () => {
@@ -571,6 +508,10 @@ export default function InvoiceDetailPage() {
             </div>
 
             <div className="space-y-6">
+              {invoice.status === 'PENDING' && (
+                <PaymentLinkCopy url={getPaymentShareUrl()} />
+              )}
+
               {invoice.status !== 'PAID' && (
                 <PaymentStatus status={invoice.status} txHash={invoice.status === 'REFUNDED' ? invoice.refundTxHash : invoice.paymentTxHash} />
               )}

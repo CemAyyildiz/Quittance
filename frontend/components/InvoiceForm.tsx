@@ -141,8 +141,6 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
   const [customerName, setCustomerName] = useState('');
   const [customerEmail, setCustomerEmail] = useState('');
   const [sellerName, setSellerName] = useState('');
-  const [muxedAddress, setMuxedAddress] = useState('');
-  const [muxedAddressError, setMuxedAddressError] = useState('');
   const [trustlineWarning, setTrustlineWarning] = useState<string | null>(null);
   const [serverWarning, setServerWarning] = useState<string | null>(null);
   const [acknowledgedWarning, setAcknowledgedWarning] = useState(false);
@@ -152,7 +150,6 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
   const [muxedAddressError, setMuxedAddressError] = useState('');
   const [expiresAt, setExpiresAt] = useState('');
   const [expiryError, setExpiryError] = useState('');
-  const [draftReadyFor, setDraftReadyFor] = useState<string | null>(null);
   const [walletNetwork, setWalletNetwork] = useState<WalletNetwork>('UNKNOWN');
   const [networkMismatch, setNetworkMismatch] = useState(false);
   const configuredNetwork = getConfiguredNetwork();
@@ -415,17 +412,6 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
     }
     setEmailError('');
 
-    const muxedDestination = muxedAddress.trim();
-    if (
-      muxedDestination &&
-      (!StrKey.isValidMed25519PublicKey(muxedDestination) ||
-        extractBaseAddress(muxedDestination) !== userWallet)
-    ) {
-      setMuxedAddressError('Enter a valid M address for your connected wallet');
-      return;
-    }
-    setMuxedAddressError('');
-
     submittingRef.current = true;
     setLoading(true);
     const idempotencyKey = newIdempotencyKey();
@@ -439,7 +425,7 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
         amount: amountNum,
         lineItems: submittedLineItems,
         assetCode: assetCode,
-        assetIssuer: selectedAsset?.issuer,
+        assetIssuer: chosenAsset.issuer,
         expiresInDays: 7,
         sellerPublicKey: enteredMuxedAddress || userWallet,
         sellerName: sellerName.trim() || undefined,
@@ -454,11 +440,11 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
         window.localStorage.setItem(
           rememberedAssetStorageKey,
           JSON.stringify({
-            assetCode: selectedAsset.code,
-            assetIssuer: selectedAsset.issuer ?? null,
+            assetCode: chosenAsset.code,
+            assetIssuer: chosenAsset.issuer ?? null,
           }),
         );
-        setRememberedAssetCode(selectedAsset.code);
+        setRememberedAssetCode(chosenAsset.code);
       } catch (error) {
         console.warn('Could not remember invoice asset:', error);
         toast.warning('Invoice created, but this asset could not be remembered in this browser');
@@ -484,7 +470,6 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
       setMuxedAddressError('');
       setAmountError('');
       setEmailError('');
-      setMuxedAddressError('');
       setExpiryError('');
       setMemoSubmitted(false);
     } catch (error: any) {

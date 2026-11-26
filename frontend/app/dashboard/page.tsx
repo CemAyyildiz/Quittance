@@ -24,7 +24,6 @@ import { toast } from 'sonner';
 import { downloadAllInvoicesCSV, downloadPaidInvoiceCSV } from '@/lib/export';
 import { invoiceStatusLabel } from '@/lib/invoiceStatusLabel';
 import { getInvoiceReminder } from '@/lib/mailtoProof';
-import InvoiceBackupExport from '@/components/InvoiceBackupExport';
 
 const PAGE_SIZE = 50;
 
@@ -49,9 +48,6 @@ export default function DashboardPage() {
   const [pageIndex, setPageIndex] = useState(0);
   const [nextCursor, setNextCursor] = useState<string | undefined>(undefined);
   const [paymentOrigin, setPaymentOrigin] = useState('');
-  const [exporting, setExporting] = useState<'paid' | 'all' | 'json' | null>(null);
-  const [importing, setImporting] = useState(false);
-  const importInput = useRef<HTMLInputElement>(null);
   // The wallet whose invoices the dashboard is currently allowed to show.
   // In-flight responses for a previous Freighter account are dropped.
   const activeSeller = useRef<string | null>(publicKey ?? null);
