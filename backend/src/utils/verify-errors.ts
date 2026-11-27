@@ -136,6 +136,7 @@ export const VerifyErrorMessages: Readonly<Record<VerifyErrorCode, string>> = Ob
   [VerifyErrorCode.MISSING_LEDGER_SEQUENCE]: 'Transaction is missing a ledger sequence',
   [VerifyErrorCode.NETWORK_MISMATCH]:
     'Transaction was fetched from a different Stellar network than the API is configured for',
+  [VerifyErrorCode.INVALID_FEE_BUMP]: 'Invalid fee-bump transaction',
   [VerifyErrorCode.TX_HASH_ALREADY_USED]:
     'This transaction hash has already been used.',
   [VerifyErrorCode.MEMO_MISMATCH]: 'Memo mismatch',

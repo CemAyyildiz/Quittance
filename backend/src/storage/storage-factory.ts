@@ -23,6 +23,18 @@ export interface InvoiceStore {
     refundTxHash: string,
     meta?: { ledger?: number; refundedAt?: Date }
   ): Promise<any> | any;
+  recordPayment(
+    invoiceId: string,
+    payment: {
+      txHash: string;
+      amount: string;
+      payerPublicKey: string;
+      ledger: number;
+      paidAt: Date;
+    },
+    receivedAmount: string,
+    paid: boolean,
+  ): Promise<any> | any;
   getAllInvoices(filter?: { status?: string }): Promise<any[]> | any[];
   getStats(sellerPublicKey: string): Promise<any> | any;
   markExpiredInvoices(): Promise<number> | number;
@@ -61,7 +73,7 @@ export async function getStorage(): Promise<InvoiceStore> {
       await pool.query('SELECT 1');
       console.log('✅ Postgres connection established');
       storageInstance = postgresStorage;
-      return storageInstance;
+      return postgresStorage;
     } catch (error: any) {
       console.error('❌ Failed to connect to Postgres:', error.message);
       console.error('DATABASE_URL is set but database is unavailable');
@@ -73,7 +85,7 @@ export async function getStorage(): Promise<InvoiceStore> {
     // No DATABASE_URL - use memory storage
     console.log('💾 Using in-memory storage (DATABASE_URL not set)');
     storageInstance = memoryStorage;
-    return storageInstance;
+    return memoryStorage;
   }
 }
 

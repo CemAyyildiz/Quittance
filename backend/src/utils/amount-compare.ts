@@ -143,15 +143,70 @@ export const decimalsEqual = isDecimalEqual;
 export const decimalsLessThan = isDecimalLessThan;
 export const decimalsGreaterThan = isDecimalGreaterThan;
 
+export const STROOPS_PER_UNIT = 10_000_000n;
+export const MAX_STROOPS = 9_223_372_036_854_775_807n;
 const STELLAR_SCALE = 7;
 
-function toScaledUnits(value: string): bigint {
-  const trimmed = value.trim();
+function expandScientificNotation(value: string): string {
+  const match = /^([+-]?)(\d+)(?:\.(\d*))?(?:e([+-]?\d+))?$/i.exec(value);
+  if (!match) return value;
+
+  const [, sign, whole, fraction = '', exponentText = '0'] = match;
+  const digits = whole + fraction;
+  const decimalPosition = whole.length + Number(exponentText);
+
+  if (decimalPosition <= 0) {
+    return `${sign}0.${'0'.repeat(-decimalPosition)}${digits}`;
+  }
+  if (decimalPosition >= digits.length) {
+    return `${sign}${digits}${'0'.repeat(decimalPosition - digits.length)}`;
+  }
+  return `${sign}${digits.slice(0, decimalPosition)}.${digits.slice(decimalPosition)}`;
+}
+
+export function amountToStroops(value: string | number): bigint {
+  if (typeof value === 'number' && !Number.isFinite(value)) {
+    throw new Error('Amount must be finite');
+  }
+  const trimmed = expandScientificNotation(String(value).trim());
   if (!/^\d+(?:\.\d{0,7})?$/.test(trimmed)) {
-    throw new Error('Amount must be a non-negative decimal with at most 7 places');
+    throw new Error(
+      'Amount must be a non-negative decimal with at most 7 decimal places',
+    );
   }
   const [whole, fraction = ''] = trimmed.split('.');
-  return BigInt(whole) * 10n ** BigInt(STELLAR_SCALE) + BigInt(fraction.padEnd(STELLAR_SCALE, '0'));
+  const stroops =
+    BigInt(whole) * STROOPS_PER_UNIT +
+    BigInt(fraction.padEnd(STELLAR_SCALE, '0'));
+  if (stroops > MAX_STROOPS) {
+    throw new Error('Amount exceeds the signed int64 stroop limit');
+  }
+  return stroops;
+}
+
+export function amountsMatch(
+  first: string | number,
+  second: string | number,
+): boolean {
+  try {
+    return amountToStroops(first) === amountToStroops(second);
+  } catch {
+    return false;
+  }
+}
+
+export function isValidAmount(value: unknown): value is string | number {
+  if (typeof value !== 'string' && typeof value !== 'number') return false;
+  try {
+    amountToStroops(value);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function toScaledUnits(value: string): bigint {
+  return amountToStroops(value);
 }
 
 function fromScaledUnits(value: bigint): string {

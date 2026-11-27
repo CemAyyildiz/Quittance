@@ -148,11 +148,8 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
   const [acknowledgedWarning, setAcknowledgedWarning] = useState(false);
   const [amountError, setAmountError] = useState('');
   const [emailError, setEmailError] = useState('');
-  const [muxedAddress, setMuxedAddress] = useState('');
-  const [muxedAddressError, setMuxedAddressError] = useState('');
   const [expiresAt, setExpiresAt] = useState('');
   const [expiryError, setExpiryError] = useState('');
-  const [draftReadyFor, setDraftReadyFor] = useState<string | null>(null);
   const [walletNetwork, setWalletNetwork] = useState<WalletNetwork>('UNKNOWN');
   const [networkMismatch, setNetworkMismatch] = useState(false);
   const configuredNetwork = getConfiguredNetwork();
@@ -439,7 +436,7 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
         amount: amountNum,
         lineItems: submittedLineItems,
         assetCode: assetCode,
-        assetIssuer: selectedAsset?.issuer,
+        assetIssuer: chosenAsset.issuer,
         expiresInDays: 7,
         sellerPublicKey: enteredMuxedAddress || userWallet,
         sellerName: sellerName.trim() || undefined,
@@ -454,11 +451,11 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
         window.localStorage.setItem(
           rememberedAssetStorageKey,
           JSON.stringify({
-            assetCode: selectedAsset.code,
-            assetIssuer: selectedAsset.issuer ?? null,
+            assetCode: chosenAsset.code,
+            assetIssuer: chosenAsset.issuer ?? null,
           }),
         );
-        setRememberedAssetCode(selectedAsset.code);
+        setRememberedAssetCode(chosenAsset.code);
       } catch (error) {
         console.warn('Could not remember invoice asset:', error);
         toast.warning('Invoice created, but this asset could not be remembered in this browser');
