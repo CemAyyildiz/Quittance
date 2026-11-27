@@ -12,6 +12,7 @@ import type { InvoiceStore } from '../storage/storage-factory';
 import type { StatusEvent, StatusEventStatus } from '../storage/memory-storage';
 import memoryStorage from '../storage/memory-storage';
 import { DEFAULT_PAGE_LIMIT, MAX_PAGE_LIMIT } from '../utils/parse-pagination';
+import { normalizeAssetCode } from '../utils/asset-helpers';
 import { extractBaseAddress, StrKey } from '@stellar/stellar-sdk';
 import { AnchorError, AnchorErrorCode, canonicalDigestMatches } from '../utils/canonical-proof';
 import { queueInvoicePaidWebhook } from './webhook.service';
@@ -79,8 +80,12 @@ class InvoiceMemoryService {
       memo = await this.generateFreeMemo();
     }
 
-    const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + (input.expiresInDays || 7));
+    const expiresAt = input.expiresAt
+      ? new Date(input.expiresAt)
+      : new Date();
+    if (!input.expiresAt) {
+      expiresAt.setDate(expiresAt.getDate() + (input.expiresInDays || 7));
+    }
 
     const storage = await getStorage();
     const sellerMuxedAddress = StrKey.isValidMed25519PublicKey(input.sellerPublicKey)
@@ -94,7 +99,7 @@ class InvoiceMemoryService {
       sellerName: input.sellerName,
       amount: input.amount,
       lineItems: input.lineItems,
-      assetCode: input.assetCode || 'XLM',
+      assetCode: normalizeAssetCode(input.assetCode),
       assetIssuer: input.assetIssuer,
       memo,
       description: input.description,

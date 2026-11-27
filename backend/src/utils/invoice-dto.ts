@@ -24,6 +24,7 @@ export interface InvoiceDTO {
   sellerMuxedAddress?: string;
   sellerName?: string;
   amount: number;
+  sellerMuxedAddress?: string;
   lineItems?: Array<{ label: string; quantity: number; unitPrice: number }>;
   assetCode: string;
   assetIssuer?: string;
@@ -55,7 +56,7 @@ export interface InvoiceDTO {
 export interface ProofDigestFields {
   network: string;
   invoiceId: string;
-  amount: number;
+  amount: number | string;
   assetCode: string;
   /** Empty string for native XLM — never the word "null". */
   assetIssuer: string;

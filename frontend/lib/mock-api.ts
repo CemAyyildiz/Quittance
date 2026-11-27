@@ -249,50 +249,34 @@ export const mockInvoiceApi = {
     data: { sellerPublicKey: string; copyCustomerEmail?: boolean },
   ) => {
     await delay(500);
-    const invoice = mockInvoices.find((inv) => inv.id === id);
-    if (!invoice || invoice.sellerPublicKey !== data.sellerPublicKey) {
+    const source = mockInvoices.find((invoice) => invoice.id === id);
+    if (!source || source.sellerPublicKey !== data.sellerPublicKey) {
       throw new Error('Only the owning seller can duplicate this invoice');
     }
 
-    const duplicate: MockInvoice = {
-      ...invoice,
+    const invoice = {
+      ...source,
       id: Math.random().toString(36).slice(2, 11),
       status: 'PENDING',
+      sellerPublicKey: data.sellerPublicKey,
+      customerEmail: data.copyCustomerEmail ? source.customerEmail : undefined,
       memo: `INV-${Date.now().toString(36).toUpperCase()}`,
-      customerEmail: data.copyCustomerEmail ? invoice.customerEmail : undefined,
-      createdAt: new Date().toISOString(),
-      paidAt: undefined,
       paymentTxHash: undefined,
+      paidAt: undefined,
       payerPublicKey: undefined,
-      refundTxHash: undefined,
-      refundedAt: undefined,
+      createdAt: new Date().toISOString(),
+      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
     };
-    mockInvoices.unshift(duplicate);
-
-    const paymentUrl = `${window.location.origin}/pay/${duplicate.id}`;
-    const stellarPaymentUri = buildStellarPaymentUri(
-      duplicate.sellerPublicKey,
-      duplicate.amount.toString(),
-      duplicate.assetCode,
-      duplicate.memo,
-      duplicate.assetIssuer,
-    );
-    return {
-      success: true,
-      data: { invoice: duplicate, paymentUrl, stellarPaymentUri },
-    };
+    mockInvoices.unshift(invoice);
+    return { success: true, data: { invoice } };
   },
 
   markUncollectible: async (id: string, sellerPublicKey: string) => {
-    await delay(500);
-    const invoice = mockInvoices.find((inv) => inv.id === id);
-    if (!invoice || invoice.sellerPublicKey !== sellerPublicKey) {
-      throw new Error('Only the owning seller can mark this invoice uncollectible');
+    await delay(300);
+    const invoice = mockInvoices.find((item) => item.id === id);
+    if (!invoice || invoice.sellerPublicKey !== sellerPublicKey || invoice.status !== 'PENDING') {
+      throw new Error('Only the owning seller can mark a pending invoice uncollectible');
     }
-    if (invoice.status !== 'PENDING' && invoice.status !== 'UNCOLLECTIBLE') {
-      throw new Error('Only a pending invoice can be marked uncollectible');
-    }
-
     invoice.status = 'UNCOLLECTIBLE';
     return { success: true, data: invoice };
   },
