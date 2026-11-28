@@ -11,7 +11,7 @@ import { getStorage } from '../storage/storage-factory';
 import type { InvoiceStore } from '../storage/storage-factory';
 import type { StatusEvent, StatusEventStatus } from '../storage/memory-storage';
 import { DEFAULT_PAGE_LIMIT, MAX_PAGE_LIMIT } from '../utils/parse-pagination';
-import { normalizeAssetCode } from '../utils/asset-helpers';
+import { normalizeAssetCode, NATIVE_ASSET_CODE } from '../utils/asset-helpers';
 import { extractBaseAddress, StrKey } from '@stellar/stellar-sdk';
 import memoryStorage from '../storage/memory-storage';
 import { queueInvoicePaidWebhook } from './webhook.service';
@@ -95,6 +95,7 @@ class InvoiceMemoryService {
     const sellerMuxedAddress = StrKey.isValidMed25519PublicKey(input.sellerPublicKey)
       ? input.sellerPublicKey
       : undefined;
+    const assetCode = normalizeAssetCode(input.assetCode);
     const invoice = await storage.createInvoice({
       sellerPublicKey: sellerMuxedAddress
         ? extractBaseAddress(sellerMuxedAddress)
@@ -103,8 +104,9 @@ class InvoiceMemoryService {
       sellerName: input.sellerName,
       amount: input.amount,
       lineItems: input.lineItems,
-      assetCode: normalizeAssetCode(input.assetCode),
-      assetIssuer: input.assetIssuer,
+      assetCode,
+      // Native XLM has no issuer; never persist one even if a caller sends it.
+      assetIssuer: assetCode === NATIVE_ASSET_CODE ? undefined : input.assetIssuer,
       memo,
       description: input.description,
       customerName: input.customerName,

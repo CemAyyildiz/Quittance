@@ -113,8 +113,7 @@ export function sumLineItems(lineItems: InvoiceLineItem[]): number {
   );
 }
 
-// Invoice creation schema
-export const createInvoiceSchema = z.object({
+const createInvoiceObjectSchema = z.object({
   amount: amountSchema,
   lineItems: z
     .array(lineItemSchema)
@@ -171,6 +170,18 @@ export const createInvoiceSchema = z.object({
     }
   }
 });
+
+// Native XLM has no issuer. Drop any issuer before field validation so an
+// explicit issuer sent with XLM is ignored instead of rejected or stored.
+export const createInvoiceSchema = z.preprocess((value) => {
+  if (value && typeof value === 'object' && !Array.isArray(value)) {
+    const input = value as Record<string, unknown>;
+    if (!input.assetCode || input.assetCode === 'XLM') {
+      return { ...input, assetIssuer: undefined };
+    }
+  }
+  return value;
+}, createInvoiceObjectSchema);
 
 // Payment verification schema
 export const paymentSchema = z.object({
