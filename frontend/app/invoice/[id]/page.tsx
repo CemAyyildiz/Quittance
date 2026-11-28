@@ -36,9 +36,6 @@ export default function InvoiceDetailPage() {
   const [anchoring, setAnchoring] = useState(false);
   const [refundTxHash, setRefundTxHash] = useState('');
   const [refunding, setRefunding] = useState(false);
-  const [duplicateOpen, setDuplicateOpen] = useState(false);
-  const [copyCustomerEmail, setCopyCustomerEmail] = useState(false);
-  const [duplicating, setDuplicating] = useState(false);
   const timeRemaining = useCountdown(invoice?.status === 'PENDING' ? invoice.expiresAt : null);
   const isSeller =
     Boolean(userWallet) &&
