@@ -195,7 +195,7 @@ describe('createInvoiceSchema', () => {
     }
     expect(result.data.assetIssuer).toBeUndefined();
     if (result.success) {
-      expect(result.data.assetCode).toBe('USDC');
+      expect(result.data.assetCode).toBe('XLM');
     }
   });
 
