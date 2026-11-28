@@ -34,6 +34,7 @@
  */
 
 import { Request, Response, NextFunction } from 'express';
+import { extractBaseAddress, StrKey } from '@stellar/stellar-sdk';
 import { isValidPublicKey } from '../utils/public-key-guard';
 
 // ── Types ───────────────────────────────────────────────────────────────────
@@ -185,8 +186,13 @@ export function sellerCreateRateLimit(options: RateLimitOptions = {}) {
       return;
     }
 
-    const sellerKey = req.body?.sellerPublicKey;
-    if (!isValidPublicKey(sellerKey)) {
+    const sellerKey =
+      typeof req.body?.sellerPublicKey === 'string'
+        ? req.body.sellerPublicKey
+        : undefined;
+    const isMuxedAddress =
+      sellerKey !== undefined && StrKey.isValidMed25519PublicKey(sellerKey);
+    if (!sellerKey || (!isValidPublicKey(sellerKey) && !isMuxedAddress)) {
       res.status(400).json({
         success: false,
         error: 'sellerPublicKey is required and must be a valid Stellar public key',
@@ -195,7 +201,8 @@ export function sellerCreateRateLimit(options: RateLimitOptions = {}) {
     }
 
     const { windowMs, maxRequests } = resolveSellerLimitOptions(options);
-    const clientKey = `seller-create|${sellerKey}`;
+    const sellerAccount = isMuxedAddress ? extractBaseAddress(sellerKey) : sellerKey;
+    const clientKey = `seller-create|${sellerAccount}`;
 
     if (!consumeRateLimit(clientKey, windowMs, maxRequests, res)) {
       return;

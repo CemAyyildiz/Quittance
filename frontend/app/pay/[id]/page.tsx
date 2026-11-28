@@ -76,6 +76,13 @@ export default function PaymentPage() {
   const matchedPayments: any[] = invoice?.payments ?? [];
   const receivedAmount = invoice?.receivedAmount ?? '0';
   const remainingAmount = invoice?.remainingAmount ?? invoice?.amount?.toString();
+  // What the payer still owes while the invoice is open. A fully unpaid
+  // invoice has received nothing, so this is the full amount; a remainder can
+  // never be negative, even if the API ever reported inconsistent totals.
+  const payableAmount =
+    invoice?.status === 'PENDING' && Number(remainingAmount) < 0
+      ? '0'
+      : remainingAmount;
 
   useEffect(() => {
     void loadInvoice();

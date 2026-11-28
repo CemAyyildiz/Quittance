@@ -115,7 +115,7 @@ export function sumLineItems(lineItems: InvoiceLineItem[]): number {
 
 // Invoice creation schema
 export const createInvoiceSchema = z.object({
-  amount: z.number().finite().positive().max(1000000000),
+  amount: amountSchema,
   lineItems: z
     .array(lineItemSchema)
     .max(MAX_LINE_ITEMS, `Line items list is too long (maximum ${MAX_LINE_ITEMS} items)`)
@@ -190,4 +190,3 @@ export default {
   stellarPublicKeySchema,
   verifyTxHashSchema,
 };
-

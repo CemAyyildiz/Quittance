@@ -1,10 +1,18 @@
 import express, { Application, Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import { z } from 'zod';
 import { requestId } from './middleware/request-id';
-import { createInvoiceSchema } from './utils/validation';
+import {
+  createInvoiceSchema,
+  memoByteLengthSchema,
+  stellarPublicKeySchema,
+  verifyTxHashSchema,
+} from './utils/validation';
 import { MemoError } from './utils/memo';
 import invoiceService from './services/invoice-memory.service';
+import { startMvpPaymentMonitor } from './services/mvp-payment-monitor';
+import memoryStorage, { type Invoice } from './storage/memory-storage';
 import { generatePaymentQR, generateStellarPaymentQR, buildStellarPaymentUri } from './utils/qrcode';
 import stellarService, {
   HorizonUnavailableError,
@@ -16,8 +24,18 @@ import {
   invoiceVerifyRateLimit,
 } from './middleware/rate-limit-stub';
 import healthDetailRouter from './routes/health-detail';
-import { toInvoiceDTO as mapInvoiceDTO } from './utils/invoice-dto';
-import { addDecimalAmounts, compareDecimals, subtractDecimalAmounts } from './utils/amount-compare';
+import {
+  toInvoiceDTO as mapInvoiceDTO,
+  toStatusHistoryDTO,
+} from './utils/invoice-dto';
+import {
+  addDecimalAmounts,
+  amountToStroops,
+  compareDecimals,
+  isDecimalEqual,
+  subtractDecimalAmounts,
+} from './utils/amount-compare';
+import { memosMatch } from './utils/memo-normalize';
 import { VerifyErrorCode, VerifyErrorMessages } from './utils/verify-errors';
 import {
   assertInvoiceSettleable,
@@ -29,8 +47,21 @@ import {
   isSelfPayment,
   paymentDestinationMatchesInvoice,
   paymentAssetMatchesInvoice,
+  isFeeBumpTransaction,
+  isNestedFeeBump,
+  feeBumpWrapsOnlyPayment,
+  remainingInvoiceAmount,
 } from './utils/verify-invoice-payment';
-import { parsePaginationQuery } from './utils/parse-pagination';
+import { MAX_PAGE_LIMIT, parsePaginationQuery } from './utils/parse-pagination';
+import {
+  AnchorError,
+  AnchorErrorCode,
+  canonicalDigestMatches,
+  computeCanonicalDigest,
+  getAnchorContractId,
+} from './utils/canonical-proof';
+import { verifyAnchorTransaction } from './utils/anchor-transaction';
+import { createInvoiceBackup } from './utils/invoice-backup';
 import { isSmtpConfigured, sendEmail, generateInvoiceEmail } from './utils/smtp';
 import { STELLAR_NETWORK } from './config/stellar';
 import {
@@ -105,14 +136,14 @@ async function buildCreateInvoiceResponse(invoice: any) {
   const paymentUrl = `${FRONTEND_URL}/pay/${invoice.id}`;
   const qrCodeDataUrl = await generatePaymentQR(paymentUrl);
   const stellarQrCode = await generateStellarPaymentQR(
-    invoice.sellerPublicKey,
+    invoice.sellerMuxedAddress ?? invoice.sellerPublicKey,
     invoice.amount.toString(),
     invoice.assetCode,
     invoice.memo,
     invoice.assetIssuer
   );
   const stellarPaymentUri = buildStellarPaymentUri(
-    invoice.sellerPublicKey,
+    invoice.sellerMuxedAddress ?? invoice.sellerPublicKey,
     invoice.amount.toString(),
     invoice.assetCode,
     invoice.memo,
@@ -178,17 +209,36 @@ const backupDate = z.string().refine((value) => !Number.isNaN(Date.parse(value))
 const backupInvoice = z.object({
   id: z.string().min(1),
   sellerPublicKey: stellarPublicKeySchema,
+  sellerName: z.string().optional(),
+  sellerMuxedAddress: z.string().optional(),
   amount: z.number().positive().finite(),
+  lineItems: z.array(z.object({
+    label: z.string(),
+    quantity: z.number(),
+    unitPrice: z.number(),
+  })).optional(),
   assetCode: z.string().min(1),
   assetIssuer: z.string().optional(),
   memo: memoByteLengthSchema.min(1),
   description: z.string().optional(),
   customerName: z.string().optional(),
   customerEmail: z.string().optional(),
-  status: z.enum(['PENDING', 'PAID', 'EXPIRED', 'CANCELLED']),
+  status: z.enum(['PENDING', 'PAID', 'REFUNDED', 'EXPIRED', 'CANCELLED', 'UNCOLLECTIBLE']),
   paymentTxHash: z.string().min(1).optional(),
   payerPublicKey: z.string().optional(),
   ledger: z.number().int().positive().optional(),
+  refundTxHash: z.string().min(1).optional(),
+  refundedAt: backupDate.optional(),
+  refundLedger: z.number().int().positive().optional(),
+  anchoringTxHash: z.string().min(1).optional(),
+  payments: z.array(z.object({
+    txHash: z.string().min(1),
+    amount: z.string(),
+    payerPublicKey: z.string(),
+    ledger: z.number().int().positive(),
+    paidAt: backupDate,
+  })).optional(),
+  receivedAmount: z.string().optional(),
   createdAt: backupDate,
   paidAt: backupDate.optional(),
   expiresAt: backupDate,
@@ -243,9 +293,15 @@ app.post('/api/invoices/import', (req: Request, res: Response) => {
       ...row,
       createdAt: new Date(row.createdAt),
       paidAt: row.paidAt ? new Date(row.paidAt) : undefined,
+      refundedAt: row.refundedAt ? new Date(row.refundedAt) : undefined,
       expiresAt,
       originalExpiresAt: row.originalExpiresAt ? new Date(row.originalExpiresAt) : expiresAt,
       expiryExtended: row.expiryExtended ?? false,
+      payments: row.payments?.map((payment) => ({
+        ...payment,
+        paidAt: new Date(payment.paidAt),
+      })) ?? [],
+      receivedAmount: row.receivedAmount ?? '0',
     });
   }
 
@@ -287,7 +343,34 @@ app.get('/api/invoices/stats', async (req: Request, res: Response) => {
 
 // Register static export routes before `/api/invoices/:id` so their paths are
 // not treated as invoice IDs.
-app.get('/api/invoices/export', handleInvoiceCsvExport);
+app.get('/api/invoices/export', (req: Request, res: Response) => {
+  const seller = stellarPublicKeySchema.safeParse(req.query.sellerPublicKey);
+  const includeCustomerEmail = req.query.includeCustomerEmail;
+  if (
+    !seller.success ||
+    (includeCustomerEmail !== undefined &&
+      includeCustomerEmail !== 'true' &&
+      includeCustomerEmail !== 'false')
+  ) {
+    return res.status(400).json({
+      success: false,
+      error: 'Invalid sellerPublicKey or includeCustomerEmail',
+    });
+  }
+
+  const backup = createInvoiceBackup(
+    memoryStorage.getAllInvoices(),
+    seller.data,
+    includeCustomerEmail === 'true',
+  );
+  res.set({
+    'Content-Disposition': `attachment; filename="quittance-invoices-${new Date()
+      .toISOString()
+      .slice(0, 10)}.json"`,
+    'Cache-Control': 'private, no-store',
+  });
+  res.json(backup);
+});
 app.get('/api/invoices/export.csv', handleInvoiceCsvExport);
 app.get('/api/invoices/csv', handleInvoiceCsvExport);
 
@@ -326,9 +409,15 @@ app.get('/api/invoices', async (req: Request, res: Response) => {
   try {
     await runExpirySweep(invoiceService);
 
-    const { status, assetCode, createdFrom, createdTo, cursor, sellerPublicKey } =
-      req.query;
-    const { status, cursor, sellerPublicKey, search } = req.query;
+    const {
+      status,
+      assetCode,
+      createdFrom,
+      createdTo,
+      cursor,
+      sellerPublicKey,
+      search,
+    } = req.query;
 
     if (!sellerPublicKey) {
       return res.status(400).json({
@@ -436,7 +525,7 @@ app.get('/api/invoices', async (req: Request, res: Response) => {
             : undefined,
         createdFrom: startDate,
         createdTo: endDate,
-      }
+      },
       searchQuery || undefined
     );
 
@@ -529,6 +618,13 @@ app.post('/api/invoices/:id/partial-payment', async (req: Request, res: Response
         success: false,
         code: VerifyErrorCode.TX_HASH_REQUIRED,
         error: VerifyErrorMessages[VerifyErrorCode.TX_HASH_REQUIRED],
+      });
+    }
+    if (typeof txHash !== 'string' || !/^[0-9a-fA-F]{64}$/.test(txHash)) {
+      return res.status(400).json({
+        success: false,
+        code: VerifyErrorCode.INVALID_TX_HASH,
+        error: VerifyErrorMessages[VerifyErrorCode.INVALID_TX_HASH],
       });
     }
     if (!/^[0-9a-fA-F]{64}$/.test(txHash)) {
@@ -1074,7 +1170,6 @@ app.post('/api/invoices/:id/verify', invoiceVerifyRateLimit(), async (req: Reque
         error: VerifyErrorMessages[VerifyErrorCode.TX_HASH_REQUIRED],
       });
     }
-
     const reportedNetwork =
       typeof req.body.network === 'string'
         ? req.body.network.trim().toUpperCase()
@@ -1127,6 +1222,14 @@ app.post('/api/invoices/:id/verify', invoiceVerifyRateLimit(), async (req: Reque
       });
     }
 
+    if (typeof txHash !== 'string' || !verifyTxHashSchema.safeParse(txHash).success) {
+      return res.status(400).json({
+        success: false,
+        code: VerifyErrorCode.INVALID_TX_HASH,
+        error: VerifyErrorMessages[VerifyErrorCode.INVALID_TX_HASH],
+      });
+    }
+
     // A hash that already settled another invoice cannot settle this one, no
     // matter that the memo and amount match. Checked after the already-paid
     // guard so retrying this invoice is not reported as a reuse, and before
@@ -1158,11 +1261,11 @@ app.post('/api/invoices/:id/verify', invoiceVerifyRateLimit(), async (req: Reque
       txDetails = await stellarService.getTransaction(txHash);
     } catch (error: any) {
       const status = error?.response?.status ?? error?.status;
-      if (status === 404) {
-        return res.status(400).json({
+      if (status === 404 || error?.code === 'TX_NOT_FOUND') {
+        return res.status(404).json({
           success: false,
-          code: VerifyErrorCode.NETWORK_MISMATCH,
-          error: VerifyErrorMessages[VerifyErrorCode.NETWORK_MISMATCH],
+          code: VerifyErrorCode.TX_NOT_FOUND,
+          error: VerifyErrorMessages[VerifyErrorCode.TX_NOT_FOUND],
         });
       }
       throw error;
@@ -1276,7 +1379,7 @@ app.post('/api/invoices/:id/verify', invoiceVerifyRateLimit(), async (req: Reque
     }
 
     const receivedAmount = String(invoice.receivedAmount ?? '0');
-    const remainingAmount = subtractDecimalAmounts(String(invoice.amount), receivedAmount);
+    const remainingAmount = remainingInvoiceAmount(invoice.amount, receivedAmount);
     if (
       compareDecimals(paymentOp.amount, '0') <= 0 ||
       compareDecimals(paymentOp.amount, remainingAmount) > 0
@@ -1617,4 +1720,3 @@ if (process.env.NODE_ENV !== 'test') {
 }
 
 export default app;
-

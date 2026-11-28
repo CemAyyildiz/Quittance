@@ -13,7 +13,7 @@
  * without spinning up Express, Stellar Horizon, or the in-memory store.
  */
 
-import { compareDecimals } from './amount-compare';
+import { compareDecimals, subtractDecimalAmounts } from './amount-compare';
 import { memosMatch } from './memo-normalize';
 import { NATIVE_ASSET_CODE, normalizeAssetCode } from './asset-helpers';
 import { VerifyErrorCode } from './verify-errors';
@@ -303,6 +303,30 @@ export function checkTransactionTimeBounds(input: {
   }
 
   return { ok: true };
+}
+
+/**
+ * The amount still unpaid on an invoice: its total minus the payments already
+ * verified against it.
+ *
+ * Only verified payments reach `receivedAmount`; a transfer with the wrong memo,
+ * destination, amount or asset never passes this matcher and is therefore never
+ * subtracted. The result is clamped at zero, so inconsistent stored totals can
+ * never surface a negative remainder.
+ */
+export function remainingInvoiceAmount(
+  invoiceAmount: number | string,
+  receivedAmount: number | string | null | undefined,
+): string {
+  const total = String(invoiceAmount ?? '0').trim() || '0';
+  const received = String(receivedAmount ?? '0').trim() || '0';
+  const settled = compareDecimals(received, '0') > 0 ? received : '0';
+
+  if (compareDecimals(settled, total) >= 0) {
+    return '0';
+  }
+
+  return subtractDecimalAmounts(total, settled);
 }
 
 /**
