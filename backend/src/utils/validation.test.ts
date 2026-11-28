@@ -676,3 +676,36 @@ describe('paymentSchema', () => {
     expect(result.success).toBe(true);
   });
 });
+
+describe('createInvoiceSchema stroop amounts', () => {
+  const create = (amount: number) =>
+    createInvoiceSchema.safeParse({ amount, sellerPublicKey: validSellerPublicKey });
+
+  it('rejects an amount that cannot be converted to whole stroops', () => {
+    for (const amount of [1.00000001, 0.00000001, 1.5e-8]) {
+      const result = create(amount);
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error.issues.some((issue) => issue.path.includes('amount'))).toBe(true);
+      }
+    }
+  });
+
+  it('accepts amounts with up to seven decimal places, including exponent form', () => {
+    for (const amount of [1.5, 1.0000001, 0.0000001, 1.5e-6]) {
+      expect(create(amount).success).toBe(true);
+    }
+  });
+
+  it('converts exponent-form numbers to exact stroops', () => {
+    expect(parseAmount(1e-7)?.stroops).toBe(1n);
+    expect(parseAmount(1.5e-6)?.stroops).toBe(15n);
+    expect(parseAmount(1.5)?.stroops).toBe(15_000_000n);
+    expect(parseAmount(1e-8)).toBeUndefined();
+  });
+
+  it('rejects zero and negative amounts', () => {
+    expect(create(0).success).toBe(false);
+    expect(create(-1.5).success).toBe(false);
+  });
+});

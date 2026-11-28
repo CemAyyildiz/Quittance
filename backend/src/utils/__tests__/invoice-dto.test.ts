@@ -53,6 +53,9 @@ describe('toInvoiceDTO', () => {
       expiresAt: '2026-08-04T10:00:00.000Z',
       originalExpiresAt: '2026-08-04T10:00:00.000Z',
       expiryExtended: false,
+      payments: [],
+      receivedAmount: '0',
+      remainingAmount: '100',
     });
   });
 
@@ -133,6 +136,9 @@ describe('toInvoiceDTO', () => {
       expiresAt: '2026-07-25T10:00:00.000Z',
       originalExpiresAt: '2026-07-25T10:00:00.000Z',
       expiryExtended: false,
+      payments: [],
+      receivedAmount: '0',
+      remainingAmount: '100',
     });
   });
 
@@ -161,6 +167,9 @@ describe('toInvoiceDTO', () => {
       expiresAt: '2026-07-20T10:00:00.000Z',
       originalExpiresAt: '2026-07-20T10:00:00.000Z',
       expiryExtended: false,
+      payments: [],
+      receivedAmount: '0',
+      remainingAmount: '100',
     });
   });
 
@@ -199,9 +208,12 @@ describe('toInvoiceDTO', () => {
       'paidAt',
       'payerPublicKey',
       'paymentTxHash',
+      'payments',
+      'receivedAmount',
       'refundLedger',
       'refundTxHash',
       'refundedAt',
+      'remainingAmount',
       'sellerPublicKey',
       'status',
     ]);

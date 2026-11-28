@@ -60,6 +60,7 @@ function horizonTx(
     transaction: {
       successful: true,
       memo,
+      memo_type: 'text',
       ledger_sequence: 12345,
       created_at: new Date().toISOString(),
       preconditions: { timebounds: { max_time: String(Math.floor(Date.now() / 1000) + 3600) } },

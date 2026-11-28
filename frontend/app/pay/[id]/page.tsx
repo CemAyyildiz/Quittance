@@ -14,6 +14,7 @@ import PaymentReceipt from '@/components/PaymentReceipt';
 import PaymentStatus from '@/components/PaymentStatus';
 import AssetLogo from '@/components/AssetLogo';
 import AmountDisplay from '@/components/AmountDisplay';
+import StroopAmount from '@/components/StroopAmount';
 import { formatAmount, formatDate, copyToClipboard } from '@/lib/utils';
 import { useCountdown } from '@/lib/useCountdown';
 import { Copy, ExternalLink, Loader2, Check, FileText, Mail, RefreshCw } from 'lucide-react';
@@ -379,6 +380,10 @@ export default function PaymentPage() {
                       size="xl"
                       showAssetKind
                     />
+                    <StroopAmount
+                      amount={invoice.amount}
+                      className="block text-sm font-medium text-gray-600 mt-1 break-all"
+                    />
                     {issuerDomain && (
                       <p className="mt-2 text-sm font-medium text-gray-600">
                         {issuerDomain}
@@ -547,7 +552,7 @@ export default function PaymentPage() {
               <div className="bg-gray-50 p-4 rounded-lg space-y-3 border">
                 <h3 className="font-semibold text-gray-900 mb-1">Pay manually from any wallet</h3>
                 <p className="text-xs text-gray-600 mb-4">
-                  Send the exact amount to the destination below and include the memo. Then paste the transaction hash to confirm payment.
+                  Send the exact amount to the destination below and include the memo as a text memo (MEMO_TEXT). Then paste the transaction hash to confirm payment.
                 </p>
 
                 <div>
@@ -573,6 +578,7 @@ export default function PaymentPage() {
                   <div className="flex items-center gap-2">
                     <code className="flex-1 text-xs bg-white p-2 rounded border font-semibold">
                       {invoice.amount}
+                      <StroopAmount amount={invoice.amount} className="ml-2 font-normal text-gray-500" />
                     </code>
                     <button
                       onClick={() => copyInfo(invoice.amount.toString(), 'Amount')}

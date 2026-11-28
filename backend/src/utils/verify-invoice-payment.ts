@@ -13,8 +13,8 @@
  * without spinning up Express, Stellar Horizon, or the in-memory store.
  */
 
-import { compareDecimals } from './amount-compare';
-import { memosMatch } from './memo-normalize';
+import { amountToStroops } from './amount-compare';
+import { textMemoMatchesInvoice } from './memo-normalize';
 import { NATIVE_ASSET_CODE, normalizeAssetCode } from './asset-helpers';
 import { VerifyErrorCode } from './verify-errors';
 import { extractBaseAddress, MuxedAccount, StrKey } from '@stellar/stellar-sdk';
@@ -30,6 +30,11 @@ import { extractBaseAddress, MuxedAccount, StrKey } from '@stellar/stellar-sdk';
 export interface VerifyInvoicePaymentInput {
   /** Transaction memo (`transaction.memo`). */
   txMemo: string | null | undefined;
+  /**
+   * Horizon's `memo_type` for the transaction (`'text'`, `'hash'`, `'id'`,
+   * `'return'` or `'none'`). Only a `'text'` memo can settle an invoice.
+   */
+  txMemoType?: string | null;
   /** Invoice memo (`invoice.memo`). */
   invoiceMemo: string | null | undefined;
   /** Payment destination address (`paymentOp.to`). */
@@ -333,7 +338,7 @@ export function verifyInvoicePayment(
     return { ok: false, code: VerifyErrorCode.SELF_PAYMENT };
   }
 
-  if (!memosMatch(input.txMemo, input.invoiceMemo)) {
+  if (!textMemoMatchesInvoice(input.txMemo, input.txMemoType, input.invoiceMemo)) {
     return { ok: false, code: VerifyErrorCode.MEMO_MISMATCH };
   }
 
@@ -341,10 +346,15 @@ export function verifyInvoicePayment(
     return { ok: false, code: VerifyErrorCode.DESTINATION_MISMATCH };
   }
 
-  if (
-    compareDecimals(input.paymentAmount, '0') <= 0 ||
-    compareDecimals(input.paymentAmount, String(input.invoiceAmount)) > 0
-  ) {
+  let paymentAmount: bigint;
+  let invoiceAmount: bigint;
+  try {
+    paymentAmount = amountToStroops(input.paymentAmount);
+    invoiceAmount = amountToStroops(input.invoiceAmount);
+  } catch {
+    return { ok: false, code: VerifyErrorCode.AMOUNT_MISMATCH };
+  }
+  if (paymentAmount <= 0n || paymentAmount > invoiceAmount) {
     return { ok: false, code: VerifyErrorCode.AMOUNT_MISMATCH };
   }
 

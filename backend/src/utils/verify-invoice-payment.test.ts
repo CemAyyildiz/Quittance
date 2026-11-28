@@ -50,10 +50,40 @@ describe('verifyInvoicePayment', () => {
       expect(result).toEqual({ ok: false, code: VerifyErrorCode.MEMO_MISMATCH });
     });
 
-    it('treats empty/whitespace memos as equal (memosMatch semantics)', () => {
+    it('accepts the exact text memo', () => {
+      expect(verifyInvoicePayment({ ...validInput(), txMemoType: 'text' })).toEqual({ ok: true });
+    });
+
+    it.each(['hash', 'id', 'return', 'none'])('rejects a %s memo even when its value matches', (memoType) => {
       expect(
-        verifyInvoicePayment({ ...validInput(), txMemo: '  ', invoiceMemo: '' }),
-      ).toEqual({ ok: true });
+        verifyInvoicePayment({ ...validInput(), txMemoType: memoType }),
+      ).toEqual({ ok: false, code: VerifyErrorCode.MEMO_MISMATCH });
+    });
+
+    it('rejects a missing memo', () => {
+      expect(
+        verifyInvoicePayment({ ...validInput(), txMemo: undefined, txMemoType: 'none' }),
+      ).toEqual({ ok: false, code: VerifyErrorCode.MEMO_MISMATCH });
+      expect(verifyInvoicePayment({ ...validInput(), txMemo: null })).toEqual({
+        ok: false,
+        code: VerifyErrorCode.MEMO_MISMATCH,
+      });
+    });
+
+    it('does not fold case or trim surrounding spaces', () => {
+      const input = validInput();
+      expect(
+        verifyInvoicePayment({ ...input, txMemo: String(input.invoiceMemo).toLowerCase(), txMemoType: 'text' }),
+      ).toEqual({ ok: false, code: VerifyErrorCode.MEMO_MISMATCH });
+      expect(
+        verifyInvoicePayment({ ...input, txMemo: ` ${input.invoiceMemo} `, txMemoType: 'text' }),
+      ).toEqual({ ok: false, code: VerifyErrorCode.MEMO_MISMATCH });
+    });
+
+    it('never matches an empty invoice memo', () => {
+      expect(
+        verifyInvoicePayment({ ...validInput(), txMemo: '', invoiceMemo: '', txMemoType: 'text' }),
+      ).toEqual({ ok: false, code: VerifyErrorCode.MEMO_MISMATCH });
     });
   });
 

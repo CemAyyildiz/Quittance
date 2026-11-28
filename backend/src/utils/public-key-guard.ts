@@ -7,6 +7,7 @@
  *
  * @see https://developers.stellar.org/docs/fundamentals-and-concepts/stellar-data-structures#account-identifiers
  */
+import { StrKey } from '@stellar/stellar-sdk';
 
 /** Convenience re-export of the Zod schema from validation.ts */
 export { stellarPublicKeySchema } from './validation';
@@ -41,7 +42,10 @@ export function isValidPublicKey(key: unknown): key is string {
   if (typeof key !== 'string' || key.length === 0) {
     return false;
   }
-  return key.length === STELLAR_KEY_LENGTH && STELLAR_KEY_REGEX.test(key);
+  return (
+    (key.length === STELLAR_KEY_LENGTH && STELLAR_KEY_REGEX.test(key)) ||
+    StrKey.isValidMed25519PublicKey(key)
+  );
 }
 
 /**

@@ -146,7 +146,7 @@ describe('MVP invoice verify rate limit', () => {
     const invoiceId = created.body.data.invoice.id as string;
 
     getTransaction.mockResolvedValue({
-      transaction: { memo: created.body.data.invoice.memo },
+      transaction: { memo: created.body.data.invoice.memo, memo_type: 'text' },
       operations: [
         {
           type: 'payment',

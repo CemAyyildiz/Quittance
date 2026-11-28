@@ -20,7 +20,7 @@ export default function PaymentMemo({ memo }: PaymentMemoProps) {
 
   return (
     <div>
-      <p className="text-xs text-gray-600 mb-1">Memo (Required)</p>
+      <p className="text-xs text-gray-600 mb-1">Memo (Required, text memo)</p>
       <div className="flex items-center gap-2">
         <code
           data-testid="payment-memo"
@@ -42,6 +42,10 @@ export default function PaymentMemo({ memo }: PaymentMemoProps) {
           This invoice has no usable memo text to copy.
         </p>
       )}
+      <p className="text-xs text-gray-500 mt-1" data-testid="text-memo-hint">
+        Choose the <strong>Text</strong> memo type in your wallet and enter it
+        exactly as shown. A hash or ID memo will not confirm this invoice.
+      </p>
     </div>
   );
 }
