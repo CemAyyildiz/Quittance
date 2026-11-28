@@ -14,7 +14,13 @@ interface Invoice {
   description?: string;
   customerName?: string;
   customerEmail?: string;
-  status: 'PENDING' | 'PAID' | 'REFUNDED' | 'EXPIRED' | 'CANCELLED';
+  status:
+    | 'PENDING'
+    | 'PAID'
+    | 'REFUNDED'
+    | 'EXPIRED'
+    | 'CANCELLED'
+    | 'UNCOLLECTIBLE';
   paymentTxHash?: string;
   payerPublicKey?: string;
   ledger?: number;
@@ -23,6 +29,7 @@ interface Invoice {
   refundTxHash?: string;
   refundedAt?: Date;
   refundLedger?: number;
+  anchoringTxHash?: string;
   expiresAt: Date;
   originalExpiresAt: Date;
   expiryExtended: boolean;
@@ -43,6 +50,9 @@ class PostgresStorage {
         ALTER TABLE invoices ADD COLUMN IF NOT EXISTS refund_tx_hash VARCHAR(64);
         ALTER TABLE invoices ADD COLUMN IF NOT EXISTS refunded_at TIMESTAMP;
         ALTER TABLE invoices ADD COLUMN IF NOT EXISTS refund_ledger BIGINT;
+        ALTER TABLE invoices ADD COLUMN IF NOT EXISTS anchoring_tx_hash VARCHAR(64);
+        ALTER TABLE invoices ADD COLUMN IF NOT EXISTS payments JSONB NOT NULL DEFAULT '[]'::jsonb;
+        ALTER TABLE invoices ADD COLUMN IF NOT EXISTS received_amount NUMERIC NOT NULL DEFAULT 0;
         CREATE INDEX IF NOT EXISTS idx_invoices_payment_tx_hash ON invoices(payment_tx_hash);
         CREATE UNIQUE INDEX IF NOT EXISTS idx_invoices_refund_tx_hash ON invoices(refund_tx_hash) WHERE refund_tx_hash IS NOT NULL;
       `).then(() => undefined);
@@ -218,6 +228,38 @@ class PostgresStorage {
       refundedAt: meta?.refundedAt ?? new Date(),
       refundLedger: meta?.ledger,
     });
+  }
+
+  async recordPayment(
+    id: string,
+    payment: Invoice['payments'][number],
+    receivedAmount: string,
+    paid: boolean,
+  ): Promise<Invoice | undefined> {
+    await this.ensureSchema();
+    const result = await pool.query(
+      `UPDATE invoices
+       SET payments = COALESCE(payments, '[]'::jsonb) || $2::jsonb,
+           received_amount = $3,
+           status = CASE WHEN $4 THEN 'PAID' ELSE status END,
+           payment_tx_hash = CASE WHEN $4 THEN $5 ELSE payment_tx_hash END,
+           payer_public_key = CASE WHEN $4 THEN $6 ELSE payer_public_key END,
+           ledger = CASE WHEN $4 THEN $7 ELSE ledger END,
+           paid_at = CASE WHEN $4 THEN $8 ELSE paid_at END
+       WHERE id = $1
+       RETURNING *`,
+      [
+        id,
+        JSON.stringify([payment]),
+        receivedAmount,
+        paid,
+        payment.txHash,
+        payment.payerPublicKey,
+        payment.ledger,
+        payment.paidAt,
+      ],
+    );
+    return result.rows[0] ? this.mapRow(result.rows[0]) : undefined;
   }
 
   // Get all invoices

@@ -114,7 +114,7 @@ export function sumLineItems(lineItems: InvoiceLineItem[]): number {
 }
 
 const createInvoiceObjectSchema = z.object({
-  amount: z.number().finite().positive().max(1000000000),
+  amount: amountSchema,
   lineItems: z
     .array(lineItemSchema)
     .max(MAX_LINE_ITEMS, `Line items list is too long (maximum ${MAX_LINE_ITEMS} items)`)
@@ -134,7 +134,6 @@ const createInvoiceObjectSchema = z.object({
   expiresAt: z.string().datetime({ offset: true }).optional(),
   sellerPublicKey: sellerAddressSchema,
   memo: memoByteLengthSchema.optional(),
-  lineItems: z.array(lineItemSchema).min(1).max(MAX_LINE_ITEMS).optional(),
 }).superRefine((invoice, ctx) => {
   if (invoice.expiresAt !== undefined && !isFutureExpiry(invoice.expiresAt)) {
     ctx.addIssue({
@@ -159,15 +158,6 @@ const createInvoiceObjectSchema = z.object({
       });
     }
   }
-  if (!invoice.lineItems) return;
-  const lineTotal = sumLineItems(invoice.lineItems);
-  const submittedTotal = roundStellarAmount(invoice.amount);
-  if (lineTotal !== submittedTotal) {
-    ctx.addIssue({
-      code: 'custom',
-      path: ['amount'],
-      message: `Amount must equal the sum of line items (${lineTotal})`,
-    });
   if (invoice.lineItems && invoice.lineItems.length > 0) {
     const lineTotal = sumLineItems(invoice.lineItems);
     const invoiceAmount = roundStellarAmount(invoice.amount);
@@ -211,4 +201,3 @@ export default {
   stellarPublicKeySchema,
   verifyTxHashSchema,
 };
-

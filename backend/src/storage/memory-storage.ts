@@ -2,9 +2,51 @@
 import { v4 as uuidv4 } from 'uuid';
 import { normalizeAssetCode } from '../utils/asset-helpers';
 
+export type InvoiceStatus =
+  | 'PENDING'
+  | 'PAID'
+  | 'REFUNDED'
+  | 'EXPIRED'
+  | 'CANCELLED'
+  | 'UNCOLLECTIBLE';
+
+export type StatusEventStatus =
+  | 'CREATED'
+  | 'EXTENDED'
+  | 'VOIDED'
+  | 'PARTIALLY_PAID'
+  | 'PAID'
+  | 'REFUNDED'
+  | 'EXPIRED'
+  | 'UNCOLLECTIBLE';
+
+export interface StatusEvent {
+  status: StatusEventStatus;
+  at: Date;
+  txHash?: string;
+}
+
+function statusEventFor(status: InvoiceStatus): StatusEventStatus {
+  switch (status) {
+    case 'PAID':
+      return 'PAID';
+    case 'REFUNDED':
+      return 'REFUNDED';
+    case 'EXPIRED':
+      return 'EXPIRED';
+    case 'CANCELLED':
+      return 'VOIDED';
+    case 'UNCOLLECTIBLE':
+      return 'UNCOLLECTIBLE';
+    default:
+      return 'CREATED';
+  }
+}
+
 export interface Invoice {
   id: string;
   sellerPublicKey: string;
+  sellerMuxedAddress?: string;
   sellerName?: string;
   amount: number;
   lineItems?: Array<{ label: string; quantity: number; unitPrice: number }>;
@@ -12,10 +54,9 @@ export interface Invoice {
   assetIssuer?: string;
   memo: string;
   description?: string;
-  lineItems?: unknown[];
   customerName?: string;
   customerEmail?: string;
-  status: 'PENDING' | 'PAID' | 'REFUNDED' | 'EXPIRED' | 'CANCELLED';
+  status: InvoiceStatus;
   paymentTxHash?: string;
   paymentLedger?: number;
   payerPublicKey?: string;
@@ -25,6 +66,7 @@ export interface Invoice {
   refundTxHash?: string;
   refundedAt?: Date;
   refundLedger?: number;
+  anchoringTxHash?: string;
   expiresAt: Date;
   /** Expiry at creation (or before the one allowed extension). */
   originalExpiresAt: Date;
@@ -46,9 +88,9 @@ class MemoryStorage {
     const invoice: Invoice = {
       id: data.id || uuidv4(),
       sellerPublicKey: data.sellerPublicKey!,
+      sellerMuxedAddress: data.sellerMuxedAddress,
       sellerName: data.sellerName,
       amount: data.amount!,
-      lineItems: data.lineItems,
       assetCode: normalizeAssetCode(data.assetCode),
       assetIssuer: data.assetIssuer,
       memo: data.memo!,
@@ -199,6 +241,32 @@ class MemoryStorage {
     return invoice;
   }
 
+  recordPayment(
+    id: string,
+    payment: Invoice['payments'][number],
+    receivedAmount: string,
+    paid: boolean,
+  ): Invoice | undefined {
+    const existing = this.invoices.get(id);
+    if (!existing) return undefined;
+
+    const updated = this.updateInvoice(id, {
+      payments: [...existing.payments, payment],
+      receivedAmount,
+      ...(paid
+        ? {
+            status: 'PAID',
+            paymentTxHash: payment.txHash,
+            payerPublicKey: payment.payerPublicKey,
+            ledger: payment.ledger,
+            paidAt: payment.paidAt,
+          }
+        : {}),
+    });
+    if (updated) this.invoicesByTxHash.set(payment.txHash, id);
+    return updated;
+  }
+
   markAsRefunded(
     id: string,
     refundTxHash: string,
@@ -212,6 +280,10 @@ class MemoryStorage {
     });
     if (invoice) this.invoicesByTxHash.set(refundTxHash, id);
     return invoice;
+  }
+
+  markUncollectible(id: string): Invoice | undefined {
+    return this.updateInvoice(id, { status: 'UNCOLLECTIBLE' });
   }
 
   // Get all invoices
@@ -280,4 +352,3 @@ class MemoryStorage {
 }
 
 export default new MemoryStorage();
-

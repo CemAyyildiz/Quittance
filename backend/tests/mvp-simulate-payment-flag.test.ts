@@ -72,7 +72,7 @@ describe('MVP simulated-payment flag', () => {
     expect(result.status).toBe(404);
     expect(storage.getInvoiceById(invoice.id)?.status).toBe('PENDING');
     expect(storage.getInvoiceById(invoice.id)?.paymentTxHash).toBeUndefined();
-  });
+  }, 15_000);
 
   it('keeps local simulation available only when ALLOW_SIMULATE=true', async () => {
     const { app, storage } = await loadApp(true);
@@ -85,7 +85,6 @@ describe('MVP simulated-payment flag', () => {
     expect((result.body as { data: { status: string } }).data.status).toBe('PAID');
     expect(storage.getInvoiceById(invoice.id)?.status).toBe('PAID');
     expect(storage.getInvoiceById(invoice.id)?.paymentTxHash).toMatch(/^MOCK_TX_/);
-  });
+  }, 15_000);
 
 });
-

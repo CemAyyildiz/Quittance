@@ -65,8 +65,16 @@ function seedInvoice() {
 }
 
 function matchingHorizonTx(memo: string) {
+  const nowSeconds = Math.floor(Date.now() / 1000);
   return {
-    transaction: { memo, source_account: PAYER, ledger_sequence: 1 },
+    transaction: {
+      successful: true,
+      memo,
+      source_account: PAYER,
+      ledger_sequence: 1,
+      created_at: new Date().toISOString(),
+      preconditions: { timebounds: { max_time: String(nowSeconds + 3600) } },
+    },
     operations: [
       {
         type: 'payment',

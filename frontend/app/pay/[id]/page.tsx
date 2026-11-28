@@ -76,6 +76,13 @@ export default function PaymentPage() {
   const matchedPayments: any[] = invoice?.payments ?? [];
   const receivedAmount = invoice?.receivedAmount ?? '0';
   const remainingAmount = invoice?.remainingAmount ?? invoice?.amount?.toString();
+  // What the payer still owes while the invoice is open. A fully unpaid
+  // invoice has received nothing, so this is the full amount; a remainder can
+  // never be negative, even if the API ever reported inconsistent totals.
+  const payableAmount =
+    invoice?.status === 'PENDING' && Number(remainingAmount) < 0
+      ? '0'
+      : remainingAmount;
 
   useEffect(() => {
     void loadInvoice();
@@ -702,12 +709,13 @@ export default function PaymentPage() {
             )}
 
             {invoice.status === 'CANCELLED' && (
-              <div className="card text-center py-8">
+              <div className="card text-center py-8" role="status" data-testid="voided-invoice-notice">
                 <h3 className="text-2xl font-bold text-gray-800 mb-2">
                   Invoice Voided
                 </h3>
                 <p className="text-gray-600">
-                  This invoice is no longer accepting payments.
+                  The seller voided this invoice, so it cannot be paid. Do not send a
+                  payment for it. Contact the seller if you still owe them.
                 </p>
               </div>
             )}

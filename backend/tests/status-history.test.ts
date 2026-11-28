@@ -68,7 +68,7 @@ describe('invoice status history', () => {
     } as any);
 
     await invoiceMemoryService.extendInvoice(invoice.id, 3);
-    await invoiceMemoryService.cancelInvoice(invoice.id);
+    await invoiceMemoryService.cancelInvoice(invoice.id, seller);
 
     let history = await invoiceMemoryService.getStatusHistory(invoice.id);
     expect(history.map((row) => row.status)).toEqual(['CREATED', 'EXTENDED', 'VOIDED']);

@@ -26,12 +26,15 @@ function seedInvoice() {
 }
 
 function receipt(memo: string, amount: string) {
+  const nowSeconds = Math.floor(Date.now() / 1000);
   return {
     transaction: {
+      successful: true,
       memo,
       ledger_sequence: 123,
       source_account: PAYER,
-      created_at: '2026-11-24T12:00:00.000Z',
+      created_at: new Date().toISOString(),
+      preconditions: { timebounds: { max_time: String(nowSeconds + 3600) } },
     },
     operations: [{
       type: 'payment',
@@ -131,4 +134,3 @@ describe('MVP partial payments', () => {
     expect(getTransaction).toHaveBeenCalledTimes(1);
   });
 });
-

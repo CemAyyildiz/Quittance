@@ -13,6 +13,7 @@ import PaymentReceipt from '@/components/PaymentReceipt';
 import StatusHistory, { type StatusHistoryRow } from '@/components/StatusHistory';
 import AssetLogo from '@/components/AssetLogo';
 import { formatAmount, formatDate, copyToClipboard } from '@/lib/utils';
+import { formatUtc } from '@/lib/formatUtc';
 import { openInvoicePDF } from '@/lib/export';
 import { submitAnchorTransaction } from '@/lib/anchor';
 import { useCountdown } from '@/lib/useCountdown';
@@ -28,10 +29,6 @@ export default function InvoiceDetailPage() {
   const [paymentInfo, setPaymentInfo] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [voiding, setVoiding] = useState(false);
-  const [duplicateOpen, setDuplicateOpen] = useState(false);
-  const [copyCustomerEmail, setCopyCustomerEmail] = useState(false);
-  const [duplicating, setDuplicating] = useState(false);
-  const [anchoring, setAnchoring] = useState(false);
   const [userWallet, setUserWallet] = useState<string | null>(null);
   const [duplicateOpen, setDuplicateOpen] = useState(false);
   const [copyCustomerEmail, setCopyCustomerEmail] = useState(false);
@@ -39,6 +36,9 @@ export default function InvoiceDetailPage() {
   const [anchoring, setAnchoring] = useState(false);
   const [refundTxHash, setRefundTxHash] = useState('');
   const [refunding, setRefunding] = useState(false);
+  const [duplicateOpen, setDuplicateOpen] = useState(false);
+  const [copyCustomerEmail, setCopyCustomerEmail] = useState(false);
+  const [duplicating, setDuplicating] = useState(false);
   const timeRemaining = useCountdown(invoice?.status === 'PENDING' ? invoice.expiresAt : null);
   const isSeller =
     Boolean(userWallet) &&
@@ -100,68 +100,6 @@ export default function InvoiceDetailPage() {
   const handleDownloadProof = () => {
     openInvoicePDF(invoice);
     toast.success('Opening payment proof');
-  };
-
-  const handleVoidInvoice = async () => {
-    if (!userWallet || !isSeller) return;
-    setVoiding(true);
-    try {
-      const result = await invoiceApi.cancel(id, userWallet);
-      setInvoice(result.data);
-      toast.success('Invoice voided');
-    } catch (error: any) {
-      toast.error(error.response?.data?.error ?? 'Could not void invoice');
-    } finally {
-      setVoiding(false);
-    }
-  };
-
-  const handleDuplicate = async () => {
-    if (!userWallet || !isSeller) return;
-    setDuplicating(true);
-    try {
-      const result = await invoiceApi.duplicate(id, {
-        sellerPublicKey: userWallet,
-        copyCustomerEmail,
-      });
-      const duplicateId = result.data.invoice?.id;
-      if (!duplicateId) {
-        throw new Error('The duplicated invoice was not returned by the server');
-      }
-      toast.success('Invoice duplicated');
-      router.push(`/invoice/${duplicateId}`);
-    } catch (error: any) {
-      toast.error(error.response?.data?.error ?? error.message ?? 'Could not duplicate invoice');
-    } finally {
-      setDuplicating(false);
-      setDuplicateOpen(false);
-    }
-  };
-
-  const handleAnchorProof = async () => {
-    if (!userWallet || !isSeller) return;
-    setAnchoring(true);
-    try {
-      const proofResult = await invoiceApi.getProofDigest(id, userWallet);
-      const digest = proofResult.data.digest;
-      const prepared = await invoiceApi.prepareAnchorProof(id, digest, userWallet);
-      const contractId = prepared.data.contractId;
-      if (!contractId) {
-        throw new Error('Receipt anchoring is not configured');
-      }
-      const txHash = await submitAnchorTransaction(contractId, invoice.id, digest);
-      const result = await invoiceApi.anchorProof(id, {
-        digest,
-        txHash,
-        sellerPublicKey: userWallet,
-      });
-      setInvoice(result.data);
-      toast.success('Proof anchored on chain');
-    } catch (error: any) {
-      toast.error(error.response?.data?.error ?? error.message ?? 'Could not anchor proof');
-    } finally {
-      setAnchoring(false);
-    }
   };
 
   const handleRefund = async () => {
@@ -501,14 +439,14 @@ export default function InvoiceDetailPage() {
                 </div>
 
                 <div className="border-b pb-4">
-                  <p className="text-sm text-gray-600 mb-1">Created</p>
-                  <p className="text-gray-900">{formatDate(invoice.createdAt)}</p>
+                  <p className="text-sm text-gray-600 mb-1">Created (UTC)</p>
+                  <p className="text-gray-900" data-testid="invoice-created-utc">{formatUtc(invoice.createdAt)}</p>
                 </div>
 
                 {invoice.paidAt && (
                   <div className="border-b pb-4">
-                    <p className="text-sm text-gray-600 mb-1">Paid At</p>
-                    <p className="text-gray-900">{formatDate(invoice.paidAt)}</p>
+                    <p className="text-sm text-gray-600 mb-1">Paid (UTC)</p>
+                    <p className="text-gray-900" data-testid="invoice-paid-utc">{formatUtc(invoice.paidAt)}</p>
                   </div>
                 )}
 
@@ -561,12 +499,6 @@ export default function InvoiceDetailPage() {
                   </div>
                 )}
 
-                {invoice.paidAt && (
-                  <div className="border-b pb-4">
-                    <p className="text-sm text-gray-600 mb-1">Paid At</p>
-                    <p className="text-gray-900">{formatDate(invoice.paidAt)}</p>
-                  </div>
-                )}
               </div>
             </div>
 
