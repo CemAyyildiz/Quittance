@@ -24,7 +24,6 @@ export interface InvoiceDTO {
   sellerMuxedAddress?: string;
   sellerName?: string;
   amount: number;
-  sellerMuxedAddress?: string;
   lineItems?: Array<{ label: string; quantity: number; unitPrice: number }>;
   assetCode: string;
   assetIssuer?: string;

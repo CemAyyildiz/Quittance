@@ -13,8 +13,8 @@
  * without spinning up Express, Stellar Horizon, or the in-memory store.
  */
 
-import { compareDecimals } from './amount-compare';
-import { memosMatch } from './memo-normalize';
+import { amountToStroops } from './amount-compare';
+import { textMemoMatchesInvoice } from './memo-normalize';
 import { NATIVE_ASSET_CODE, normalizeAssetCode } from './asset-helpers';
 import { VerifyErrorCode } from './verify-errors';
 import { extractBaseAddress, MuxedAccount, StrKey } from '@stellar/stellar-sdk';

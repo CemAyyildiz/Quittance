@@ -14,6 +14,7 @@ import PaymentReceipt from '@/components/PaymentReceipt';
 import PaymentStatus from '@/components/PaymentStatus';
 import AssetLogo from '@/components/AssetLogo';
 import AmountDisplay from '@/components/AmountDisplay';
+import StroopAmount from '@/components/StroopAmount';
 import { formatAmount, formatDate, copyToClipboard } from '@/lib/utils';
 import { useCountdown } from '@/lib/useCountdown';
 import { Copy, ExternalLink, Loader2, Check, FileText, Mail, RefreshCw } from 'lucide-react';
@@ -378,6 +379,10 @@ export default function PaymentPage() {
                       decimals={7}
                       size="xl"
                       showAssetKind
+                    />
+                    <StroopAmount
+                      amount={invoice.amount}
+                      className="block text-sm font-medium text-gray-600 mt-1 break-all"
                     />
                     {issuerDomain && (
                       <p className="mt-2 text-sm font-medium text-gray-600">

@@ -41,7 +41,10 @@ export function parseAmount(input: string | number): ParsedAmount | undefined {
 const amountSchema = z
   .union([z.string(), z.number()])
   .superRefine((value, ctx) => {
-    const raw = String(value).trim().replace(',', '.');
+    // Numbers go through numberToDecimalString so exponent forms such as
+    // 1e-7 are checked as their plain decimal (0.0000001).
+    const text = typeof value === 'number' ? numberToDecimalString(value) : value;
+    const raw = (text ?? '').trim().replace(',', '.');
     if (!/^\d+(?:\.\d+)?$/.test(raw)) {
       ctx.addIssue({ code: 'custom', message: 'Amount must be a positive decimal' });
       return;
@@ -58,7 +61,9 @@ const amountSchema = z
       ctx.addIssue({ code: 'custom', message: 'Amount must be between 0 and 1000000000' });
     }
   })
-  .transform((value) => Number(String(value).trim().replace(',', '.')));
+  .transform((value) =>
+    typeof value === 'number' ? value : Number(value.trim().replace(',', '.')),
+  );
 
 // Stellar public key validation
 export const stellarPublicKeySchema = z.string()
@@ -130,7 +135,10 @@ export function sumLineItems(lineItems: InvoiceLineItem[]): number {
 
 // Invoice creation schema
 export const createInvoiceSchema = z.object({
-  amount: z.number().finite().positive().max(1000000000),
+  // The pay page shows the stroop total next to the decimal amount, so an
+  // amount that is not a whole number of stroops is rejected here (via
+  // amountSchema) instead of being rounded or shown as zero later.
+  amount: amountSchema,
   lineItems: z
     .array(lineItemSchema)
     .max(MAX_LINE_ITEMS, `Line items list is too long (maximum ${MAX_LINE_ITEMS} items)`)

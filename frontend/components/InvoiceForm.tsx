@@ -133,7 +133,6 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
   // click could start two requests; this ref blocks re-entry synchronously.
   const submittingRef = useRef(false);
   const [amount, setAmount] = useState('');
-  const [draftReadyFor, setDraftReadyFor] = useState<string | null>(null);
   const [rememberedAssetCode, setRememberedAssetCode] = useState<string | null>(null);
   const [lineItems, setLineItems] = useState<InvoiceLineInput[]>([
     { label: '', quantity: '1', unitPrice: '' },
@@ -151,11 +150,8 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
   const [acknowledgedWarning, setAcknowledgedWarning] = useState(false);
   const [amountError, setAmountError] = useState('');
   const [emailError, setEmailError] = useState('');
-  const [muxedAddress, setMuxedAddress] = useState('');
-  const [muxedAddressError, setMuxedAddressError] = useState('');
   const [expiresAt, setExpiresAt] = useState('');
   const [expiryError, setExpiryError] = useState('');
-  const [draftReadyFor, setDraftReadyFor] = useState<string | null>(null);
   const [walletNetwork, setWalletNetwork] = useState<WalletNetwork>('UNKNOWN');
   const [networkMismatch, setNetworkMismatch] = useState(false);
   const configuredNetwork = getConfiguredNetwork();
@@ -446,6 +442,9 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
         assetCode: assetCode,
         assetIssuer: selectedAsset?.issuer,
         expiresInDays: 7,
+        ...(expiryMs !== undefined && expiryValue
+          ? { expiresAt: new Date(expiryMs).toISOString() }
+          : {}),
         sellerPublicKey: enteredMuxedAddress || userWallet,
         sellerName: sellerName.trim() || undefined,
         description: description || undefined,
@@ -459,11 +458,11 @@ export default function InvoiceForm({ onSuccess, userWallet }: InvoiceFormProps)
         window.localStorage.setItem(
           rememberedAssetStorageKey,
           JSON.stringify({
-            assetCode: selectedAsset.code,
-            assetIssuer: selectedAsset.issuer ?? null,
+            assetCode: selectedAsset?.code ?? assetCode,
+            assetIssuer: selectedAsset?.issuer ?? null,
           }),
         );
-        setRememberedAssetCode(selectedAsset.code);
+        setRememberedAssetCode(selectedAsset?.code ?? assetCode);
       } catch (error) {
         console.warn('Could not remember invoice asset:', error);
         toast.warning('Invoice created, but this asset could not be remembered in this browser');

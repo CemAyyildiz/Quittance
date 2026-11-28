@@ -85,7 +85,6 @@ class MemoryStorage {
       sellerMuxedAddress: data.sellerMuxedAddress,
       sellerName: data.sellerName,
       amount: data.amount!,
-      lineItems: data.lineItems,
       assetCode: normalizeAssetCode(data.assetCode),
       assetIssuer: data.assetIssuer,
       memo: data.memo!,

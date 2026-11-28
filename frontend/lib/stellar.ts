@@ -78,29 +78,6 @@ export const getConfiguredNetwork = (): 'TESTNET' | 'PUBLIC' =>
     ? 'PUBLIC'
     : 'TESTNET';
 
-export const isTestnetNetwork = (): boolean => getConfiguredNetwork() === 'TESTNET';
-
-export const hasEnoughXlmForFee = (balance?: string): boolean => {
-  const amount = Number(balance);
-  return Number.isFinite(amount) && amount >= Number(StellarSdk.BASE_FEE) / 10_000_000;
-};
-
-export const requestFriendbotFunding = async (publicKey: string): Promise<void> => {
-  if (!isTestnetNetwork()) {
-    throw new Error('Friendbot funding is only available on testnet');
-  }
-  if (!isValidPublicKey(publicKey)) {
-    throw new Error('Invalid Stellar public key');
-  }
-
-  const url = new URL('https://friendbot.stellar.org/');
-  url.searchParams.set('addr', publicKey);
-  const response = await fetch(url);
-  if (!response.ok) {
-    throw new Error(`Friendbot request failed with status ${response.status}`);
-  }
-};
-
 export const getWalletNetwork = async (): Promise<WalletNetwork> => {
   try {
     const details = await getNetworkDetails();
@@ -121,51 +98,6 @@ export const getNetworkMismatch = (
   configuredNetwork: 'TESTNET' | 'PUBLIC' = getConfiguredNetwork(),
 ): boolean =>
   walletNetwork !== 'UNKNOWN' && walletNetwork !== configuredNetwork;
-
-const FRIENDBOT_URL = 'https://friendbot.stellar.org';
-
-/** XLM a single-operation payment needs to cover the base network fee. */
-export const MIN_XLM_FOR_FEE = Number(StellarSdk.BASE_FEE) / 10_000_000;
-
-/**
- * True when the app is configured for Stellar testnet — the only network where
- * Friendbot funding exists.
- */
-export const isTestnetNetwork = (): boolean => {
-  const network = (process.env.NEXT_PUBLIC_STELLAR_NETWORK ?? '').trim().toUpperCase();
-  // Match the app-wide convention: unset/blank configuration means testnet.
-  return network === '' || network === 'TESTNET';
-};
-
-/**
- * Whether a native XLM balance can pay the network fee. A missing or
- * unparseable balance (e.g. an account that was never funded) counts as
- * insufficient.
- */
-export const hasEnoughXlmForFee = (
-  balance: string | number | null | undefined
-): boolean => {
-  const xlm = typeof balance === 'number' ? balance : parseFloat(balance ?? '');
-  return Number.isFinite(xlm) && xlm >= MIN_XLM_FOR_FEE;
-};
-
-/**
- * Ask Friendbot to fund a testnet account, then the caller can retry.
- * Throws when called off testnet or when Friendbot rejects the request.
- */
-export const requestFriendbotFunding = async (publicKey: string): Promise<void> => {
-  if (!isTestnetNetwork()) {
-    throw new Error('Friendbot is only available on Stellar testnet.');
-  }
-
-  const response = await fetch(
-    `${FRIENDBOT_URL}?addr=${encodeURIComponent(publicKey)}`
-  );
-
-  if (!response.ok) {
-    throw new Error('Friendbot could not fund this account.');
-  }
-};
 
 /**
  * Check if Freighter wallet is available and connected
@@ -366,20 +298,16 @@ export const sendPayment = async (
   assetCode: string = 'XLM',
   assetIssuer?: string,
   maxTimeOrOptions?: number | SendPaymentOptions,
-  options?: SendPaymentOptions
+  extraOptions?: SendPaymentOptions
 ): Promise<string> => {
+  // Accept both (…, maxTime, options) and (…, options) call shapes.
   const options: SendPaymentOptions =
     typeof maxTimeOrOptions === 'number'
-      ? { maxTime: maxTimeOrOptions }
-      : maxTimeOrOptions ?? {};
+      ? { ...extraOptions, maxTime: maxTimeOrOptions }
+      : { ...extraOptions, ...maxTimeOrOptions };
   const maxTime = options.maxTime;
   try {
-    const maxTime =
-      typeof maxTimeOrOptions === 'number' ? maxTimeOrOptions : undefined;
-    const feeSourceOption =
-      typeof maxTimeOrOptions === 'object' && maxTimeOrOptions !== null
-        ? maxTimeOrOptions
-        : options;
+    const feeSourceOption = options;
 
     // Check wallet connection
     const connected = await checkWalletConnection();
@@ -575,8 +503,5 @@ export default {
   streamPayments,
   formatStellarAmount,
   isValidPublicKey,
-  isTestnetNetwork,
-  hasEnoughXlmForFee,
-  requestFriendbotFunding,
 };
 
