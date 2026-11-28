@@ -1,6 +1,7 @@
 'use client';
 
-import { formatAmount, formatDate } from '@/lib/utils';
+import { formatAmount } from '@/lib/utils';
+import { formatUtc } from '@/lib/formatUtc';
 import { explorerTxUrl } from '@/lib/explorerUrl';
 import { Check, Download, ExternalLink, FileText, Mail } from 'lucide-react';
 import AssetLogo from './AssetLogo';
@@ -43,7 +44,7 @@ export default function PaymentReceipt({
 
 Invoice ID: ${invoice.id}
 Status: ${invoice.status}
-Payment Date: ${formatDate(invoice.paidAt)}
+Payment Date (UTC): ${formatUtc(invoice.paidAt)}
 
 ───────────────────────────────────────
 PAYMENT DETAILS
@@ -126,8 +127,8 @@ Stellar Blockchain Payment System
           </div>
 
           <div className="bg-gray-50 rounded-lg p-4">
-            <p className="text-xs text-gray-600 mb-1">Payment Date</p>
-            <p className="text-sm text-gray-900">{formatDate(invoice.paidAt)}</p>
+            <p className="text-xs text-gray-600 mb-1">Payment Date (UTC)</p>
+            <p className="text-sm text-gray-900">{formatUtc(invoice.paidAt)}</p>
           </div>
         </div>
 
